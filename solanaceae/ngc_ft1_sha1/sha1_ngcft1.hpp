@@ -6,7 +6,7 @@
 #include <solanaceae/message3/registry_message_model.hpp>
 #include <solanaceae/tox_contacts/tox_contact_model2.hpp>
 
-#include "./ngcft1.hpp"
+#include <solanaceae/ngc_ft1/ngcft1.hpp>
 
 #include "./ft1_sha1_info.hpp"
 

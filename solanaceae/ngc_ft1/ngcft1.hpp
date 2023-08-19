@@ -5,7 +5,7 @@
 #include <solanaceae/toxcore/tox_interface.hpp>
 #include <solanaceae/toxcore/tox_event_interface.hpp>
 
-#include "./ngcext.hpp"
+#include <solanaceae/ngc_ext/ngcext.hpp>
 #include "./ledbat.hpp"
 
 #include "./rcv_buf.hpp"

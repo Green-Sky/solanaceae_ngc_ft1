@@ -8,6 +8,7 @@ add_library(solanaceae_ngcext
 	./solanaceae/ngc_ext/ngcext.hpp
 	./solanaceae/ngc_ext/ngcext.cpp
 )
+target_include_directories(solanaceae_ngcext PUBLIC .)
 target_compile_features(solanaceae_ngcext PUBLIC cxx_std_17)
 target_link_libraries(solanaceae_ngcext PUBLIC
 	solanaceae_toxcore
@@ -29,6 +30,7 @@ add_library(solanaceae_ngcft1
 	./solanaceae/ngc_ft1/snd_buf.hpp
 	./solanaceae/ngc_ft1/snd_buf.cpp
 )
+target_include_directories(solanaceae_ngcft1 PUBLIC .)
 target_compile_features(solanaceae_ngcft1 PUBLIC cxx_std_17)
 target_link_libraries(solanaceae_ngcft1 PUBLIC
 	solanaceae_ngcext
@@ -46,6 +48,7 @@ add_library(solanaceae_sha1_ngcft1
 	./solanaceae/ngc_ft1_sha1/sha1_ngcft1.hpp
 	./solanaceae/ngc_ft1_sha1/sha1_ngcft1.cpp
 )
+target_include_directories(solanaceae_sha1_ngcft1 PUBLIC .)
 target_compile_features(solanaceae_sha1_ngcft1 PUBLIC cxx_std_17)
 target_link_libraries(solanaceae_sha1_ngcft1 PUBLIC
 	solanaceae_ngcft1
