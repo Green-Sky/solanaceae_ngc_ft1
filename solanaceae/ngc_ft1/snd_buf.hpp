@@ -3,6 +3,7 @@
 #include <vector>
 #include <map>
 #include <cstdint>
+#include <cstddef>
 
 struct SendSequenceBuffer {
 	struct SSBEntry {

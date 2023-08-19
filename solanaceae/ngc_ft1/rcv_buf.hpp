@@ -4,6 +4,7 @@
 #include <map>
 #include <deque>
 #include <cstdint>
+#include <cstddef>
 
 struct RecvSequenceBuffer {
 	struct RSBEntry {
