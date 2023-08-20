@@ -16,6 +16,9 @@
 
 #include <variant>
 #include <random>
+#include <atomic>
+#include <mutex>
+#include <list>
 
 enum class Content : uint32_t {};
 using ContentRegistry = entt::basic_registry<Content>;
@@ -93,6 +96,16 @@ class SHA1_NGCFT1 : public RegistryMessageModelEventI, public NGCFT1EventI {
 	std::deque<ContentHandle> _queue_content_want_info;
 	std::deque<ContentHandle> _queue_content_want_chunk;
 
+	std::atomic_bool _info_builder_dirty {false};
+	std::mutex _info_builder_queue_mutex;
+	//struct InfoBuilderEntry {
+		//// called on completion on the iterate thread
+		//// (owning)
+		//std::function<void(void)> fn;
+	//};
+	using InfoBuilderEntry = std::function<void(void)>;
+	std::list<InfoBuilderEntry> _info_builder_queue;
+
 	static uint64_t combineIds(const uint32_t group_number, const uint32_t peer_number);
 
 	void updateMessages(ContentHandle ce);
@@ -105,7 +118,7 @@ class SHA1_NGCFT1 : public RegistryMessageModelEventI, public NGCFT1EventI {
 		size_t _max_concurrent_in {4};
 		size_t _max_concurrent_out {6};
 		// TODO: probably also includes running transfers rn (meh)
-		size_t _max_pending_requests {16}; // per content
+		size_t _max_pending_requests {32}; // per content
 
 	public:
 		SHA1_NGCFT1(
