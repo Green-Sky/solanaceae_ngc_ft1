@@ -54,6 +54,7 @@ add_library(solanaceae_sha1_ngcft1
 )
 target_include_directories(solanaceae_sha1_ngcft1 PUBLIC .)
 target_compile_features(solanaceae_sha1_ngcft1 PUBLIC cxx_std_17)
+target_compile_definitions(solanaceae_sha1_ngcft1 PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX)
 target_link_libraries(solanaceae_sha1_ngcft1 PUBLIC
 	solanaceae_ngcft1
 	sha1::sha1

@@ -8,7 +8,6 @@
 #include <solanaceae/tox_messages/components.hpp>
 
 #include <solanaceae/message3/file_r_file.hpp>
-#include "./file_rw_mapped.hpp"
 
 #include "./ft1_sha1_info.hpp"
 #include "./hash_utils.hpp"
@@ -16,6 +15,8 @@
 #include <sodium.h>
 
 #include <entt/container/dense_set.hpp>
+
+#include "./file_rw_mapped.hpp"
 
 #include <iostream>
 #include <variant>
