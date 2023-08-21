@@ -1,6 +1,5 @@
 #include "./sha1_ngcft1.hpp"
 
-#include <mutex>
 #include <solanaceae/toxcore/utils.hpp>
 
 #include <solanaceae/contact/components.hpp>
@@ -9,7 +8,7 @@
 #include <solanaceae/tox_messages/components.hpp>
 
 #include <solanaceae/message3/file_r_file.hpp>
-#include <solanaceae/message3/file_rw_file.hpp>
+#include "./file_rw_mapped.hpp"
 
 #include "./ft1_sha1_info.hpp"
 #include "./hash_utils.hpp"
@@ -21,6 +20,7 @@
 #include <iostream>
 #include <variant>
 #include <filesystem>
+#include <mutex>
 #include <future>
 
 namespace Message::Components {
@@ -533,13 +533,10 @@ bool SHA1_NGCFT1::onEvent(const Message::Events::MessageUpdated& e) {
 
 	ce.emplace<Message::Components::Transfer::FileInfoLocal>(std::vector{full_file_path});
 
-	std::unique_ptr<FileRWFile> file_impl;
+	std::unique_ptr<FileRWMapped> file_impl;
 	const bool file_exists = std::filesystem::exists(full_file_path);
 
-	{
-		const bool truncate = !file_exists;
-		file_impl = std::make_unique<FileRWFile>(full_file_path, info.file_size, truncate);
-	}
+	file_impl = std::make_unique<FileRWMapped>(full_file_path, info.file_size);
 
 	if (!file_impl->isGood()) {
 		std::cerr << "SHA1_NGCFT1 error: failed opening file '" << full_file_path << "'!\n";
@@ -791,7 +788,9 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCFT1_recv_data& e) {
 
 			// TODO: avoid temporary copy
 			// TODO: check return
-			file->write(offset_into_file + e.data_offset, {e.data, e.data + e.data_size});
+			if (!file->write(offset_into_file + e.data_offset, {e.data, e.data + e.data_size})) {
+				std::cerr << "SHA1_NGCFT1 error: writing file failed o:" << offset_into_file + e.data_offset << "\n";
+			}
 		}
 	} else {
 		assert(false && "unhandled case");
@@ -923,12 +922,6 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCFT1_recv_done& e) {
 		if (info.chunks.at(chunk_index) == got_hash) {
 			std::cout << "SHA1_NGCFT1: got chunk [" << SHA1Digest{got_hash} << "]\n";
 
-			// remove from requested
-			// TODO: remove at init and track running transfers differently
-			for (const auto it : std::get<ReceivingTransfer::Chunk>(tv).chunk_indices) {
-				ce.get_or_emplace<Components::FT1ChunkSHA1Requested>().chunks.erase(it);
-			}
-
 			if (!cc.have_all) {
 				for (const auto inner_chunk_index : std::get<ReceivingTransfer::Chunk>(tv).chunk_indices) {
 					if (!cc.have_all && !cc.have_chunk.at(inner_chunk_index)) {
@@ -955,7 +948,13 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCFT1_recv_done& e) {
 			}
 		} else {
 			// bad chunk
-			// TODO: requeue?
+			std::cout << "SHA1_NGCFT1: got BAD chunk from " << e.group_number << ":" << e.peer_number << " [" << info.chunks.at(chunk_index) << "] ; instead got [" << SHA1Digest{got_hash} << "]\n";
+		}
+
+		// remove from requested
+		// TODO: remove at init and track running transfers differently
+		for (const auto it : std::get<ReceivingTransfer::Chunk>(tv).chunk_indices) {
+			ce.get_or_emplace<Components::FT1ChunkSHA1Requested>().chunks.erase(it);
 		}
 
 		updateMessages(ce); // mostly for received bytes

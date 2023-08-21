@@ -39,6 +39,10 @@ target_link_libraries(solanaceae_ngcft1 PUBLIC
 ########################################
 
 add_library(solanaceae_sha1_ngcft1
+	# hacky deps
+	./solanaceae/ngc_ft1_sha1/mio.hpp
+	./solanaceae/ngc_ft1_sha1/file_rw_mapped.hpp
+
 	./solanaceae/ngc_ft1_sha1/hash_utils.hpp
 	./solanaceae/ngc_ft1_sha1/hash_utils.cpp
 
