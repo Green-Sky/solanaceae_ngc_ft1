@@ -24,7 +24,7 @@ struct FileRWMapped : public FileI {
 		// sink, is also read
 		//_file_map = mio::make_mmap_sink(file_path, 0, file_size, err);
 		//_file_map = mio::make_mmap<mio::ummap_sink>(file_path, 0, file_size, err);
-		_file_map.map(file_path, 0, file_size, err);
+		_file_map.map(std::string{file_path}, 0, file_size, err);
 
 		if (err) {
 			// TODO: errro
