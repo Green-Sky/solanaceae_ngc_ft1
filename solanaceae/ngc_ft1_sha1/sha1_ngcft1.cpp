@@ -951,6 +951,14 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCFT1_recv_done& e) {
 							cc.have_all = true;
 							cc.have_chunk.clear(); // not wasting memory
 							std::cout << "SHA1_NGCFT1: got all chunks for \n" << info << "\n";
+
+							// HACK: remap file, to clear ram
+
+							// TODO: error checking
+							ce.get<Message::Components::Transfer::File>() = std::make_unique<FileRWMapped>(
+								ce.get<Message::Components::Transfer::FileInfoLocal>().file_list.front(),
+								info.file_size
+							);
 						}
 
 						// good chunk
