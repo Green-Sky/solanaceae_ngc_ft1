@@ -31,7 +31,7 @@ std::ostream& operator<<(std::ostream& out, const SHA1Digest& v) {
 size_t FT1InfoSHA1::chunkSize(size_t chunk_index) const {
 	if (chunk_index+1 == chunks.size()) {
 		// last chunk
-		return file_size - chunk_index * chunk_size;
+		return file_size - (uint64_t(chunk_index) * uint64_t(chunk_size));
 	} else {
 		return chunk_size;
 	}

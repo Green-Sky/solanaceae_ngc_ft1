@@ -547,6 +547,7 @@ bool SHA1_NGCFT1::onEvent(const Message::Events::MessageUpdated& e) {
 
 	{ // next, create chuck cache and check for existing data
 		auto& cc = ce.emplace<Components::FT1ChunkSHA1Cache>();
+		auto& bytes_received = ce.get_or_emplace<Message::Components::Transfer::BytesReceived>().total;
 		cc.have_all = false;
 		cc.have_count = 0;
 
@@ -555,21 +556,33 @@ bool SHA1_NGCFT1::onEvent(const Message::Events::MessageUpdated& e) {
 		if (file_exists) {
 			// iterate existing file
 			for (size_t i = 0; i < info.chunks.size(); i++) {
-				auto existing_data = file_impl->read(i*info.chunk_size, info.chunkSize(i));
+				const uint64_t chunk_size = info.chunkSize(i);
+				auto existing_data = file_impl->read(i*uint64_t(info.chunk_size), chunk_size);
+				assert(existing_data.size() == chunk_size);
+
 				// TODO: avoid copy
-				cc.have_chunk.push_back(
-					SHA1Digest{hash_sha1(existing_data.data(), existing_data.size())} == info.chunks.at(i)
-				);
-				if (cc.have_chunk.back()) {
+
+				const auto data_hash = SHA1Digest{hash_sha1(existing_data.data(), existing_data.size())};
+				const bool data_equal = data_hash == info.chunks.at(i);
+
+				cc.have_chunk.push_back(data_equal);
+
+				if (data_equal) {
 					cc.have_count += 1;
+					bytes_received += chunk_size;
+					//std::cout << "existing i[" << info.chunks.at(i) << "] == d[" << data_hash << "]\n";
+				} else {
+					//std::cout << "unk i[" << info.chunks.at(i) << "] != d[" << data_hash << "]\n";
 				}
 
 				_chunks[info.chunks[i]] = ce;
 				cc.chunk_hash_to_index[info.chunks[i]].push_back(i);
 			}
+			std::cout << "preexisting " << cc.have_count << "/" << info.chunks.size() << "\n";
 
 			if (cc.have_count >= info.chunks.size()) {
 				cc.have_all = true;
+				//ce.remove<Message::Components::Transfer::BytesReceived>();
 			}
 		} else {
 			for (size_t i = 0; i < info.chunks.size(); i++) {
@@ -772,6 +785,7 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCFT1_recv_data& e) {
 	}
 
 	auto& tv = peer_transfers[e.transfer_id].v;
+	peer_transfers[e.transfer_id].time_since_activity = 0.f;
 	if (std::holds_alternative<ReceivingTransfer::Info>(tv)) {
 		auto& info_data = std::get<ReceivingTransfer::Info>(tv).info_data;
 		for (size_t i = 0; i < e.data_size && i + e.data_offset < info_data.size(); i++) {
@@ -826,7 +840,7 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCFT1_send_data& e) {
 		auto& chunk_transfer = std::get<SendingTransfer::Chunk>(transfer.v);
 		const auto& info = chunk_transfer.content.get<Components::FT1InfoSHA1>();
 		// TODO: should we really use file?
-		const auto data = chunk_transfer.content.get<Message::Components::Transfer::File>()->read((chunk_transfer.chunk_index * info.chunk_size) + e.data_offset, e.data_size);
+		const auto data = chunk_transfer.content.get<Message::Components::Transfer::File>()->read((chunk_transfer.chunk_index * uint64_t(info.chunk_size)) + e.data_offset, e.data_size);
 
 		// TODO: optimize
 		for (size_t i = 0; i < e.data_size && i < data.size(); i++) {
@@ -910,7 +924,7 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCFT1_recv_done& e) {
 
 		// HACK: only check first chunk (they *should* all be the same)
 		const auto chunk_index = std::get<ReceivingTransfer::Chunk>(tv).chunk_indices.front();
-		const auto offset_into_file = chunk_index * info.chunk_size;
+		const uint64_t offset_into_file = chunk_index * uint64_t(info.chunk_size);
 
 		assert(chunk_index < info.chunks.size());
 		const auto chunk_size = info.chunkSize(chunk_index);
