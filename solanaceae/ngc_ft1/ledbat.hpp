@@ -54,7 +54,7 @@ struct LEDBAT : public CCAI{
 
 		// return the current believed window in bytes of how much data can be inflight,
 		// without overstepping the delay requirement
-		float getCWnD(void) const override {
+		float getCWnD(void) const {
 			return _cwnd;
 		}
 
@@ -100,8 +100,11 @@ struct LEDBAT : public CCAI{
 
 		float _last_cwnd {0.f}; // timepoint of last cwnd correction
 		int64_t _recently_acked_data {0}; // reset on _last_cwnd
-		bool _recently_lost_data {false};
 		int64_t _recently_sent_bytes {0};
+
+		bool _recently_lost_data {false};
+		float _last_congestion_event {0.f};
+		float _last_congestion_rtt {0.5f};
 
 		// initialize to low value, will get corrected very fast
 		float _fwnd {0.01f * max_byterate_allowed}; // in bytes

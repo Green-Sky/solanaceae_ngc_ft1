@@ -33,7 +33,7 @@ struct CCAI {
 		CCAI(size_t maximum_segment_data_size) : MAXIMUM_SEGMENT_DATA_SIZE(maximum_segment_data_size) {}
 
 		// return the current believed window in bytes of how much data can be inflight,
-		virtual float getCWnD(void) const = 0;
+		//virtual float getCWnD(void) const = 0;
 
 		// TODO: api for how much data we should send
 		// take time since last sent into account

@@ -112,10 +112,6 @@ void LEDBAT::onLoss(SeqIDType seq, bool discard) {
 		return; // not found, ignore ??
 	}
 
-	_recently_lost_data = true;
-
-	// at most once per rtt?
-
 	if (PLOTTING) {
 		std::cerr << "CCA: onLoss: TIME: " << getTimeNow() << "\n";
 	}
@@ -128,7 +124,15 @@ void LEDBAT::onLoss(SeqIDType seq, bool discard) {
 	}
 	// TODO: reset timestamp?
 
-	updateWindows();
+	// at most once per rtt?
+	// TODO: use delay at event instead
+	if (getTimeNow() >= _last_congestion_event + _last_congestion_rtt) {
+		_recently_lost_data = true;
+		_last_congestion_event = getTimeNow();
+		_last_congestion_rtt = getCurrentDelay();
+
+		updateWindows();
+	}
 }
 
 float LEDBAT::getCurrentDelay(void) const {
