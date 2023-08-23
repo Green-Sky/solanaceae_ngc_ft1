@@ -1,5 +1,7 @@
 #pragma once
 
+#include "./cca.hpp"
+
 #include <chrono>
 #include <deque>
 #include <vector>
@@ -9,8 +11,9 @@
 // LEDBAT++: https://www.ietf.org/archive/id/draft-irtf-iccrg-ledbat-plus-plus-01.txt
 
 // LEDBAT++ implementation
-struct LEDBAT {
+struct LEDBAT : public CCAI{
 	public: // config
+#if 0
 		using SeqIDType = std::pair<uint8_t, uint16_t>; // tf_id, seq_id
 
 		static constexpr size_t IPV4_HEADER_SIZE {20};
@@ -32,6 +35,7 @@ struct LEDBAT {
 		//static constexpr size_t maximum_segment_size {496 + segment_overhead}; // tox 500 - 4 from ft
 		const size_t MAXIMUM_SEGMENT_SIZE {MAXIMUM_SEGMENT_DATA_SIZE + SEGMENT_OVERHEAD}; // tox 500 - 4 from ft
 		//static_assert(maximum_segment_size == 574); // mesured in wireshark
+#endif
 
 		// ledbat++ says 60ms, we might need other values if relayed
 		//const float target_delay {0.060f};
@@ -50,26 +54,26 @@ struct LEDBAT {
 
 		// return the current believed window in bytes of how much data can be inflight,
 		// without overstepping the delay requirement
-		float getCWnD(void) const {
+		float getCWnD(void) const override {
 			return _cwnd;
 		}
 
 		// TODO: api for how much data we should send
 		// take time since last sent into account
 		// respect max_byterate_allowed
-		size_t canSend(void) const;
+		size_t canSend(void) const override;
 
 		// get the list of timed out seq_ids
-		std::vector<SeqIDType> getTimeouts(void) const;
+		std::vector<SeqIDType> getTimeouts(void) const override;
 
 	public: // callbacks
 		// data size is without overhead
-		void onSent(SeqIDType seq, size_t data_size);
+		void onSent(SeqIDType seq, size_t data_size) override;
 
-		void onAck(std::vector<SeqIDType> seqs);
+		void onAck(std::vector<SeqIDType> seqs) override;
 
 		// if discard, not resent, not inflight
-		void onLoss(SeqIDType seq, bool discard);
+		void onLoss(SeqIDType seq, bool discard) override;
 
 	private:
 		using clock = std::chrono::steady_clock;

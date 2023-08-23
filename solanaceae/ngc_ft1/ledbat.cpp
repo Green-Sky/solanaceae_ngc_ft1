@@ -15,7 +15,7 @@
 
 inline constexpr bool PLOTTING = false;
 
-LEDBAT::LEDBAT(size_t maximum_segment_data_size) : MAXIMUM_SEGMENT_DATA_SIZE(maximum_segment_data_size) {
+LEDBAT::LEDBAT(size_t maximum_segment_data_size) : CCAI(maximum_segment_data_size) {
 	_time_start_offset = clock::now();
 }
 
