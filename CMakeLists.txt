@@ -25,6 +25,8 @@ add_library(solanaceae_ngcft1
 	./solanaceae/ngc_ft1/cca.hpp
 	./solanaceae/ngc_ft1/ledbat.hpp
 	./solanaceae/ngc_ft1/ledbat.cpp
+	./solanaceae/ngc_ft1/cubic.hpp
+	./solanaceae/ngc_ft1/cubic.cpp
 
 	./solanaceae/ngc_ft1/rcv_buf.hpp
 	./solanaceae/ngc_ft1/rcv_buf.cpp

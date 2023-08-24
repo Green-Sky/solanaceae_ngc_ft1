@@ -826,6 +826,7 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCFT1_send_data& e) {
 	}
 
 	auto& transfer = peer.at(e.transfer_id);
+	transfer.time_since_activity = 0.f;
 	if (std::holds_alternative<SendingTransfer::Info>(transfer.v)) {
 		auto& info_transfer = std::get<SendingTransfer::Info>(transfer.v);
 		for (size_t i = 0; i < e.data_size && (i + e.data_offset) < info_transfer.info_data.size(); i++) {
@@ -858,8 +859,6 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCFT1_send_data& e) {
 	} else {
 		assert(false && "not implemented?");
 	}
-
-	transfer.time_since_activity = 0.f;
 
 	return true;
 }

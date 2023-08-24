@@ -1,4 +1,5 @@
 #include "./ledbat.hpp"
+#include "solanaceae/ngc_ft1/cca.hpp"
 
 #include <algorithm>
 #include <chrono>
@@ -68,6 +69,11 @@ void LEDBAT::onSent(SeqIDType seq, size_t data_size) {
 }
 
 void LEDBAT::onAck(std::vector<SeqIDType> seqs) {
+	if (seqs.empty()) {
+		assert(false && "got empty list of acks???");
+		return;
+	}
+
 	// only take the smallest value
 	float most_recent {-std::numeric_limits<float>::infinity()};
 
@@ -75,6 +81,23 @@ void LEDBAT::onAck(std::vector<SeqIDType> seqs) {
 
 	const auto now {getTimeNow()};
 
+	{ // skip in ack is congestion event
+		// 1. look at primary ack of packet
+		auto it = std::find_if(_in_flight.begin(), _in_flight.end(), [seq = seqs.front()](const auto& v) -> bool {
+			return std::get<0>(v) == seq;
+		});
+		if (it != _in_flight.end()) {
+			if (isSkipSeqID(_last_ack_got, std::get<0>(*it))) {
+				if (getTimeNow() >= _last_congestion_event + _last_congestion_rtt) {
+					_recently_lost_data = true;
+					_last_congestion_event = getTimeNow();
+					_last_congestion_rtt = getCurrentDelay();
+				}
+			}
+			// TODO: only if newer, triggers double event otherwise (without a timer)
+			_last_ack_got = std::get<0>(*it);
+		}
+	}
 	for (const auto& seq : seqs) {
 		auto it = std::find_if(_in_flight.begin(), _in_flight.end(), [seq](const auto& v) -> bool {
 			return std::get<0>(v) == seq;
@@ -124,15 +147,17 @@ void LEDBAT::onLoss(SeqIDType seq, bool discard) {
 	}
 	// TODO: reset timestamp?
 
+#if 0 // temporarily disable ce for timeout
 	// at most once per rtt?
 	// TODO: use delay at event instead
 	if (getTimeNow() >= _last_congestion_event + _last_congestion_rtt) {
 		_recently_lost_data = true;
 		_last_congestion_event = getTimeNow();
 		_last_congestion_rtt = getCurrentDelay();
-
-		updateWindows();
 	}
+#endif
+
+	updateWindows();
 }
 
 float LEDBAT::getCurrentDelay(void) const {
@@ -205,7 +230,7 @@ void LEDBAT::updateWindows(void) {
 
 		if (_recently_lost_data) {
 			_cwnd = std::clamp(
-				_cwnd / 2.f,
+				_cwnd * 0.7f,
 				//_cwnd / 1.6f,
 				2.f * MAXIMUM_SEGMENT_SIZE,
 				_cwnd
@@ -213,7 +238,7 @@ void LEDBAT::updateWindows(void) {
 		} else {
 			// LEDBAT++ (the Rethinking the LEDBAT Protocol paper)
 			// "Multiplicative decrease"
-			const float constant {2.f}; // spec recs 1
+			const float constant {1.f}; // spec recs 1
 			if (queuing_delay < target_delay) {
 				_cwnd = std::min(
 					_cwnd + gain,

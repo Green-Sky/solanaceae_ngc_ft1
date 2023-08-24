@@ -123,6 +123,8 @@ struct LEDBAT : public CCAI{
 
 		int64_t _in_flight_bytes {0};
 
+		SeqIDType _last_ack_got {0xff, 0xffff}; // some default
+
 	private: // helper
 		clock::time_point _time_start_offset;
 };
