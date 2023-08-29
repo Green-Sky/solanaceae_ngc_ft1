@@ -30,7 +30,7 @@ void CUBIC::addRTT(float new_delay) {
 	_rtt_ema = RTT_EMA_ALPHA * new_delay + (1.f - RTT_EMA_ALPHA) * _rtt_ema;
 }
 
-size_t CUBIC::canSend(void) const {
+size_t CUBIC::canSend(void) {
 	return 0;
 }
 

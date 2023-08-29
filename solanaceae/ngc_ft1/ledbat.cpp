@@ -1,5 +1,4 @@
 #include "./ledbat.hpp"
-#include "solanaceae/ngc_ft1/cca.hpp"
 
 #include <algorithm>
 #include <chrono>
@@ -20,7 +19,7 @@ LEDBAT::LEDBAT(size_t maximum_segment_data_size) : CCAI(maximum_segment_data_siz
 	_time_start_offset = clock::now();
 }
 
-size_t LEDBAT::canSend(void) const {
+size_t LEDBAT::canSend(void) {
 	if (_in_flight.empty()) {
 		return MAXIMUM_SEGMENT_DATA_SIZE;
 	}

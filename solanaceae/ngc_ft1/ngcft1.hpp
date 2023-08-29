@@ -6,6 +6,7 @@
 #include <solanaceae/toxcore/tox_event_interface.hpp>
 
 #include <solanaceae/ngc_ext/ngcext.hpp>
+#include "./flow_only.hpp"
 #include "./ledbat.hpp"
 
 #include "./rcv_buf.hpp"
@@ -139,7 +140,7 @@ class NGCFT1 : public ToxEventI, public NGCEXTEventI, public NGCFT1EventProvider
 
 	struct Group {
 		struct Peer {
-			std::unique_ptr<CCAI> cca = std::make_unique<LEDBAT>(500-4); // TODO: replace with tox_group_max_custom_lossy_packet_length()-4
+			std::unique_ptr<CCAI> cca = std::make_unique<FlowOnly>(500-4); // TODO: replace with tox_group_max_custom_lossy_packet_length()-4
 
 			struct RecvTransfer {
 				uint32_t file_kind;
@@ -199,7 +200,7 @@ class NGCFT1 : public ToxEventI, public NGCEXTEventI, public NGCFT1EventProvider
 		bool sendPKG_FT1_DATA_ACK(uint32_t group_number, uint32_t peer_number, uint8_t transfer_id, const uint16_t* seq_ids, size_t seq_ids_size);
 		bool sendPKG_FT1_MESSAGE(uint32_t group_number, uint32_t message_id, uint32_t file_kind, const uint8_t* file_id, size_t file_id_size);
 
-		void updateSendTransfer(float time_delta, uint32_t group_number, uint32_t peer_number, Group::Peer& peer, size_t idx, std::set<LEDBAT::SeqIDType>& timeouts_set);
+		void updateSendTransfer(float time_delta, uint32_t group_number, uint32_t peer_number, Group::Peer& peer, size_t idx, std::set<CCAI::SeqIDType>& timeouts_set);
 		void iteratePeer(float time_delta, uint32_t group_number, uint32_t peer_number, Group::Peer& peer);
 
 	public:

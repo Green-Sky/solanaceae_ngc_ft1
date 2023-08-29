@@ -143,7 +143,7 @@ bool NGCFT1::sendPKG_FT1_MESSAGE(
 	return _t.toxGroupSendCustomPacket(group_number, true, pkg) == TOX_ERR_GROUP_SEND_CUSTOM_PACKET_OK;
 }
 
-void NGCFT1::updateSendTransfer(float time_delta, uint32_t group_number, uint32_t peer_number, Group::Peer& peer, size_t idx, std::set<LEDBAT::SeqIDType>& timeouts_set) {
+void NGCFT1::updateSendTransfer(float time_delta, uint32_t group_number, uint32_t peer_number, Group::Peer& peer, size_t idx, std::set<CCAI::SeqIDType>& timeouts_set) {
 	auto& tf_opt = peer.send_transfers.at(idx);
 	assert(tf_opt.has_value());
 	auto& tf = tf_opt.value();
@@ -309,7 +309,7 @@ void NGCFT1::updateSendTransfer(float time_delta, uint32_t group_number, uint32_
 
 void NGCFT1::iteratePeer(float time_delta, uint32_t group_number, uint32_t peer_number, Group::Peer& peer) {
 	auto timeouts = peer.cca->getTimeouts();
-	std::set<LEDBAT::SeqIDType> timeouts_set{timeouts.cbegin(), timeouts.cend()};
+	std::set<CCAI::SeqIDType> timeouts_set{timeouts.cbegin(), timeouts.cend()};
 
 	for (size_t idx = 0; idx < peer.send_transfers.size(); idx++) {
 		if (peer.send_transfers.at(idx).has_value()) {
@@ -617,7 +617,7 @@ bool NGCFT1::onEvent(const Events::NGCEXT_ft1_data_ack& e) {
 
 	transfer.time_since_activity = 0.f;
 
-	std::vector<LEDBAT::SeqIDType> seqs;
+	std::vector<CCAI::SeqIDType> seqs;
 	for (const auto it : e.sequence_ids) {
 		// TODO: improve this o.o
 		seqs.push_back({e.transfer_id, it});
@@ -712,7 +712,7 @@ bool NGCFT1::onToxEvent(const Tox_Event_Group_Peer_Exit* e) {
 	}
 
 	// reset cca
-	peer.cca = std::make_unique<LEDBAT>(500-4); // TODO: replace with tox_group_max_custom_lossy_packet_length()-4
+	peer.cca = std::make_unique<FlowOnly>(500-4); // TODO: replace with tox_group_max_custom_lossy_packet_length()-4
 
 	return false;
 }

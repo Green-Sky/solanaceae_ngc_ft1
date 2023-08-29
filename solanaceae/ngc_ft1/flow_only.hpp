@@ -3,32 +3,36 @@
 #include "./cca.hpp"
 
 #include <chrono>
+#include <vector>
+#include <tuple>
 
-struct CUBIC : public CCAI {
+struct FlowOnly : public CCAI {
 	using clock = std::chrono::steady_clock;
 
 	public: // config
-		static constexpr float BETA {0.7f};
-		static constexpr float SCALING_CONSTANT {0.4f};
-		static constexpr float RTT_EMA_ALPHA = 0.1f; // 0.1 is very smooth, might need more
+		static constexpr float RTT_EMA_ALPHA = 0.1f; // might need over time
+		static constexpr float RTT_MAX = 2.f; // 2 sec is probably too much
+
+		//float max_byterate_allowed {1.f*1024*1024}; // 1MiB/s
+		//float max_byterate_allowed {0.6f*1024*1024}; // 600MiB/s
+		float max_byterate_allowed {0.5f*1024*1024}; // 500MiB/s
+		//float max_byterate_allowed {0.05f*1024*1024}; // 50KiB/s
+		//float max_byterate_allowed {0.15f*1024*1024}; // 150KiB/s
 
 	private:
-		// window size before last reduciton
-		double _window_max {2.f * MAXIMUM_SEGMENT_SIZE}; // start with mss*2
-		double _window_last_max {2.f * MAXIMUM_SEGMENT_SIZE};
-		double _time_since_reduction {0.};
-
 		// initialize to low value, will get corrected very fast
 		float _fwnd {0.01f * max_byterate_allowed}; // in bytes
 
 		// rtt exponental moving average
-		float _rtt_ema {0.5f};
+		float _rtt_ema {0.1f};
+
+		// list of sequence ids and timestamps of when they where sent (and payload size)
+		std::vector<std::tuple<SeqIDType, float, size_t>> _in_flight;
+		int64_t _in_flight_bytes {0};
 
 		clock::time_point _time_start_offset;
 
 	private:
-		float getCWnD(void) const;
-
 		// make values relative to algo start for readability (and precision)
 		// get timestamp in seconds
 		double getTimeNow(void) const {
@@ -41,8 +45,10 @@ struct CUBIC : public CCAI {
 
 		void addRTT(float new_delay);
 
+		void updateWindow(void);
+
 	public: // api
-		CUBIC(size_t maximum_segment_data_size) : CCAI(maximum_segment_data_size) {}
+		FlowOnly(size_t maximum_segment_data_size) : CCAI(maximum_segment_data_size) {}
 
 		// TODO: api for how much data we should send
 		// take time since last sent into account
