@@ -712,7 +712,7 @@ bool NGCFT1::onToxEvent(const Tox_Event_Group_Peer_Exit* e) {
 	}
 
 	// reset cca
-	peer.cca = std::make_unique<FlowOnly>(500-4); // TODO: replace with tox_group_max_custom_lossy_packet_length()-4
+	peer.cca = std::make_unique<CUBIC>(500-4); // TODO: replace with tox_group_max_custom_lossy_packet_length()-4
 
 	return false;
 }

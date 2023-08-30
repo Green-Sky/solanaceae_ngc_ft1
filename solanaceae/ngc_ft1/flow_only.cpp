@@ -86,6 +86,9 @@ void FlowOnly::onAck(std::vector<SeqIDType> seqs) {
 			if (it != _in_flight.begin()) {
 				// not next expected seq -> skip detected
 				// TODO: congestion event
+
+				std::cout << "CONGESTION out of order\n";
+				onCongestion();
 				//if (getTimeNow() >= _last_congestion_event + _last_congestion_rtt) {
 					//_recently_lost_data = true;
 					//_last_congestion_event = getTimeNow();
@@ -95,6 +98,13 @@ void FlowOnly::onAck(std::vector<SeqIDType> seqs) {
 				// only mesure delay, if not a congestion
 				addRTT(now - std::get<1>(*it));
 			}
+		} else {
+			// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+#if 0
+			// assume we got a duplicated packet
+			std::cout << "CONGESTION duplicate\n";
+			onCongestion();
+#endif
 		}
 	}
 

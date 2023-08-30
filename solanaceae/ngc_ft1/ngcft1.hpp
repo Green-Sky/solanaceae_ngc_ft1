@@ -6,8 +6,9 @@
 #include <solanaceae/toxcore/tox_event_interface.hpp>
 
 #include <solanaceae/ngc_ext/ngcext.hpp>
-#include "./flow_only.hpp"
-#include "./ledbat.hpp"
+#include "./cubic.hpp"
+//#include "./flow_only.hpp"
+//#include "./ledbat.hpp"
 
 #include "./rcv_buf.hpp"
 #include "./snd_buf.hpp"
@@ -140,7 +141,7 @@ class NGCFT1 : public ToxEventI, public NGCEXTEventI, public NGCFT1EventProvider
 
 	struct Group {
 		struct Peer {
-			std::unique_ptr<CCAI> cca = std::make_unique<FlowOnly>(500-4); // TODO: replace with tox_group_max_custom_lossy_packet_length()-4
+			std::unique_ptr<CCAI> cca = std::make_unique<CUBIC>(500-4); // TODO: replace with tox_group_max_custom_lossy_packet_length()-4
 
 			struct RecvTransfer {
 				uint32_t file_kind;

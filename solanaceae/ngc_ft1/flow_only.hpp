@@ -7,19 +7,22 @@
 #include <tuple>
 
 struct FlowOnly : public CCAI {
-	using clock = std::chrono::steady_clock;
+	protected:
+		using clock = std::chrono::steady_clock;
 
 	public: // config
 		static constexpr float RTT_EMA_ALPHA = 0.1f; // might need over time
 		static constexpr float RTT_MAX = 2.f; // 2 sec is probably too much
 
+		//float max_byterate_allowed {100.f*1024*1024}; // 100MiB/s
+		float max_byterate_allowed {10.f*1024*1024}; // 10MiB/s
 		//float max_byterate_allowed {1.f*1024*1024}; // 1MiB/s
-		//float max_byterate_allowed {0.6f*1024*1024}; // 600MiB/s
-		float max_byterate_allowed {0.5f*1024*1024}; // 500MiB/s
+		//float max_byterate_allowed {0.6f*1024*1024}; // 600KiB/s
+		//float max_byterate_allowed {0.5f*1024*1024}; // 500KiB/s
 		//float max_byterate_allowed {0.05f*1024*1024}; // 50KiB/s
 		//float max_byterate_allowed {0.15f*1024*1024}; // 150KiB/s
 
-	private:
+	protected:
 		// initialize to low value, will get corrected very fast
 		float _fwnd {0.01f * max_byterate_allowed}; // in bytes
 
@@ -32,7 +35,7 @@ struct FlowOnly : public CCAI {
 
 		clock::time_point _time_start_offset;
 
-	private:
+	protected:
 		// make values relative to algo start for readability (and precision)
 		// get timestamp in seconds
 		double getTimeNow(void) const {
@@ -46,6 +49,8 @@ struct FlowOnly : public CCAI {
 		void addRTT(float new_delay);
 
 		void updateWindow(void);
+
+		virtual void onCongestion(void) {};
 
 	public: // api
 		FlowOnly(size_t maximum_segment_data_size) : CCAI(maximum_segment_data_size) {}
