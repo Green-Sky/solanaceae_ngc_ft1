@@ -19,6 +19,8 @@ void FlowOnly::updateWindow(void) {
 
 	_fwnd = max_byterate_allowed * current_delay;
 	//_fwnd *= 1.3f; // try do balance conservative algo a bit, current_delay
+
+	_fwnd = std::max(_fwnd, 2.f * MAXIMUM_SEGMENT_DATA_SIZE);
 }
 
 size_t FlowOnly::canSend(void) {
@@ -35,7 +37,7 @@ size_t FlowOnly::canSend(void) {
 	}
 
 	// limit to whole packets
-	size_t space = std::ceil(fspace / MAXIMUM_SEGMENT_DATA_SIZE)
+	size_t space = std::floor(fspace / MAXIMUM_SEGMENT_DATA_SIZE)
 		* MAXIMUM_SEGMENT_DATA_SIZE;
 
 	return space;
@@ -85,7 +87,6 @@ void FlowOnly::onAck(std::vector<SeqIDType> seqs) {
 		if (it != _in_flight.end()) {
 			if (it != _in_flight.begin()) {
 				// not next expected seq -> skip detected
-				// TODO: congestion event
 
 				std::cout << "CONGESTION out of order\n";
 				onCongestion();

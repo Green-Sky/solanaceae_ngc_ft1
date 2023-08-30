@@ -563,7 +563,8 @@ bool NGCFT1::onEvent(const Events::NGCEXT_ft1_data& e) {
 	}
 
 	// send acks
-	std::vector<uint16_t> ack_seq_ids(transfer.rsb.ack_seq_ids.cbegin(), transfer.rsb.ack_seq_ids.cend());
+	// reverse, last seq is most recent
+	std::vector<uint16_t> ack_seq_ids(transfer.rsb.ack_seq_ids.crbegin(), transfer.rsb.ack_seq_ids.crend());
 	// TODO: check if this caps at max acks
 	if (!ack_seq_ids.empty()) {
 		// TODO: check return value
@@ -588,7 +589,7 @@ bool NGCFT1::onEvent(const Events::NGCEXT_ft1_data& e) {
 
 bool NGCFT1::onEvent(const Events::NGCEXT_ft1_data_ack& e) {
 #if !NDEBUG
-	std::cout << "NGCFT1: FT1_DATA_ACK\n";
+	//std::cout << "NGCFT1: FT1_DATA_ACK\n";
 #endif
 
 	if (!groups.count(e.group_number)) {
@@ -610,20 +611,17 @@ bool NGCFT1::onEvent(const Events::NGCEXT_ft1_data_ack& e) {
 		return true;
 	}
 
-	//if ((length - curser) % sizeof(uint16_t) != 0) {
-		//fprintf(stderr, "FT: data_ack with misaligned data\n");
-		//return;
-	//}
-
 	transfer.time_since_activity = 0.f;
 
-	std::vector<CCAI::SeqIDType> seqs;
-	for (const auto it : e.sequence_ids) {
-		// TODO: improve this o.o
-		seqs.push_back({e.transfer_id, it});
-		transfer.ssb.erase(it);
+	{
+		std::vector<CCAI::SeqIDType> seqs;
+		for (const auto it : e.sequence_ids) {
+			// TODO: improve this o.o
+			seqs.push_back({e.transfer_id, it});
+			transfer.ssb.erase(it);
+		}
+		peer.cca->onAck(std::move(seqs));
 	}
-	peer.cca->onAck(seqs);
 
 	// delete if all packets acked
 	if (transfer.file_size == transfer.file_size_current && transfer.ssb.size() == 0) {
@@ -635,6 +633,7 @@ bool NGCFT1::onEvent(const Events::NGCEXT_ft1_data_ack& e) {
 				e.transfer_id,
 			}
 		);
+		// TODO: check for FINISHING state
 		peer.send_transfers[e.transfer_id].reset();
 	}
 
