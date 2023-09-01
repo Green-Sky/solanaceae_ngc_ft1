@@ -188,6 +188,7 @@ class NGCFT1 : public ToxEventI, public NGCEXTEventI, public NGCFT1EventProvider
 			};
 			std::array<std::optional<SendTransfer>, 256> send_transfers;
 			size_t next_send_transfer_idx {0}; // next id will be 0
+			size_t next_send_transfer_send_idx {0};
 		};
 		std::map<uint32_t, Peer> peers;
 	};

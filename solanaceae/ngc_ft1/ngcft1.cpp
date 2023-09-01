@@ -286,10 +286,19 @@ void NGCFT1::iteratePeer(float time_delta, uint32_t group_number, uint32_t peer_
 	auto timeouts = peer.cca->getTimeouts();
 	std::set<CCAI::SeqIDType> timeouts_set{timeouts.cbegin(), timeouts.cend()};
 
+	int64_t can_packet_size {peer.cca->canSend()}; // might get more space while iterating (time)
 
-	for (size_t idx = 0; idx < peer.send_transfers.size(); idx++) {
+	// change iterat start position to not starve transfers in the back
+	size_t iterated_count = 0;
+	bool last_send_found = false;
+	for (size_t idx = peer.next_send_transfer_send_idx; iterated_count < peer.send_transfers.size(); idx++, iterated_count++) {
+		idx = idx % peer.send_transfers.size();
+
 		if (peer.send_transfers.at(idx).has_value()) {
-			int64_t can_packet_size {peer.cca->canSend()}; // might get more space while iterating (time)
+			if (!last_send_found && can_packet_size <= 0) {
+				peer.next_send_transfer_send_idx = idx;
+				last_send_found = true; // only set once
+			}
 			updateSendTransfer(time_delta, group_number, peer_number, peer, idx, timeouts_set, can_packet_size);
 		}
 	}
