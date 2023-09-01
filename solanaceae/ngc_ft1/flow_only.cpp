@@ -10,6 +10,11 @@ float FlowOnly::getCurrentDelay(void) const {
 }
 
 void FlowOnly::addRTT(float new_delay) {
+	if (new_delay > _rtt_ema * RTT_UP_MAX) {
+		// too large a jump up, to be taken into account
+		return;
+	}
+
 	// lerp(new_delay, rtt_ema, 0.1)
 	_rtt_ema = RTT_EMA_ALPHA * new_delay + (1.f - RTT_EMA_ALPHA) * _rtt_ema;
 }
@@ -88,13 +93,10 @@ void FlowOnly::onAck(std::vector<SeqIDType> seqs) {
 			if (it != _in_flight.begin()) {
 				// not next expected seq -> skip detected
 
-				std::cout << "CONGESTION out of order\n";
+				// TODO: change expectations of next seq in order, so we dont trigger a flood of ce
+
+				//std::cout << "CONGESTION out of order\n";
 				onCongestion();
-				//if (getTimeNow() >= _last_congestion_event + _last_congestion_rtt) {
-					//_recently_lost_data = true;
-					//_last_congestion_event = getTimeNow();
-					//_last_congestion_rtt = getCurrentDelay();
-				//}
 			} else {
 				// only mesure delay, if not a congestion
 				addRTT(now - std::get<1>(*it));
@@ -137,7 +139,7 @@ void FlowOnly::onLoss(SeqIDType seq, bool discard) {
 		return; // not found, ignore ??
 	}
 
-	std::cerr << "FLOW loss\n";
+	//std::cerr << "FLOW loss\n";
 
 	// "if data lost is not to be retransmitted"
 	if (discard) {

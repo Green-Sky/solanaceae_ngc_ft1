@@ -11,7 +11,8 @@ struct FlowOnly : public CCAI {
 		using clock = std::chrono::steady_clock;
 
 	public: // config
-		static constexpr float RTT_EMA_ALPHA = 0.1f; // might need over time
+		static constexpr float RTT_EMA_ALPHA = 0.001f; // might need change over time
+		static constexpr float RTT_UP_MAX = 3.0f; // how much larger a delay can be to be taken into account
 		static constexpr float RTT_MAX = 2.f; // 2 sec is probably too much
 
 		//float max_byterate_allowed {100.f*1024*1024}; // 100MiB/s

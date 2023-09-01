@@ -33,12 +33,14 @@ float CUBIC::getCWnD(void) const {
 }
 
 void CUBIC::onCongestion(void) {
-	if (getTimeNow() - _time_point_reduction >= getCurrentDelay()) {
+	if (getTimeNow() - _time_point_reduction >= getCurrentDelay()*4.f) {
 		const auto current_cwnd = getCWnD();
 		_time_point_reduction = getTimeNow();
-		_window_max = current_cwnd;
+		_window_max = current_cwnd * BETA;
+		_window_max = std::max(_window_max, 2.*MAXIMUM_SEGMENT_SIZE);
 
-		std::cout << "CONGESTION! cwnd:" << current_cwnd << "\n";
+		//std::cout << "CONGESTION! cwnd:" << current_cwnd << "\n";
+		std::cout << "CONGESTION! cwnd_max:" << _window_max << "\n";
 	}
 }
 

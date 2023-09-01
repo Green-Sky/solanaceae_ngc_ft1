@@ -599,7 +599,8 @@ bool NGCFT1::onEvent(const Events::NGCEXT_ft1_data_ack& e) {
 
 	Group::Peer& peer = groups[e.group_number].peers[e.peer_number];
 	if (!peer.send_transfers[e.transfer_id].has_value()) {
-		std::cerr << "NGCFT1 warning: data_ack for unknown transfer\n";
+		// we delete directly, packets might still be in flight (in practice they are when ce)
+		//std::cerr << "NGCFT1 warning: data_ack for unknown transfer\n";
 		return true;
 	}
 
