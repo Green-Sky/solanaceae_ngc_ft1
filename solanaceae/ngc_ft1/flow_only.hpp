@@ -45,7 +45,7 @@ struct FlowOnly : public CCAI {
 
 		// moving avg over the last few delay samples
 		// VERY sensitive to bundling acks
-		float getCurrentDelay(void) const;
+		float getCurrentDelay(void) const override;
 
 		void addRTT(float new_delay);
 
@@ -59,7 +59,7 @@ struct FlowOnly : public CCAI {
 		// TODO: api for how much data we should send
 		// take time since last sent into account
 		// respect max_byterate_allowed
-		size_t canSend(void) override;
+		int64_t canSend(void) override;
 
 		// get the list of timed out seq_ids
 		std::vector<SeqIDType> getTimeouts(void) const override;

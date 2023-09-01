@@ -35,16 +35,23 @@ float CUBIC::getCWnD(void) const {
 void CUBIC::onCongestion(void) {
 	if (getTimeNow() - _time_point_reduction >= getCurrentDelay()*4.f) {
 		const auto current_cwnd = getCWnD();
+		const auto tmp_old_tp = _time_point_reduction;
 		_time_point_reduction = getTimeNow();
 		_window_max = current_cwnd * BETA;
 		_window_max = std::max(_window_max, 2.*MAXIMUM_SEGMENT_SIZE);
 
-		//std::cout << "CONGESTION! cwnd:" << current_cwnd << "\n";
-		std::cout << "CONGESTION! cwnd_max:" << _window_max << "\n";
+#if 1
+		std::cout << "CONGESTION!"
+			<< " cwnd_max:" << _window_max
+			<< " pts:" << tmp_old_tp
+			<< " rtt:" << getCurrentDelay()
+			<< "\n"
+		;
+#endif
 	}
 }
 
-size_t CUBIC::canSend(void) {
+int64_t CUBIC::canSend(void) {
 	const auto fspace_pkgs = FlowOnly::canSend();
 
 	if (fspace_pkgs == 0u) {
@@ -57,7 +64,7 @@ size_t CUBIC::canSend(void) {
 	}
 
 	// limit to whole packets
-	size_t cspace_pkgs = std::floor(cspace_bytes / MAXIMUM_SEGMENT_DATA_SIZE) * MAXIMUM_SEGMENT_DATA_SIZE;
+	int64_t cspace_pkgs = (cspace_bytes / MAXIMUM_SEGMENT_DATA_SIZE) * MAXIMUM_SEGMENT_DATA_SIZE;
 
 	return std::min(cspace_pkgs, fspace_pkgs);
 }

@@ -46,10 +46,13 @@ struct CCAI {
 		// return the current believed window in bytes of how much data can be inflight,
 		//virtual float getCWnD(void) const = 0;
 
+		// returns current rtt/delay
+		virtual float getCurrentDelay(void) const = 0;
+
 		// TODO: api for how much data we should send
 		// take time since last sent into account
 		// respect max_byterate_allowed
-		virtual size_t canSend(void) = 0;
+		virtual int64_t canSend(void) = 0;
 
 		// get the list of timed out seq_ids
 		virtual std::vector<SeqIDType> getTimeouts(void) const = 0;

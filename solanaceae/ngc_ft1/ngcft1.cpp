@@ -143,7 +143,7 @@ bool NGCFT1::sendPKG_FT1_MESSAGE(
 	return _t.toxGroupSendCustomPacket(group_number, true, pkg) == TOX_ERR_GROUP_SEND_CUSTOM_PACKET_OK;
 }
 
-void NGCFT1::updateSendTransfer(float time_delta, uint32_t group_number, uint32_t peer_number, Group::Peer& peer, size_t idx, std::set<CCAI::SeqIDType>& timeouts_set) {
+void NGCFT1::updateSendTransfer(float time_delta, uint32_t group_number, uint32_t peer_number, Group::Peer& peer, size_t idx, std::set<CCAI::SeqIDType>& timeouts_set, int64_t& can_packet_size) {
 	auto& tf_opt = peer.send_transfers.at(idx);
 	assert(tf_opt.has_value());
 	auto& tf = tf_opt.value();
@@ -177,14 +177,13 @@ void NGCFT1::updateSendTransfer(float time_delta, uint32_t group_number, uint32_
 			return;
 		case State::SENDING: {
 				tf.ssb.for_each(time_delta, [&](uint16_t id, const std::vector<uint8_t>& data, float& time_since_activity) {
-					// no ack after 5 sec -> resend
-					//if (time_since_activity >= ngc_ft1_ctx->options.sending_resend_without_ack_after) {
-					if (timeouts_set.count({idx, id})) {
+					if (can_packet_size >= data.size() && time_since_activity >= peer.cca->getCurrentDelay() && timeouts_set.count({idx, id})) {
 						// TODO: can fail
 						sendPKG_FT1_DATA(group_number, peer_number, idx, id, data.data(), data.size());
 						peer.cca->onLoss({idx, id}, false);
 						time_since_activity = 0.f;
 						timeouts_set.erase({idx, id});
+						can_packet_size -= data.size();
 					}
 				});
 
@@ -211,21 +210,10 @@ void NGCFT1::updateSendTransfer(float time_delta, uint32_t group_number, uint32_
 				}
 
 				// if chunks in flight < window size (2)
-				//while (tf.ssb.size() < ngc_ft1_ctx->options.packet_window_size) {
-				int64_t can_packet_size {static_cast<int64_t>(peer.cca->canSend())};
-				//if (can_packet_size) {
-					//std::cerr << "FT: can_packet_size: " << can_packet_size;
-				//}
-				size_t count {0};
 				while (can_packet_size > 0 && tf.file_size > 0) {
 					std::vector<uint8_t> new_data;
 
-					// TODO: parameterize packet size? -> only if JF increases lossy packet size >:)
-					//size_t chunk_size = std::min<size_t>(496u, tf.file_size - tf.file_size_current);
-					//size_t chunk_size = std::min<size_t>(can_packet_size, tf.file_size - tf.file_size_current);
 					size_t chunk_size = std::min<size_t>({
-						//496u,
-						//996u,
 						peer.cca->MAXIMUM_SEGMENT_DATA_SIZE,
 						static_cast<size_t>(can_packet_size),
 						tf.file_size - tf.file_size_current
@@ -237,14 +225,6 @@ void NGCFT1::updateSendTransfer(float time_delta, uint32_t group_number, uint32_
 
 					new_data.resize(chunk_size);
 
-					//ngc_ft1_ctx->cb_send_data[tf.file_kind](
-						//tox,
-						//group_number, peer_number,
-						//idx,
-						//tf.file_size_current,
-						//new_data.data(), new_data.size(),
-						//ngc_ft1_ctx->ud_send_data.count(tf.file_kind) ? ngc_ft1_ctx->ud_send_data.at(tf.file_kind) : nullptr
-					//);
 					assert(idx <= 0xffu);
 					// TODO: check return value
 					dispatch(
@@ -267,22 +247,17 @@ void NGCFT1::updateSendTransfer(float time_delta, uint32_t group_number, uint32_
 
 					tf.file_size_current += chunk_size;
 					can_packet_size -= chunk_size;
-					count++;
 				}
-				//if (count) {
-					//std::cerr << " split over " << count << "\n";
-				//}
 			}
 			break;
 		case State::FINISHING: // we still have unacked packets
 			tf.ssb.for_each(time_delta, [&](uint16_t id, const std::vector<uint8_t>& data, float& time_since_activity) {
-				// no ack after 5 sec -> resend
-				//if (time_since_activity >= ngc_ft1_ctx->options.sending_resend_without_ack_after) {
-				if (timeouts_set.count({idx, id})) {
+				if (can_packet_size >= data.size() && timeouts_set.count({idx, id})) {
 					sendPKG_FT1_DATA(group_number, peer_number, idx, id, data.data(), data.size());
 					peer.cca->onLoss({idx, id}, false);
 					time_since_activity = 0.f;
 					timeouts_set.erase({idx, id});
+					can_packet_size -= data.size();
 				}
 			});
 			if (tf.time_since_activity >= sending_give_up_after) {
@@ -311,9 +286,11 @@ void NGCFT1::iteratePeer(float time_delta, uint32_t group_number, uint32_t peer_
 	auto timeouts = peer.cca->getTimeouts();
 	std::set<CCAI::SeqIDType> timeouts_set{timeouts.cbegin(), timeouts.cend()};
 
+
 	for (size_t idx = 0; idx < peer.send_transfers.size(); idx++) {
 		if (peer.send_transfers.at(idx).has_value()) {
-			updateSendTransfer(time_delta, group_number, peer_number, peer, idx, timeouts_set);
+			int64_t can_packet_size {peer.cca->canSend()}; // might get more space while iterating (time)
+			updateSendTransfer(time_delta, group_number, peer_number, peer, idx, timeouts_set, can_packet_size);
 		}
 	}
 

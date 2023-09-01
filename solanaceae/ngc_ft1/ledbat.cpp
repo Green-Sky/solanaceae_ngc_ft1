@@ -19,7 +19,7 @@ LEDBAT::LEDBAT(size_t maximum_segment_data_size) : CCAI(maximum_segment_data_siz
 	_time_start_offset = clock::now();
 }
 
-size_t LEDBAT::canSend(void) {
+int64_t LEDBAT::canSend(void) {
 	if (_in_flight.empty()) {
 		return MAXIMUM_SEGMENT_DATA_SIZE;
 	}
@@ -34,9 +34,7 @@ size_t LEDBAT::canSend(void) {
 		return 0u;
 	}
 
-	size_t space = std::ceil(std::min<float>(cspace, fspace) / MAXIMUM_SEGMENT_DATA_SIZE) * MAXIMUM_SEGMENT_DATA_SIZE;
-
-	return space;
+	return std::ceil(std::min<float>(cspace, fspace) / MAXIMUM_SEGMENT_DATA_SIZE) * MAXIMUM_SEGMENT_DATA_SIZE;
 }
 
 std::vector<LEDBAT::SeqIDType> LEDBAT::getTimeouts(void) const {

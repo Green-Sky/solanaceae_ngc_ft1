@@ -28,7 +28,7 @@ void FlowOnly::updateWindow(void) {
 	_fwnd = std::max(_fwnd, 2.f * MAXIMUM_SEGMENT_DATA_SIZE);
 }
 
-size_t FlowOnly::canSend(void) {
+int64_t FlowOnly::canSend(void) {
 	if (_in_flight.empty()) {
 		assert(_in_flight_bytes == 0);
 		return MAXIMUM_SEGMENT_DATA_SIZE;
@@ -42,10 +42,7 @@ size_t FlowOnly::canSend(void) {
 	}
 
 	// limit to whole packets
-	size_t space = std::floor(fspace / MAXIMUM_SEGMENT_DATA_SIZE)
-		* MAXIMUM_SEGMENT_DATA_SIZE;
-
-	return space;
+	return (fspace / MAXIMUM_SEGMENT_DATA_SIZE) * MAXIMUM_SEGMENT_DATA_SIZE;
 }
 
 std::vector<FlowOnly::SeqIDType> FlowOnly::getTimeouts(void) const {
@@ -147,16 +144,10 @@ void FlowOnly::onLoss(SeqIDType seq, bool discard) {
 		assert(_in_flight_bytes >= 0);
 		_in_flight.erase(it);
 	}
-	// TODO: reset timestamp?
 
-#if 0 // temporarily disable ce for timeout
-	// at most once per rtt?
-	// TODO: use delay at event instead
-	if (getTimeNow() >= _last_congestion_event + _last_congestion_rtt) {
-		_recently_lost_data = true;
-		_last_congestion_event = getTimeNow();
-		_last_congestion_rtt = getCurrentDelay();
-	}
-#endif
+	// TODO: reset timestamp?
+	// and not take into rtt
+
+	// no ce, since this is usually after data arrived out-of-order/duplicate
 }
 
