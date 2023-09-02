@@ -8,7 +8,8 @@ struct CUBIC : public FlowOnly {
 	//using clock = std::chrono::steady_clock;
 
 	public: // config
-		static constexpr float BETA {0.7f};
+		//static constexpr float BETA {0.7f};
+		static constexpr float BETA {0.8f};
 		static constexpr float SCALING_CONSTANT {0.4f};
 		static constexpr float RTT_EMA_ALPHA = 0.1f; // 0.1 is very smooth, might need more
 
