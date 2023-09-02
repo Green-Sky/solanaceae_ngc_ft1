@@ -31,7 +31,15 @@ struct FlowOnly : public CCAI {
 		float _rtt_ema {0.1f};
 
 		// list of sequence ids and timestamps of when they where sent (and payload size)
-		std::vector<std::tuple<SeqIDType, float, size_t>> _in_flight;
+		struct FlyingBunch {
+			SeqIDType id;
+			float timestamp;
+			size_t bytes;
+
+			// set to true if counted as ce or resent due to timeout
+			bool ignore {false};
+		};
+		std::vector<FlyingBunch> _in_flight;
 		int64_t _in_flight_bytes {0};
 
 		clock::time_point _time_start_offset;

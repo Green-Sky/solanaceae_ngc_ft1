@@ -51,7 +51,7 @@ std::vector<FlowOnly::SeqIDType> FlowOnly::getTimeouts(void) const {
 	// after 3 rtt delay, we trigger timeout
 	const auto now_adjusted = getTimeNow() - getCurrentDelay()*3.f;
 
-	for (const auto& [seq, time_stamp, size] : _in_flight) {
+	for (const auto& [seq, time_stamp, size, _] : _in_flight) {
 		if (now_adjusted > time_stamp) {
 			list.push_back(seq);
 		}
@@ -63,11 +63,17 @@ std::vector<FlowOnly::SeqIDType> FlowOnly::getTimeouts(void) const {
 void FlowOnly::onSent(SeqIDType seq, size_t data_size) {
 	if constexpr (true) {
 		for (const auto& it : _in_flight) {
-			assert(std::get<0>(it) != seq);
+			assert(it.id != seq);
 		}
 	}
 
-	_in_flight.push_back({seq, getTimeNow(), data_size + SEGMENT_OVERHEAD});
+	_in_flight.push_back(
+		FlyingBunch{
+			seq,
+			static_cast<float>(getTimeNow()),
+			data_size + SEGMENT_OVERHEAD
+		}
+	);
 	_in_flight_bytes += data_size + SEGMENT_OVERHEAD;
 	//_recently_sent_bytes += data_size + SEGMENT_OVERHEAD;
 }
@@ -84,21 +90,23 @@ void FlowOnly::onAck(std::vector<SeqIDType> seqs) {
 	{ // skip in ack is congestion event
 		// 1. look at primary ack of packet
 		auto it = std::find_if(_in_flight.begin(), _in_flight.end(), [seq = seqs.front()](const auto& v) -> bool {
-			return std::get<0>(v) == seq;
+			return v.id == seq;
 		});
-		if (it != _in_flight.end()) {
-			if (it != _in_flight.begin()) {
-				// not next expected seq -> skip detected
+		if (it != _in_flight.end() && !it->ignore) {
+			// find first non ignore, it should be the expected
+			auto first_it = std::find_if_not(_in_flight.cbegin(), _in_flight.cend(), [](const auto& v) -> bool { return v.ignore; });
 
-				// TODO: change expectations of next seq in order, so we dont trigger a flood of ce
+			if (first_it != _in_flight.cend() && it != first_it) {
+				// not next expected seq -> skip detected
 
 				//std::cout << "CONGESTION out of order\n";
 				onCongestion();
+				it->ignore = true; // only throw once
 			} else {
 				// only mesure delay, if not a congestion
-				addRTT(now - std::get<1>(*it));
+				addRTT(now - it->timestamp);
 			}
-		} else {
+		} else { // TOOD: if ! ignore too
 			// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 #if 0
 			// assume we got a duplicated packet
@@ -110,14 +118,14 @@ void FlowOnly::onAck(std::vector<SeqIDType> seqs) {
 
 	for (const auto& seq : seqs) {
 		auto it = std::find_if(_in_flight.begin(), _in_flight.end(), [seq](const auto& v) -> bool {
-			return std::get<0>(v) == seq;
+			return v.id == seq;
 		});
 
 		if (it == _in_flight.end()) {
 			continue; // not found, ignore
 		} else {
 			//most_recent = std::max(most_recent, std::get<1>(*it));
-			_in_flight_bytes -= std::get<2>(*it);
+			_in_flight_bytes -= it->bytes;
 			assert(_in_flight_bytes >= 0);
 			//_recently_acked_data += std::get<2>(*it);
 			_in_flight.erase(it);
@@ -127,8 +135,8 @@ void FlowOnly::onAck(std::vector<SeqIDType> seqs) {
 
 void FlowOnly::onLoss(SeqIDType seq, bool discard) {
 	auto it = std::find_if(_in_flight.begin(), _in_flight.end(), [seq](const auto& v) -> bool {
-		assert(!std::isnan(std::get<1>(v)));
-		return std::get<0>(v) == seq;
+		assert(!std::isnan(v.timestamp));
+		return v.id == seq;
 	});
 
 	if (it == _in_flight.end()) {
@@ -140,13 +148,14 @@ void FlowOnly::onLoss(SeqIDType seq, bool discard) {
 
 	// "if data lost is not to be retransmitted"
 	if (discard) {
-		_in_flight_bytes -= std::get<2>(*it);
+		_in_flight_bytes -= it->bytes;
 		assert(_in_flight_bytes >= 0);
 		_in_flight.erase(it);
+	} else {
+		// and not take into rtt
+		it->timestamp = getTimeNow();
+		it->ignore = true;
 	}
-
-	// TODO: reset timestamp?
-	// and not take into rtt
 
 	// no ce, since this is usually after data arrived out-of-order/duplicate
 }
