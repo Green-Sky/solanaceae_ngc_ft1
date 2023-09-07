@@ -33,6 +33,8 @@ struct CUBIC : public FlowOnly {
 	public: // api
 		CUBIC(size_t maximum_segment_data_size) : FlowOnly(maximum_segment_data_size) {}
 
+		float getWindow(void) override;
+
 		// TODO: api for how much data we should send
 		// take time since last sent into account
 		// respect max_byterate_allowed

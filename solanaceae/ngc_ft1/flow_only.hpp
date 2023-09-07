@@ -57,6 +57,8 @@ struct FlowOnly : public CCAI {
 		// VERY sensitive to bundling acks
 		float getCurrentDelay(void) const override;
 
+		float getWindow(void) override;
+
 		void addRTT(float new_delay);
 
 		void updateWindow(void);

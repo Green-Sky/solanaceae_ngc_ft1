@@ -28,6 +28,11 @@ void FlowOnly::updateWindow(void) {
 	_fwnd = std::max(_fwnd, 2.f * MAXIMUM_SEGMENT_DATA_SIZE);
 }
 
+float FlowOnly::getWindow(void) {
+	updateWindow();
+	return _fwnd;
+}
+
 int64_t FlowOnly::canSend(void) {
 	if (_in_flight.empty()) {
 		assert(_in_flight_bytes == 0);
@@ -99,11 +104,30 @@ void FlowOnly::onAck(std::vector<SeqIDType> seqs) {
 			if (first_it != _in_flight.cend() && it != first_it) {
 				// not next expected seq -> skip detected
 
-				std::cout << "NGC_FT1 Flow: pkg out of order\n";
 				_consecutive_events++;
 				it->ignore = true; // only handle once
-				if (_consecutive_events > 4) { // TODO: magic number
-					std::cout << "CONGESTION! NGC_FT1 flow: pkg out of order\n";
+
+				const auto tmp_window = getWindow();
+				// packet window * 0.3
+				// but atleast 4
+				int32_t max_consecutive_events = std::clamp<int32_t>(
+					(tmp_window/MAXIMUM_SEGMENT_DATA_SIZE) * 0.3f,
+					4,
+					50 // limit TODO: fix idle/time starved algo
+				);
+				// TODO: magic number
+
+#if 0
+				std::cout << "NGC_FT1 Flow: pkg out of order"
+					<< " w:" << tmp_window
+					<< " pw:" << tmp_window/MAXIMUM_SEGMENT_DATA_SIZE
+					<< " coe:" << _consecutive_events
+					<< " mcoe:" << max_consecutive_events
+					<< "\n";
+#endif
+
+				if (_consecutive_events > max_consecutive_events) {
+					//std::cout << "CONGESTION! NGC_FT1 flow: pkg out of order\n";
 					onCongestion();
 				}
 			} else {

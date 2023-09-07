@@ -37,12 +37,17 @@ void CUBIC::onCongestion(void) {
 		const auto tmp_old_tp = getTimeNow() - _time_point_reduction;
 
 		const auto current_cwnd = getCWnD();
+		const auto current_wnd = getWindow(); // respects cwnd and fwnd
+
 		_time_point_reduction = getTimeNow();
-		_window_max = current_cwnd * BETA;
+		//_window_max = current_cwnd * BETA;
+		_window_max = current_wnd * BETA;
 		_window_max = std::max(_window_max, 2.*MAXIMUM_SEGMENT_SIZE);
 
 #if 1
 		std::cout << "----CONGESTION!"
+			<< " cwnd:" << current_cwnd
+			<< " wnd:" << current_wnd
 			<< " cwnd_max:" << _window_max
 			<< " pts:" << tmp_old_tp
 			<< " rtt:" << getCurrentDelay()
@@ -50,6 +55,10 @@ void CUBIC::onCongestion(void) {
 		;
 #endif
 	}
+}
+
+float CUBIC::getWindow(void) {
+	return std::min<float>(getCWnD(), FlowOnly::getWindow());
 }
 
 int64_t CUBIC::canSend(void) {

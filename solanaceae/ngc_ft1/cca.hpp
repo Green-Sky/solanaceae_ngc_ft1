@@ -49,6 +49,8 @@ struct CCAI {
 		// returns current rtt/delay
 		virtual float getCurrentDelay(void) const = 0;
 
+		virtual float getWindow(void) = 0;
+
 		// TODO: api for how much data we should send
 		// take time since last sent into account
 		// respect max_byterate_allowed
