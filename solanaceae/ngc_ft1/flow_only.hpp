@@ -42,6 +42,8 @@ struct FlowOnly : public CCAI {
 		std::vector<FlyingBunch> _in_flight;
 		int64_t _in_flight_bytes {0};
 
+		int32_t _consecutive_events {0};
+
 		clock::time_point _time_start_offset;
 
 	protected:

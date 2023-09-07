@@ -99,12 +99,17 @@ void FlowOnly::onAck(std::vector<SeqIDType> seqs) {
 			if (first_it != _in_flight.cend() && it != first_it) {
 				// not next expected seq -> skip detected
 
-				//std::cout << "CONGESTION out of order\n";
-				onCongestion();
-				it->ignore = true; // only throw once
+				std::cout << "NGC_FT1 Flow: pkg out of order\n";
+				_consecutive_events++;
+				it->ignore = true; // only handle once
+				if (_consecutive_events > 4) { // TODO: magic number
+					std::cout << "CONGESTION! NGC_FT1 flow: pkg out of order\n";
+					onCongestion();
+				}
 			} else {
 				// only mesure delay, if not a congestion
 				addRTT(now - it->timestamp);
+				_consecutive_events = 0;
 			}
 		} else { // TOOD: if ! ignore too
 			// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
