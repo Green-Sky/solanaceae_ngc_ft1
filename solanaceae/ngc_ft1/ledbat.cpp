@@ -6,6 +6,7 @@
 #include <deque>
 #include <cstdint>
 #include <cassert>
+#include <tuple>
 
 #include <iomanip>
 #include <iostream>
