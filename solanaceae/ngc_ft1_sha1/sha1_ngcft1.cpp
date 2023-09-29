@@ -1042,6 +1042,8 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCFT1_recv_message& e) {
 	//reg.emplace<Components::TimestampWritten>(new_msg_e, 0);
 	reg.emplace<Message::Components::Timestamp>(new_msg_e, ts); // reactive?
 
+	reg.emplace<Message::Components::TagUnread>(new_msg_e);
+
 	{ // by whom
 		auto& synced_by = reg.get_or_emplace<Message::Components::SyncedBy>(new_msg_e).list;
 		synced_by.emplace(self_c);
@@ -1325,6 +1327,7 @@ bool SHA1_NGCFT1::sendFilePath(const Contact3 c, std::string_view file_name, std
 				reg_ptr->emplace<Message::Components::ContactTo>(msg_e, c);
 				reg_ptr->emplace<Message::Components::ContactFrom>(msg_e, c_self);
 				reg_ptr->emplace<Message::Components::Timestamp>(msg_e, ts); // reactive?
+				reg_ptr->emplace<Message::Components::Read>(msg_e, ts);
 
 				reg_ptr->emplace<Message::Components::Transfer::TagHaveAll>(msg_e);
 				reg_ptr->emplace<Message::Components::Transfer::TagSending>(msg_e);
