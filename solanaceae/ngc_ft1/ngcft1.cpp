@@ -71,6 +71,12 @@ bool NGCFT1::sendPKG_FT1_INIT_ACK(
 	pkg.push_back(static_cast<uint8_t>(NGCEXT_Event::FT1_INIT_ACK));
 	pkg.push_back(transfer_id);
 
+	// - 2 bytes max_lossy_data_size
+	const uint16_t max_lossy_data_size = _t.toxGroupMaxCustomLossyPacketLength() - 4;
+	for (size_t i = 0; i < sizeof(uint16_t); i++) {
+		pkg.push_back((max_lossy_data_size>>(i*8)) & 0xff);
+	}
+
 	// lossless
 	return _t.toxGroupSendCustomPrivatePacket(group_number, peer_number, true, pkg) == TOX_ERR_GROUP_SEND_CUSTOM_PRIVATE_PACKET_OK;
 }
@@ -283,23 +289,25 @@ void NGCFT1::updateSendTransfer(float time_delta, uint32_t group_number, uint32_
 }
 
 void NGCFT1::iteratePeer(float time_delta, uint32_t group_number, uint32_t peer_number, Group::Peer& peer) {
-	auto timeouts = peer.cca->getTimeouts();
-	std::set<CCAI::SeqIDType> timeouts_set{timeouts.cbegin(), timeouts.cend()};
+	if (peer.cca) {
+		auto timeouts = peer.cca->getTimeouts();
+		std::set<CCAI::SeqIDType> timeouts_set{timeouts.cbegin(), timeouts.cend()};
 
-	int64_t can_packet_size {peer.cca->canSend()}; // might get more space while iterating (time)
+		int64_t can_packet_size {peer.cca->canSend()}; // might get more space while iterating (time)
 
-	// change iterat start position to not starve transfers in the back
-	size_t iterated_count = 0;
-	bool last_send_found = false;
-	for (size_t idx = peer.next_send_transfer_send_idx; iterated_count < peer.send_transfers.size(); idx++, iterated_count++) {
-		idx = idx % peer.send_transfers.size();
+		// change iterat start position to not starve transfers in the back
+		size_t iterated_count = 0;
+		bool last_send_found = false;
+		for (size_t idx = peer.next_send_transfer_send_idx; iterated_count < peer.send_transfers.size(); idx++, iterated_count++) {
+			idx = idx % peer.send_transfers.size();
 
-		if (peer.send_transfers.at(idx).has_value()) {
-			if (!last_send_found && can_packet_size <= 0) {
-				peer.next_send_transfer_send_idx = idx;
-				last_send_found = true; // only set once
+			if (peer.send_transfers.at(idx).has_value()) {
+				if (!last_send_found && can_packet_size <= 0) {
+					peer.next_send_transfer_send_idx = idx;
+					last_send_found = true; // only set once
+				}
+				updateSendTransfer(time_delta, group_number, peer_number, peer, idx, timeouts_set, can_packet_size);
 			}
-			updateSendTransfer(time_delta, group_number, peer_number, peer, idx, timeouts_set, can_packet_size);
 		}
 	}
 
@@ -473,7 +481,7 @@ bool NGCFT1::onEvent(const Events::NGCEXT_ft1_init& e) {
 
 bool NGCFT1::onEvent(const Events::NGCEXT_ft1_init_ack& e) {
 //#if !NDEBUG
-	std::cout << "NGCFT1: FT1_INIT_ACK\n";
+	std::cout << "NGCFT1: FT1_INIT_ACK mds:" << e.max_lossy_data_size << "\n";
 //#endif
 
 	// we now should start sending data
@@ -493,8 +501,16 @@ bool NGCFT1::onEvent(const Events::NGCEXT_ft1_init_ack& e) {
 
 	using State = Group::Peer::SendTransfer::State;
 	if (transfer.state != State::INIT_SENT) {
-		std::cerr << "NGCFT1 error: inti_ack but not in INIT_SENT state\n";
+		std::cerr << "NGCFT1 error: init_ack but not in INIT_SENT state\n";
 		return true;
+	}
+
+	// negotiated packet_data_size
+	const auto negotiated_packet_data_size = std::min<uint32_t>(e.max_lossy_data_size, _t.toxGroupMaxCustomLossyPacketLength()-4);
+	// TODO: reset cca with new pkg size
+	if (!peer.cca) {
+		peer.max_packet_data_size = negotiated_packet_data_size;
+		peer.cca = std::make_unique<CUBIC>(peer.max_packet_data_size);
 	}
 
 	// iterate will now call NGC_FT1_send_data_cb
@@ -698,7 +714,7 @@ bool NGCFT1::onToxEvent(const Tox_Event_Group_Peer_Exit* e) {
 	}
 
 	// reset cca
-	peer.cca = std::make_unique<CUBIC>(500-4); // TODO: replace with tox_group_max_custom_lossy_packet_length()-4
+	peer.cca.reset(); // dont actually reallocate
 
 	return false;
 }

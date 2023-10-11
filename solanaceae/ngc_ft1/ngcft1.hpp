@@ -2,6 +2,7 @@
 
 // solanaceae port of tox_ngc_ft1
 
+#include <cstdint>
 #include <solanaceae/toxcore/tox_interface.hpp>
 #include <solanaceae/toxcore/tox_event_interface.hpp>
 
@@ -141,7 +142,9 @@ class NGCFT1 : public ToxEventI, public NGCEXTEventI, public NGCFT1EventProvider
 
 	struct Group {
 		struct Peer {
-			std::unique_ptr<CCAI> cca = std::make_unique<CUBIC>(500-4); // TODO: replace with tox_group_max_custom_lossy_packet_length()-4
+			uint32_t max_packet_data_size {500-4};
+			//std::unique_ptr<CCAI> cca = std::make_unique<CUBIC>(max_packet_data_size); // TODO: replace with tox_group_max_custom_lossy_packet_length()-4
+			std::unique_ptr<CCAI> cca;
 
 			struct RecvTransfer {
 				uint32_t file_kind;

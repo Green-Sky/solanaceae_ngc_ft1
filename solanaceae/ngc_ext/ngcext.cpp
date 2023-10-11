@@ -112,6 +112,8 @@ bool NGCEXTEventProvider::parse_ft1_init_ack(
 	_DATA_HAVE(sizeof(e.transfer_id), std::cerr << "NGCEXT: packet too small, missing transfer_id\n"; return false)
 	e.transfer_id = data[curser++];
 
+	e.max_lossy_data_size = 500-4; // -4 and 500 are hardcoded
+
 	return dispatch(
 		NGCEXT_Event::FT1_INIT_ACK,
 		e
@@ -224,6 +226,41 @@ bool NGCEXTEventProvider::parse_ft1_message(
 	);
 }
 
+bool NGCEXTEventProvider::parse_ft1_init_ack_v2(
+	uint32_t group_number, uint32_t peer_number,
+	const uint8_t* data, size_t data_size,
+	bool _private
+) {
+	if (!_private) {
+		std::cerr << "NGCEXT: ft1_init_ack_v2 cant be public\n";
+		return false;
+	}
+
+	Events::NGCEXT_ft1_init_ack e;
+	e.group_number = group_number;
+	e.peer_number = peer_number;
+	size_t curser = 0;
+
+	// - 1 byte (temporary_file_tf_id)
+	_DATA_HAVE(sizeof(e.transfer_id), std::cerr << "NGCEXT: packet too small, missing transfer_id\n"; return false)
+	e.transfer_id = data[curser++];
+
+	// - 2 byte (max_lossy_data_size)
+	if ((data_size - curser) >= sizeof(e.max_lossy_data_size)) {
+		e.max_lossy_data_size = 0;
+		for (size_t i = 0; i < sizeof(e.max_lossy_data_size); i++, curser++) {
+			e.max_lossy_data_size |= uint16_t(data[curser]) << (i*8);
+		}
+	} else {
+		e.max_lossy_data_size = 500-4; // default
+	}
+
+	return dispatch(
+		NGCEXT_Event::FT1_INIT_ACK,
+		e
+	);
+}
+
 bool NGCEXTEventProvider::handlePacket(
 	const uint32_t group_number,
 	const uint32_t peer_number,
@@ -247,7 +284,8 @@ bool NGCEXTEventProvider::handlePacket(
 		case NGCEXT_Event::FT1_INIT:
 			return parse_ft1_init(group_number, peer_number, data+1, data_size-1, _private);
 		case NGCEXT_Event::FT1_INIT_ACK:
-			return parse_ft1_init_ack(group_number, peer_number, data+1, data_size-1, _private);
+			//return parse_ft1_init_ack(group_number, peer_number, data+1, data_size-1, _private);
+			return parse_ft1_init_ack_v2(group_number, peer_number, data+1, data_size-1, _private);
 		case NGCEXT_Event::FT1_DATA:
 			return parse_ft1_data(group_number, peer_number, data+1, data_size-1, _private);
 		case NGCEXT_Event::FT1_DATA_ACK:

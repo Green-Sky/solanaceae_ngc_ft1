@@ -70,8 +70,6 @@ namespace Events {
 
 		// - X bytes (file_kind dependent id, differnt sizes)
 		std::vector<uint8_t> file_id;
-
-		// TODO: max supported lossy packet size
 	};
 
 	struct NGCEXT_ft1_init_ack {
@@ -81,7 +79,8 @@ namespace Events {
 		// - 1 byte (transfer_id)
 		uint8_t transfer_id;
 
-		// TODO: max supported lossy packet size
+		// - 2 byte (self_max_lossy_data_size)
+		uint16_t max_lossy_data_size;
 	};
 
 	struct NGCEXT_ft1_data {
@@ -163,6 +162,7 @@ enum class NGCEXT_Event : uint8_t {
 	// acknowlage init (like an accept)
 	// like tox ft control continue
 	// - 1 byte (transfer_id)
+	// - 2 byte (self_max_lossy_data_size) (optional since v2)
 	FT1_INIT_ACK,
 
 	// TODO: init deny, speed up non acceptance
@@ -258,6 +258,12 @@ class NGCEXTEventProvider : public ToxEventI, public NGCEXTEventProviderI {
 		);
 
 		bool parse_ft1_message(
+			uint32_t group_number, uint32_t peer_number,
+			const uint8_t* data, size_t data_size,
+			bool _private
+		);
+
+		bool parse_ft1_init_ack_v2(
 			uint32_t group_number, uint32_t peer_number,
 			const uint8_t* data, size_t data_size,
 			bool _private
