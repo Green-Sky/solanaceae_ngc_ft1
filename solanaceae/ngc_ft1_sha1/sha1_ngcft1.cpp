@@ -113,13 +113,38 @@ static size_t chunkSize(const FT1InfoSHA1& sha1_info, size_t chunk_index) {
 }
 
 void SHA1_NGCFT1::queueUpRequestChunk(uint32_t group_number, uint32_t peer_number, ContentHandle content, const SHA1Digest& hash) {
-	// TODO: transfers
 	for (auto& [i_g, i_p, i_m, i_h, i_t] : _queue_requested_chunk) {
 		// if already in queue
 		if (i_g == group_number && i_p == peer_number && i_h == hash) {
 			// update timer
 			i_t = 0.f;
 			return;
+		}
+	}
+
+	// check for running transfer
+	if (_sending_transfers.count(combineIds(group_number, peer_number))) {
+		for (const auto& [_, transfer] : _sending_transfers.at(combineIds(group_number, peer_number))) {
+			if (std::holds_alternative<SendingTransfer::Info>(transfer.v)) {
+				// ignore info
+				continue;
+			}
+
+			const auto& t_c = std::get<SendingTransfer::Chunk>(transfer.v);
+
+			if (content != t_c.content) {
+				// ignore different content
+				continue;
+			}
+
+			auto chunk_idx_vec = content.get<Components::FT1ChunkSHA1Cache>().chunkIndices(hash);
+
+			for (size_t idx : chunk_idx_vec) {
+				if (idx == t_c.chunk_index) {
+					// already sending
+					return; // skip
+				}
+			}
 		}
 	}
 
