@@ -33,16 +33,24 @@ float CUBIC::getCWnD(void) const {
 }
 
 void CUBIC::onCongestion(void) {
+	// 8 is probably too much (800ms for 100ms rtt)
 	if (getTimeNow() - _time_point_reduction >= getCurrentDelay()*4.f) {
 		const auto tmp_old_tp = getTimeNow() - _time_point_reduction;
 
-		const auto current_cwnd = getCWnD();
+		const auto current_cwnd = getCWnD(); // TODO: remove, only used by logging?
 		const auto current_wnd = getWindow(); // respects cwnd and fwnd
 
 		_time_point_reduction = getTimeNow();
-		//_window_max = current_cwnd * BETA;
-		_window_max = current_wnd * BETA;
-		_window_max = std::max(_window_max, 2.*MAXIMUM_SEGMENT_SIZE);
+
+		if (current_cwnd < _window_max) {
+			// congestion before reaching the inflection point (prev window_max).
+			// reduce to wnd*beta to be fair
+			_window_max = current_wnd * BETA;
+		} else {
+			_window_max = current_wnd;
+		}
+
+		_window_max = std::max(_window_max, 2.0*MAXIMUM_SEGMENT_SIZE);
 
 #if 1
 		std::cout << "----CONGESTION!"
