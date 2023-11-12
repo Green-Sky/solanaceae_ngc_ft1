@@ -2,9 +2,8 @@
 
 // solanaceae port of tox_ngc_ft1
 
-#include <cstdint>
-#include <solanaceae/toxcore/tox_interface.hpp>
 #include <solanaceae/toxcore/tox_event_interface.hpp>
+#include <solanaceae/toxcore/tox_interface.hpp>
 
 #include <solanaceae/ngc_ext/ngcext.hpp>
 #include "./cubic.hpp"
@@ -16,6 +15,7 @@
 
 #include "./ngcft1_file_kind.hpp"
 
+#include <cstdint>
 #include <map>
 #include <set>
 #include <memory>
