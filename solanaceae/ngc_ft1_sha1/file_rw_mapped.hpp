@@ -15,15 +15,16 @@ struct FileRWMapped : public FileI {
 	// TODO: add truncate support?
 	FileRWMapped(std::string_view file_path, uint64_t file_size) {
 		_file_size = file_size;
+		std::filesystem::path native_file_path{file_path};
 
-		if (!std::filesystem::exists(file_path)) {
-			std::ofstream(std::string{file_path}) << '\0'; // force create the file
+		if (!std::filesystem::exists(native_file_path)) {
+			std::ofstream(native_file_path) << '\0'; // force create the file
 		}
-		std::filesystem::resize_file(file_path, file_size); // ensure size, usually sparse
+		std::filesystem::resize_file(native_file_path, file_size); // ensure size, usually sparse
 
 		std::error_code err;
 		// sink, is also read
-		_file_map.map(std::string{file_path}, 0, file_size, err);
+		_file_map.map(native_file_path.u8string(), 0, file_size, err);
 
 		if (err) {
 			std::cerr << "FileRWMapped error: mapping file failed " << err << "\n";
