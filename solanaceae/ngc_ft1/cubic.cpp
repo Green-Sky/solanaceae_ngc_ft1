@@ -76,10 +76,20 @@ int64_t CUBIC::canSend(void) {
 		return 0u;
 	}
 
-	const int64_t cspace_bytes = getCWnD() - _in_flight_bytes;
+	const auto window = getCWnD();
+	int64_t cspace_bytes = window - _in_flight_bytes;
 	if (cspace_bytes < MAXIMUM_SEGMENT_DATA_SIZE) {
 		return 0u;
 	}
+
+	// also limit to max sendrate per tick, which is usually smaller than window
+	// this is mostly to prevent spikes on empty windows
+	// assuming at most 20ms tick interval
+	// TODO: pass down actual tick interval
+	const auto rate = window / getCurrentDelay();
+	// we dont want this limit to fall below atleast 1 segment
+	const int64_t max_bytes_per_tick = std::max<int64_t>(rate * 0.02f + 0.5f, MAXIMUM_SEGMENT_SIZE);
+	cspace_bytes = std::min<int64_t>(cspace_bytes, max_bytes_per_tick);
 
 	// limit to whole packets
 	int64_t cspace_pkgs = (cspace_bytes / MAXIMUM_SEGMENT_DATA_SIZE) * MAXIMUM_SEGMENT_DATA_SIZE;

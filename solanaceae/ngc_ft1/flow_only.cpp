@@ -41,10 +41,16 @@ int64_t FlowOnly::canSend(void) {
 
 	updateWindow();
 
-	const int64_t fspace = _fwnd - _in_flight_bytes;
+	int64_t fspace = _fwnd - _in_flight_bytes;
 	if (fspace < MAXIMUM_SEGMENT_DATA_SIZE) {
 		return 0u;
 	}
+
+	// also limit to max sendrate per tick, which is usually smaller than window
+	// this is mostly to prevent spikes on empty windows
+	// assuming at most 20ms tick interval
+	// TODO: pass down actual tick interval
+	fspace = std::min<int64_t>(fspace, max_byterate_allowed * 0.02f + 0.5f);
 
 	// limit to whole packets
 	return (fspace / MAXIMUM_SEGMENT_DATA_SIZE) * MAXIMUM_SEGMENT_DATA_SIZE;
