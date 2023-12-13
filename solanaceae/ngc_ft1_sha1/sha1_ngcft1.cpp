@@ -547,11 +547,11 @@ bool SHA1_NGCFT1::onEvent(const Message::Events::MessageUpdated& e) {
 	// first, open file for write(+readback)
 	std::string full_file_path{e.e.get<Message::Components::Transfer::ActionAccept>().save_to_path};
 	// TODO: replace with filesystem or something
-	// TODO: ensure dir exists
 	if (full_file_path.back() != '/') {
 		full_file_path += "/";
 	}
 
+	// ensure dir exists
 	std::filesystem::create_directories(full_file_path);
 
 	const auto& info = ce.get<Components::FT1InfoSHA1>();
@@ -559,14 +559,13 @@ bool SHA1_NGCFT1::onEvent(const Message::Events::MessageUpdated& e) {
 
 	ce.emplace<Message::Components::Transfer::FileInfoLocal>(std::vector{full_file_path});
 
-	std::unique_ptr<FileRWMapped> file_impl;
 	const bool file_exists = std::filesystem::exists(full_file_path);
-
-	file_impl = std::make_unique<FileRWMapped>(full_file_path, info.file_size);
+	std::unique_ptr<FileRWMapped> file_impl = std::make_unique<FileRWMapped>(full_file_path, info.file_size);
 
 	if (!file_impl->isGood()) {
 		std::cerr << "SHA1_NGCFT1 error: failed opening file '" << full_file_path << "'!\n";
-		//e.e.remove<Message::Components::Transfer::ActionAccept>(); // stop
+		// we failed opening that filepath, so we should offer the user the oportunity to save it differently
+		e.e.remove<Message::Components::Transfer::ActionAccept>(); // stop
 		return false;
 	}
 

@@ -6,6 +6,7 @@
 
 #include <filesystem>
 #include <fstream>
+#include <iostream>
 #include <cstring>
 
 struct FileRWMapped : public FileI {
@@ -25,7 +26,7 @@ struct FileRWMapped : public FileI {
 		_file_map.map(std::string{file_path}, 0, file_size, err);
 
 		if (err) {
-			// TODO: errro
+			std::cerr << "FileRWMapped error: mapping file failed " << err << "\n";
 			return;
 		}
 	}
