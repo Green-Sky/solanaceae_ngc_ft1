@@ -6,9 +6,7 @@
 #include <solanaceae/toxcore/tox_interface.hpp>
 
 #include <solanaceae/ngc_ext/ngcext.hpp>
-#include "./cubic.hpp"
-//#include "./flow_only.hpp"
-//#include "./ledbat.hpp"
+#include "./cca.hpp"
 
 #include "./rcv_buf.hpp"
 #include "./snd_buf.hpp"

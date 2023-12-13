@@ -15,14 +15,6 @@ struct FlowOnly : public CCAI {
 		static constexpr float RTT_UP_MAX = 3.0f; // how much larger a delay can be to be taken into account
 		static constexpr float RTT_MAX = 2.f; // 2 sec is probably too much
 
-		//float max_byterate_allowed {100.f*1024*1024}; // 100MiB/s
-		float max_byterate_allowed {10.f*1024*1024}; // 10MiB/s
-		//float max_byterate_allowed {1.f*1024*1024}; // 1MiB/s
-		//float max_byterate_allowed {0.6f*1024*1024}; // 600KiB/s
-		//float max_byterate_allowed {0.5f*1024*1024}; // 500KiB/s
-		//float max_byterate_allowed {0.05f*1024*1024}; // 50KiB/s
-		//float max_byterate_allowed {0.15f*1024*1024}; // 150KiB/s
-
 	protected:
 		// initialize to low value, will get corrected very fast
 		float _fwnd {0.01f * max_byterate_allowed}; // in bytes

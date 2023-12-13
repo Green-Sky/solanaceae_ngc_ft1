@@ -11,7 +11,7 @@
 // LEDBAT++: https://www.ietf.org/archive/id/draft-irtf-iccrg-ledbat-plus-plus-01.txt
 
 // LEDBAT++ implementation
-struct LEDBAT : public CCAI{
+struct LEDBAT : public CCAI {
 	public: // config
 #if 0
 		using SeqIDType = std::pair<uint8_t, uint16_t>; // tf_id, seq_id
@@ -47,14 +47,12 @@ struct LEDBAT : public CCAI{
 
 		//static constexpr size_t rtt_buffer_size_max {2000};
 
-		float max_byterate_allowed {10*1024*1024}; // 10MiB/s
-
 	public:
 		LEDBAT(size_t maximum_segment_data_size);
 
 		// return the current believed window in bytes of how much data can be inflight,
 		// without overstepping the delay requirement
-		float getCWnD(void) const {
+		float getWindow(void) override {
 			return _cwnd;
 		}
 

@@ -1,5 +1,9 @@
 #include "./ngcft1.hpp"
 
+#include "./flow_only.hpp"
+#include "./cubic.hpp"
+#include "./ledbat.hpp"
+
 #include <solanaceae/toxcore/utils.hpp>
 
 #include <sodium.h>
@@ -511,6 +515,9 @@ bool NGCFT1::onEvent(const Events::NGCEXT_ft1_init_ack& e) {
 	if (!peer.cca) {
 		peer.max_packet_data_size = negotiated_packet_data_size;
 		peer.cca = std::make_unique<CUBIC>(peer.max_packet_data_size);
+		//peer.cca = std::make_unique<LEDBAT>(peer.max_packet_data_size);
+		//peer.cca = std::make_unique<FlowOnly>(peer.max_packet_data_size);
+		//peer.cca->max_byterate_allowed = 1.f *1024*1024;
 	}
 
 	// iterate will now call NGC_FT1_send_data_cb
