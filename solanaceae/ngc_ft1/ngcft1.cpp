@@ -4,6 +4,7 @@
 #include "./cubic.hpp"
 #include "./ledbat.hpp"
 
+#include <cstdint>
 #include <solanaceae/toxcore/utils.hpp>
 
 #include <sodium.h>
@@ -513,7 +514,14 @@ bool NGCFT1::onEvent(const Events::NGCEXT_ft1_init_ack& e) {
 	const auto negotiated_packet_data_size = std::min<uint32_t>(e.max_lossy_data_size, _t.toxGroupMaxCustomLossyPacketLength()-4);
 	// TODO: reset cca with new pkg size
 	if (!peer.cca) {
-		peer.max_packet_data_size = negotiated_packet_data_size;
+		// make random max of [1020-1220]
+		const uint32_t random_max_data_size = (1024-4) + _rng()%201;
+		const uint32_t randomized_negotiated_packet_data_size = std::min(negotiated_packet_data_size, random_max_data_size);
+
+		peer.max_packet_data_size = randomized_negotiated_packet_data_size;
+
+		std::cerr << "NGCFT1: creating cca with max:" << peer.max_packet_data_size << "\n";
+
 		peer.cca = std::make_unique<CUBIC>(peer.max_packet_data_size);
 		//peer.cca = std::make_unique<LEDBAT>(peer.max_packet_data_size);
 		//peer.cca = std::make_unique<FlowOnly>(peer.max_packet_data_size);

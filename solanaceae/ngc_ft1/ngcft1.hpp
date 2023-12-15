@@ -17,6 +17,7 @@
 #include <map>
 #include <set>
 #include <memory>
+#include <random>
 
 namespace Events {
 
@@ -131,6 +132,8 @@ class NGCFT1 : public ToxEventI, public NGCEXTEventI, public NGCFT1EventProvider
 	ToxI& _t;
 	ToxEventProviderI& _tep;
 	NGCEXTEventProviderI& _neep;
+
+	std::default_random_engine _rng{std::random_device{}()};
 
 	// TODO: config
 	size_t acks_per_packet {3u}; // 3

@@ -84,11 +84,15 @@ int64_t CUBIC::canSend(void) {
 
 	// also limit to max sendrate per tick, which is usually smaller than window
 	// this is mostly to prevent spikes on empty windows
+	const auto rate = window / getCurrentDelay();
+
 	// assuming at most 20ms tick interval
 	// TODO: pass down actual tick interval
-	const auto rate = window / getCurrentDelay();
+	//const float time_delta = 0.02f; // 20ms
+	const float time_delta = 0.01666f;
+
 	// we dont want this limit to fall below atleast 1 segment
-	const int64_t max_bytes_per_tick = std::max<int64_t>(rate * 0.02f + 0.5f, MAXIMUM_SEGMENT_SIZE);
+	const int64_t max_bytes_per_tick = std::max<int64_t>(rate * time_delta + 0.5f, MAXIMUM_SEGMENT_SIZE);
 	cspace_bytes = std::min<int64_t>(cspace_bytes, max_bytes_per_tick);
 
 	// limit to whole packets
