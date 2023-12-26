@@ -332,7 +332,7 @@ NGCFT1::NGCFT1(
 	_neep.subscribe(this, NGCEXT_Event::FT1_DATA_ACK);
 	_neep.subscribe(this, NGCEXT_Event::FT1_MESSAGE);
 
-	_tep.subscribe(this, Tox_Event::TOX_EVENT_GROUP_PEER_EXIT);
+	_tep.subscribe(this, Tox_Event_Type::TOX_EVENT_GROUP_PEER_EXIT);
 }
 
 void NGCFT1::iterate(float time_delta) {
