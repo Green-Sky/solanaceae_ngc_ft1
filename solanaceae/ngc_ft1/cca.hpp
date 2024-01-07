@@ -60,7 +60,7 @@ struct CCAI {
 		// TODO: api for how much data we should send
 		// take time since last sent into account
 		// respect max_byterate_allowed
-		virtual int64_t canSend(void) = 0;
+		virtual int64_t canSend(float time_delta) = 0;
 
 		// get the list of timed out seq_ids
 		virtual std::vector<SeqIDType> getTimeouts(void) const = 0;

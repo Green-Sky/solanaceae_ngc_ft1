@@ -216,7 +216,7 @@ class NGCFT1 : public ToxEventI, public NGCEXTEventI, public NGCFT1EventProvider
 			NGCEXTEventProviderI& neep
 		);
 
-		void iterate(float delta);
+		float iterate(float delta);
 
 	public: // ft1 api
 		// TODO: public variant?

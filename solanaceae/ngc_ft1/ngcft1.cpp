@@ -298,7 +298,7 @@ void NGCFT1::iteratePeer(float time_delta, uint32_t group_number, uint32_t peer_
 		auto timeouts = peer.cca->getTimeouts();
 		std::set<CCAI::SeqIDType> timeouts_set{timeouts.cbegin(), timeouts.cend()};
 
-		int64_t can_packet_size {peer.cca->canSend()}; // might get more space while iterating (time)
+		int64_t can_packet_size {peer.cca->canSend(time_delta)}; // might get more space while iterating (time)
 
 		// change iterat start position to not starve transfers in the back
 		size_t iterated_count = 0;
@@ -335,11 +335,36 @@ NGCFT1::NGCFT1(
 	_tep.subscribe(this, Tox_Event_Type::TOX_EVENT_GROUP_PEER_EXIT);
 }
 
-void NGCFT1::iterate(float time_delta) {
+float NGCFT1::iterate(float time_delta) {
+	bool transfer_in_progress {false};
 	for (auto& [group_number, group] : groups) {
 		for (auto& [peer_number, peer] : group.peers) {
 			iteratePeer(time_delta, group_number, peer_number, peer);
+
+			// find any active transfer
+			if (!transfer_in_progress) {
+				for (const auto& t : peer.send_transfers) {
+					if (t.has_value()) {
+						transfer_in_progress = true;
+						break;
+					}
+				}
+			}
+			if (!transfer_in_progress) {
+				for (const auto& t : peer.recv_transfers) {
+					if (t.has_value()) {
+						transfer_in_progress = true;
+						break;
+					}
+				}
+			}
 		}
+	}
+
+	if (transfer_in_progress) {
+		return 0.005f; // 5ms
+	} else {
+		return 1.f; // once a sec might be too little
 	}
 }
 

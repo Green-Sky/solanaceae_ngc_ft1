@@ -20,7 +20,7 @@ LEDBAT::LEDBAT(size_t maximum_segment_data_size) : CCAI(maximum_segment_data_siz
 	_time_start_offset = clock::now();
 }
 
-int64_t LEDBAT::canSend(void) {
+int64_t LEDBAT::canSend(float time_delta) {
 	if (_in_flight.empty()) {
 		return MAXIMUM_SEGMENT_DATA_SIZE;
 	}

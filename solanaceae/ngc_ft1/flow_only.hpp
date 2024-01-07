@@ -63,7 +63,7 @@ struct FlowOnly : public CCAI {
 		// TODO: api for how much data we should send
 		// take time since last sent into account
 		// respect max_byterate_allowed
-		int64_t canSend(void) override;
+		int64_t canSend(float time_delta) override;
 
 		// get the list of timed out seq_ids
 		std::vector<SeqIDType> getTimeouts(void) const override;
