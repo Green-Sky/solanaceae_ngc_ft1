@@ -57,6 +57,9 @@ struct FlowOnly : public CCAI {
 
 		virtual void onCongestion(void) {};
 
+		// internal logic, calls the onCongestion() event
+		void updateCongestion(void);
+
 	public: // api
 		FlowOnly(size_t maximum_segment_data_size) : CCAI(maximum_segment_data_size) {}
 

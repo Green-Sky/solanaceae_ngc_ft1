@@ -28,6 +28,34 @@ void FlowOnly::updateWindow(void) {
 	_fwnd = std::max(_fwnd, 2.f * MAXIMUM_SEGMENT_DATA_SIZE);
 }
 
+void FlowOnly::updateCongestion(void) {
+	const auto tmp_window = getWindow();
+	// packet window * 0.3
+	// but atleast 4
+	int32_t max_consecutive_events = std::clamp<int32_t>(
+		(tmp_window/MAXIMUM_SEGMENT_DATA_SIZE) * 0.3f,
+		4,
+		50 // limit TODO: fix idle/time starved algo
+	);
+	// TODO: magic number
+
+#if 0
+	std::cout << "NGC_FT1 Flow: pkg out of order"
+		<< " w:" << tmp_window
+		<< " pw:" << tmp_window/MAXIMUM_SEGMENT_DATA_SIZE
+		<< " coe:" << _consecutive_events
+		<< " mcoe:" << max_consecutive_events
+		<< "\n";
+#endif
+
+	if (_consecutive_events > max_consecutive_events) {
+		//std::cout << "CONGESTION! NGC_FT1 flow: pkg out of order\n";
+		onCongestion();
+
+		// TODO: set _consecutive_events to zero?
+	}
+}
+
 float FlowOnly::getWindow(void) {
 	updateWindow();
 	return _fwnd;
@@ -111,29 +139,7 @@ void FlowOnly::onAck(std::vector<SeqIDType> seqs) {
 				_consecutive_events++;
 				it->ignore = true; // only handle once
 
-				const auto tmp_window = getWindow();
-				// packet window * 0.3
-				// but atleast 4
-				int32_t max_consecutive_events = std::clamp<int32_t>(
-					(tmp_window/MAXIMUM_SEGMENT_DATA_SIZE) * 0.3f,
-					4,
-					50 // limit TODO: fix idle/time starved algo
-				);
-				// TODO: magic number
-
-#if 0
-				std::cout << "NGC_FT1 Flow: pkg out of order"
-					<< " w:" << tmp_window
-					<< " pw:" << tmp_window/MAXIMUM_SEGMENT_DATA_SIZE
-					<< " coe:" << _consecutive_events
-					<< " mcoe:" << max_consecutive_events
-					<< "\n";
-#endif
-
-				if (_consecutive_events > max_consecutive_events) {
-					//std::cout << "CONGESTION! NGC_FT1 flow: pkg out of order\n";
-					onCongestion();
-				}
+				updateCongestion();
 			} else {
 				// only mesure delay, if not a congestion
 				addRTT(now - it->timestamp);
@@ -190,6 +196,14 @@ void FlowOnly::onLoss(SeqIDType seq, bool discard) {
 		it->ignore = true;
 	}
 
-	// no ce, since this is usually after data arrived out-of-order/duplicate
+	// usually after data arrived out-of-order/duplicate
+	if (!it->ignore) {
+		it->ignore = true; // only handle once
+		//_consecutive_events++;
+
+		//updateCongestion();
+		// this is usually a safe indicator for congestion/maxed connection
+		onCongestion();
+	}
 }
 

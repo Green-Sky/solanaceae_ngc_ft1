@@ -186,6 +186,30 @@ void NGCFT1::updateSendTransfer(float time_delta, uint32_t group_number, uint32_
 			}
 			//break;
 			return;
+		case State::FINISHING: // we still have unacked packets
+			tf.ssb.for_each(time_delta, [&](uint16_t id, const std::vector<uint8_t>& data, float& time_since_activity) {
+				if (can_packet_size >= data.size() && timeouts_set.count({idx, id})) {
+					sendPKG_FT1_DATA(group_number, peer_number, idx, id, data.data(), data.size());
+					peer.cca->onLoss({idx, id}, false);
+					time_since_activity = 0.f;
+					timeouts_set.erase({idx, id});
+					can_packet_size -= data.size();
+				}
+			});
+			if (tf.time_since_activity >= sending_give_up_after) {
+				// no ack after 30sec, close ft
+				// TODO: notify app
+				std::cerr << "NGCFT1 warning: sending ft finishing timed out, deleting\n";
+
+				// clean up cca
+				tf.ssb.for_each(time_delta, [&](uint16_t id, const std::vector<uint8_t>& data, float& time_since_activity) {
+					peer.cca->onLoss({idx, id}, true);
+					timeouts_set.erase({idx, id});
+				});
+
+				tf_opt.reset();
+			}
+			break;
 		case State::SENDING: {
 				tf.ssb.for_each(time_delta, [&](uint16_t id, const std::vector<uint8_t>& data, float& time_since_activity) {
 					if (can_packet_size >= data.size() && time_since_activity >= peer.cca->getCurrentDelay() && timeouts_set.count({idx, id})) {
@@ -249,40 +273,19 @@ void NGCFT1::updateSendTransfer(float time_delta, uint32_t group_number, uint32_
 					);
 
 					uint16_t seq_id = tf.ssb.add(std::move(new_data));
-					sendPKG_FT1_DATA(group_number, peer_number, idx, seq_id, tf.ssb.entries.at(seq_id).data.data(), tf.ssb.entries.at(seq_id).data.size());
-					peer.cca->onSent({idx, seq_id}, chunk_size);
-
-#if defined(EXTRA_LOGGING) && EXTRA_LOGGING == 1
-					fprintf(stderr, "FT: sent data size: %ld (seq %d)\n", chunk_size, seq_id);
-#endif
+					const bool sent = sendPKG_FT1_DATA(group_number, peer_number, idx, seq_id, tf.ssb.entries.at(seq_id).data.data(), tf.ssb.entries.at(seq_id).data.size());
+					if (sent) {
+						peer.cca->onSent({idx, seq_id}, chunk_size);
+					} else {
+						std::cerr << "NGCFT1: failed to send packet (queue full?) --------------\n";
+						peer.cca->onLoss({idx, seq_id}, false); // HACK: fake congestion event
+						// TODO: onCongestion
+						can_packet_size = 0;
+					}
 
 					tf.file_size_current += chunk_size;
 					can_packet_size -= chunk_size;
 				}
-			}
-			break;
-		case State::FINISHING: // we still have unacked packets
-			tf.ssb.for_each(time_delta, [&](uint16_t id, const std::vector<uint8_t>& data, float& time_since_activity) {
-				if (can_packet_size >= data.size() && timeouts_set.count({idx, id})) {
-					sendPKG_FT1_DATA(group_number, peer_number, idx, id, data.data(), data.size());
-					peer.cca->onLoss({idx, id}, false);
-					time_since_activity = 0.f;
-					timeouts_set.erase({idx, id});
-					can_packet_size -= data.size();
-				}
-			});
-			if (tf.time_since_activity >= sending_give_up_after) {
-				// no ack after 30sec, close ft
-				// TODO: notify app
-				std::cerr << "NGCFT1 warning: sending ft finishing timed out, deleting\n";
-
-				// clean up cca
-				tf.ssb.for_each(time_delta, [&](uint16_t id, const std::vector<uint8_t>& data, float& time_since_activity) {
-					peer.cca->onLoss({idx, id}, true);
-					timeouts_set.erase({idx, id});
-				});
-
-				tf_opt.reset();
 			}
 			break;
 		default: // invalid state, delete
@@ -362,6 +365,8 @@ float NGCFT1::iterate(float time_delta) {
 	}
 
 	if (transfer_in_progress) {
+		// ~15ms for up to 1mb/s
+		// ~5ms for up to 4mb/s
 		return 0.005f; // 5ms
 	} else {
 		return 1.f; // once a sec might be too little
