@@ -1069,8 +1069,11 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCFT1_recv_message& e) {
 	reg.emplace<Message::Components::TagUnread>(new_msg_e);
 
 	{ // by whom
-		auto& synced_by = reg.get_or_emplace<Message::Components::SyncedBy>(new_msg_e).list;
-		synced_by.emplace(self_c);
+		reg.get_or_emplace<Message::Components::SyncedBy>(new_msg_e).ts.try_emplace(self_c, ts);
+	}
+
+	{ // we received it, so we have it
+		reg.get_or_emplace<Message::Components::Remote::TimestampReceived>(new_msg_e).ts.try_emplace(self_c, ts);
 	}
 
 	// check if content exists
@@ -1384,10 +1387,6 @@ bool SHA1_NGCFT1::sendFilePath(const Contact3 c, std::string_view file_name, std
 					// TODO: check return
 					self->_nft.NGC_FT1_send_message_public(group_number, message_id, static_cast<uint32_t>(NGCFT1_file_kind::HASH_SHA1_INFO), sha1_info_hash.data(), sha1_info_hash.size());
 					reg_ptr->emplace<Message::Components::ToxGroupMessageID>(msg_e, message_id);
-
-					// TODO: generalize?
-					auto& synced_by = reg_ptr->emplace<Message::Components::SyncedBy>(msg_e).list;
-					synced_by.emplace(c_self);
 				} else if (
 					// non online group
 					self->_cr.any_of<Contact::Components::ToxGroupPersistent>(c)
@@ -1395,11 +1394,10 @@ bool SHA1_NGCFT1::sendFilePath(const Contact3 c, std::string_view file_name, std
 					// create msg_id
 					const uint32_t message_id = randombytes_random();
 					reg_ptr->emplace<Message::Components::ToxGroupMessageID>(msg_e, message_id);
-
-					// TODO: generalize?
-					auto& synced_by = reg_ptr->emplace<Message::Components::SyncedBy>(msg_e).list;
-					synced_by.emplace(c_self);
 				}
+
+				reg_ptr->emplace<Message::Components::SyncedBy>(msg_e).ts.try_emplace(c_self, ts);
+				reg_ptr->get_or_emplace<Message::Components::Remote::TimestampReceived>(msg_e).ts.try_emplace(c_self, ts);
 
 				self->_rmm.throwEventConstruct(*reg_ptr, msg_e);
 
