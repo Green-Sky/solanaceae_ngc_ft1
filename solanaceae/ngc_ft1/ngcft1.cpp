@@ -4,11 +4,11 @@
 #include "./cubic.hpp"
 #include "./ledbat.hpp"
 
-#include <cstdint>
-#include <solanaceae/toxcore/utils.hpp>
+#include <solanaceae/util/utils.hpp>
 
 #include <sodium.h>
 
+#include <cstdint>
 #include <iostream>
 #include <set>
 #include <algorithm>

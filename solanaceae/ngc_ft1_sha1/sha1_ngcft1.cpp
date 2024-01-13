@@ -1,6 +1,6 @@
 #include "./sha1_ngcft1.hpp"
 
-#include <solanaceae/toxcore/utils.hpp>
+#include <solanaceae/util/utils.hpp>
 
 #include <solanaceae/contact/components.hpp>
 #include <solanaceae/tox_contacts/components.hpp>
