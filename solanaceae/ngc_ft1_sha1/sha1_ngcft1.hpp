@@ -115,8 +115,8 @@ class SHA1_NGCFT1 : public RegistryMessageModelEventI, public NGCFT1EventI {
 	public: // TODO: config
 		bool _udp_only {false};
 
-		size_t _max_concurrent_in {4};
-		size_t _max_concurrent_out {6};
+		size_t _max_concurrent_in {6};
+		size_t _max_concurrent_out {8};
 		// TODO: probably also includes running transfers rn (meh)
 		size_t _max_pending_requests {32}; // per content
 
