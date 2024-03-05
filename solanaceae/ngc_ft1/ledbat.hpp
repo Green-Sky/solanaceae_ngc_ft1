@@ -49,6 +49,7 @@ struct LEDBAT : public CCAI {
 
 	public:
 		LEDBAT(size_t maximum_segment_data_size);
+		virtual ~LEDBAT(void) {}
 
 		// return the current believed window in bytes of how much data can be inflight,
 		// without overstepping the delay requirement

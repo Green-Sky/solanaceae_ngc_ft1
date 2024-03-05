@@ -211,18 +211,9 @@ void NGCFT1::updateSendTransfer(float time_delta, uint32_t group_number, uint32_
 			}
 			break;
 		case State::SENDING: {
-				tf.ssb.for_each(time_delta, [&](uint16_t id, const std::vector<uint8_t>& data, float& time_since_activity) {
-					if (can_packet_size >= data.size() && time_since_activity >= peer.cca->getCurrentDelay() && timeouts_set.count({idx, id})) {
-						// TODO: can fail
-						sendPKG_FT1_DATA(group_number, peer_number, idx, id, data.data(), data.size());
-						peer.cca->onLoss({idx, id}, false);
-						time_since_activity = 0.f;
-						timeouts_set.erase({idx, id});
-						can_packet_size -= data.size();
-					}
-				});
-
-				if (tf.time_since_activity >= sending_give_up_after) {
+				// first handle overall timeout (could otherwise do resends directly before, which is useless)
+				// timeout increases with active transfers (otherwise we could starve them)
+				if (tf.time_since_activity >= (sending_give_up_after * peer.active_send_transfers)) {
 					// no ack after 30sec, close ft
 					std::cerr << "NGCFT1 warning: sending ft in progress timed out, deleting\n";
 					dispatch(
@@ -243,6 +234,18 @@ void NGCFT1::updateSendTransfer(float time_delta, uint32_t group_number, uint32_
 					//continue; // dangerous control flow
 					return;
 				}
+
+				// do resends
+				tf.ssb.for_each(time_delta, [&](uint16_t id, const std::vector<uint8_t>& data, float& time_since_activity) {
+					if (can_packet_size >= data.size() && time_since_activity >= peer.cca->getCurrentDelay() && timeouts_set.count({idx, id})) {
+						// TODO: can fail
+						sendPKG_FT1_DATA(group_number, peer_number, idx, id, data.data(), data.size());
+						peer.cca->onLoss({idx, id}, false);
+						time_since_activity = 0.f;
+						timeouts_set.erase({idx, id});
+						can_packet_size -= data.size();
+					}
+				});
 
 				// if chunks in flight < window size (2)
 				while (can_packet_size > 0 && tf.file_size > 0) {
@@ -302,6 +305,14 @@ void NGCFT1::iteratePeer(float time_delta, uint32_t group_number, uint32_t peer_
 		std::set<CCAI::SeqIDType> timeouts_set{timeouts.cbegin(), timeouts.cend()};
 
 		int64_t can_packet_size {peer.cca->canSend(time_delta)}; // might get more space while iterating (time)
+
+		// get number current running transfers TODO: improve
+		peer.active_send_transfers = 0;
+		for (const auto& it : peer.send_transfers) {
+			if (it.has_value()) {
+				peer.active_send_transfers++;
+			}
+		}
 
 		// change iterat start position to not starve transfers in the back
 		size_t iterated_count = 0;

@@ -32,6 +32,7 @@ struct CUBIC : public FlowOnly {
 
 	public: // api
 		CUBIC(size_t maximum_segment_data_size) : FlowOnly(maximum_segment_data_size) {}
+		virtual ~CUBIC(void) {}
 
 		float getWindow(void) override;
 

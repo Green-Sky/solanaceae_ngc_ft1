@@ -137,8 +137,8 @@ class NGCFT1 : public ToxEventI, public NGCEXTEventI, public NGCFT1EventProvider
 
 	// TODO: config
 	size_t acks_per_packet {3u}; // 3
-	float init_retry_timeout_after {5.f}; // 10sec
-	float sending_give_up_after {30.f}; // 30sec
+	float init_retry_timeout_after {4.f};
+	float sending_give_up_after {15.f}; // 30sec (per active transfer)
 
 
 	struct Group {
@@ -193,6 +193,8 @@ class NGCFT1 : public ToxEventI, public NGCEXTEventI, public NGCFT1EventProvider
 			std::array<std::optional<SendTransfer>, 256> send_transfers;
 			size_t next_send_transfer_idx {0}; // next id will be 0
 			size_t next_send_transfer_send_idx {0};
+
+			size_t active_send_transfers {0};
 		};
 		std::map<uint32_t, Peer> peers;
 	};

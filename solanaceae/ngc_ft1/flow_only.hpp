@@ -62,6 +62,7 @@ struct FlowOnly : public CCAI {
 
 	public: // api
 		FlowOnly(size_t maximum_segment_data_size) : CCAI(maximum_segment_data_size) {}
+		virtual ~FlowOnly(void) {}
 
 		// TODO: api for how much data we should send
 		// take time since last sent into account
