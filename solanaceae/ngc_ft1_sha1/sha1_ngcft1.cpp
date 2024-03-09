@@ -291,8 +291,9 @@ void SHA1_NGCFT1::iterate(float delta) {
 			for (auto it = peer_it->second.begin(); it != peer_it->second.end();) {
 				it->second.time_since_activity += delta;
 
-				// if we have not heard for 10sec, timeout
-				if (it->second.time_since_activity >= 10.f) {
+				// if we have not heard for 2min, timeout (lower level event on real timeout)
+				// TODO: do we really need this if we get events?
+				if (it->second.time_since_activity >= 120.f) {
 					std::cerr << "SHA1_NGCFT1 warning: sending tansfer timed out " << "." << int(it->first) << "\n";
 					it = peer_it->second.erase(it);
 				} else {
