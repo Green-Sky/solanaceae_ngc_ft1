@@ -98,6 +98,7 @@ bool NGCFT1::sendPKG_FT1_DATA(
 	// check header_size+data_size <= max pkg size
 
 	std::vector<uint8_t> pkg;
+	pkg.reserve(2048); // saves a ton of allocations
 	pkg.push_back(static_cast<uint8_t>(NGCEXT_Event::FT1_DATA));
 	pkg.push_back(transfer_id);
 	pkg.push_back(sequence_id & 0xff);
@@ -118,6 +119,7 @@ bool NGCFT1::sendPKG_FT1_DATA_ACK(
 	const uint16_t* seq_ids, size_t seq_ids_size
 ) {
 	std::vector<uint8_t> pkg;
+	pkg.reserve(1+1+2*32); // 32acks in a single pkg should be unlikely
 	pkg.push_back(static_cast<uint8_t>(NGCEXT_Event::FT1_DATA_ACK));
 	pkg.push_back(transfer_id);
 
@@ -578,7 +580,7 @@ bool NGCFT1::onEvent(const Events::NGCEXT_ft1_init_ack& e) {
 
 bool NGCFT1::onEvent(const Events::NGCEXT_ft1_data& e) {
 #if !NDEBUG
-	std::cout << "NGCFT1: FT1_DATA\n";
+	//std::cout << "NGCFT1: FT1_DATA\n";
 #endif
 
 	if (e.data.empty()) {
