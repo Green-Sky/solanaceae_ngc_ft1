@@ -219,6 +219,10 @@ std::optional<std::pair<uint32_t, uint32_t>> SHA1_NGCFT1::selectPeerForRequest(C
 					continue;
 				}
 
+				if (_cr.all_of<Contact::Components::TagSelfStrong>(child)) {
+					continue; // skip self
+				}
+
 				if (_cr.all_of<Contact::Components::ToxGroupPeerEphemeral>(child)) {
 					const auto& tgpe = _cr.get<Contact::Components::ToxGroupPeerEphemeral>(child);
 					un_tox_peers.push_back(tgpe.peer_number);
