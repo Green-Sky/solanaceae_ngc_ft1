@@ -1078,7 +1078,11 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCFT1_recv_message& e) {
 	}
 
 	{ // we received it, so we have it
-		reg.get_or_emplace<Message::Components::Remote::TimestampReceived>(new_msg_e).ts.try_emplace(self_c, ts);
+		auto& rb = reg.get_or_emplace<Message::Components::ReceivedBy>(new_msg_e).ts;
+		rb.try_emplace(c, ts);
+		// TODO: how do we handle partial files???
+		// tox ft rn only sets self if the file was received fully
+		rb.try_emplace(self_c, ts);
 	}
 
 	// check if content exists
@@ -1401,8 +1405,8 @@ bool SHA1_NGCFT1::sendFilePath(const Contact3 c, std::string_view file_name, std
 					reg_ptr->emplace<Message::Components::ToxGroupMessageID>(msg_e, message_id);
 				}
 
-				reg_ptr->emplace<Message::Components::SyncedBy>(msg_e).ts.try_emplace(c_self, ts);
-				reg_ptr->get_or_emplace<Message::Components::Remote::TimestampReceived>(msg_e).ts.try_emplace(c_self, ts);
+				reg_ptr->get_or_emplace<Message::Components::SyncedBy>(msg_e).ts.try_emplace(c_self, ts);
+				reg_ptr->get_or_emplace<Message::Components::ReceivedBy>(msg_e).ts.try_emplace(c_self, ts);
 
 				self->_rmm.throwEventConstruct(*reg_ptr, msg_e);
 
