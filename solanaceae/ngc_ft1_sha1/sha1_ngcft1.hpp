@@ -2,6 +2,7 @@
 
 // solanaceae port of sha1 fts for NGCFT1
 
+#include <solanaceae/object_store/object_store.hpp>
 #include <solanaceae/contact/contact_model3.hpp>
 #include <solanaceae/message3/registry_message_model.hpp>
 #include <solanaceae/tox_contacts/tox_contact_model2.hpp>
@@ -20,11 +21,9 @@
 #include <mutex>
 #include <list>
 
-enum class Content : uint32_t {};
-using ContentRegistry = entt::basic_registry<Content>;
-using ContentHandle = entt::basic_handle<ContentRegistry>;
-
 class SHA1_NGCFT1 : public RegistryMessageModelEventI, public NGCFT1EventI {
+	ObjectStore2& _os;
+	// TODO: backend abstraction
 	Contact3Registry& _cr;
 	RegistryMessageModel& _rmm;
 	NGCFT1& _nft;
@@ -32,21 +31,18 @@ class SHA1_NGCFT1 : public RegistryMessageModelEventI, public NGCFT1EventI {
 
 	std::minstd_rand _rng {1337*11};
 
-	// registry per group?
-	ContentRegistry _contentr;
-
 	// limit this to each group?
-	entt::dense_map<SHA1Digest, ContentHandle> _info_to_content;
+	entt::dense_map<SHA1Digest, ObjectHandle> _info_to_content;
 
 	// sha1 chunk index
 	// TODO: optimize lookup
 	// TODO: multiple contents. hashes might be unique, but data is not
-	entt::dense_map<SHA1Digest, ContentHandle> _chunks;
+	entt::dense_map<SHA1Digest, ObjectHandle> _chunks;
 
 	// group_number, peer_number, content, chunk_hash, timer
-	std::deque<std::tuple<uint32_t, uint32_t, ContentHandle, SHA1Digest, float>> _queue_requested_chunk;
+	std::deque<std::tuple<uint32_t, uint32_t, ObjectHandle, SHA1Digest, float>> _queue_requested_chunk;
 	//void queueUpRequestInfo(uint32_t group_number, uint32_t peer_number, const SHA1Digest& hash);
-	void queueUpRequestChunk(uint32_t group_number, uint32_t peer_number, ContentHandle content, const SHA1Digest& hash);
+	void queueUpRequestChunk(uint32_t group_number, uint32_t peer_number, ObjectHandle content, const SHA1Digest& hash);
 
 	struct SendingTransfer {
 		struct Info {
@@ -56,7 +52,7 @@ class SHA1_NGCFT1 : public RegistryMessageModelEventI, public NGCFT1EventI {
 		};
 
 		struct Chunk {
-			ContentHandle content;
+			ObjectHandle content;
 			size_t chunk_index; // <.< remove offset_into_file
 			//uint64_t offset_into_file;
 			// or data?
@@ -72,14 +68,14 @@ class SHA1_NGCFT1 : public RegistryMessageModelEventI, public NGCFT1EventI {
 
 	struct ReceivingTransfer {
 		struct Info {
-			ContentHandle content;
+			ObjectHandle content;
 			// copy of info data
 			// too large?
 			std::vector<uint8_t> info_data;
 		};
 
 		struct Chunk {
-			ContentHandle content;
+			ObjectHandle content;
 			std::vector<size_t> chunk_indices;
 			// or data?
 			// if memmapped, this would be just a pointer
@@ -93,8 +89,8 @@ class SHA1_NGCFT1 : public RegistryMessageModelEventI, public NGCFT1EventI {
 	entt::dense_map<uint64_t, entt::dense_map<uint8_t, ReceivingTransfer>> _receiving_transfers;
 
 	// makes request rotate around open content
-	std::deque<ContentHandle> _queue_content_want_info;
-	std::deque<ContentHandle> _queue_content_want_chunk;
+	std::deque<ObjectHandle> _queue_content_want_info;
+	std::deque<ObjectHandle> _queue_content_want_chunk;
 
 	std::atomic_bool _info_builder_dirty {false};
 	std::mutex _info_builder_queue_mutex;
@@ -108,9 +104,9 @@ class SHA1_NGCFT1 : public RegistryMessageModelEventI, public NGCFT1EventI {
 
 	static uint64_t combineIds(const uint32_t group_number, const uint32_t peer_number);
 
-	void updateMessages(ContentHandle ce);
+	void updateMessages(ObjectHandle ce);
 
-	std::optional<std::pair<uint32_t, uint32_t>> selectPeerForRequest(ContentHandle ce);
+	std::optional<std::pair<uint32_t, uint32_t>> selectPeerForRequest(ObjectHandle ce);
 
 	public: // TODO: config
 		bool _udp_only {false};
@@ -122,6 +118,7 @@ class SHA1_NGCFT1 : public RegistryMessageModelEventI, public NGCFT1EventI {
 
 	public:
 		SHA1_NGCFT1(
+			ObjectStore2& os,
 			Contact3Registry& cr,
 			RegistryMessageModel& rmm,
 			NGCFT1& nft,

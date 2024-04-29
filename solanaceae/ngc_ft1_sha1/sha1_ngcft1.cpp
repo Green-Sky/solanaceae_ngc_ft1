@@ -26,11 +26,11 @@
 
 namespace Message::Components {
 
-	using Content = ContentHandle;
+	using Content = ObjectHandle;
 
 } // Message::Components
 
-// TODO: rename to content components
+// TODO: rename to object components
 namespace Components {
 
 	struct Messages {
@@ -112,7 +112,7 @@ static size_t chunkSize(const FT1InfoSHA1& sha1_info, size_t chunk_index) {
 	}
 }
 
-void SHA1_NGCFT1::queueUpRequestChunk(uint32_t group_number, uint32_t peer_number, ContentHandle content, const SHA1Digest& hash) {
+void SHA1_NGCFT1::queueUpRequestChunk(uint32_t group_number, uint32_t peer_number, ObjectHandle content, const SHA1Digest& hash) {
 	for (auto& [i_g, i_p, i_m, i_h, i_t] : _queue_requested_chunk) {
 		// if already in queue
 		if (i_g == group_number && i_p == peer_number && i_h == hash) {
@@ -156,7 +156,7 @@ uint64_t SHA1_NGCFT1::combineIds(const uint32_t group_number, const uint32_t pee
 	return (uint64_t(group_number) << 32) | peer_number;
 }
 
-void SHA1_NGCFT1::updateMessages(ContentHandle ce) {
+void SHA1_NGCFT1::updateMessages(ObjectHandle ce) {
 	assert(ce.all_of<Components::Messages>());
 
 	for (auto msg : ce.get<Components::Messages>().messages) {
@@ -185,7 +185,7 @@ void SHA1_NGCFT1::updateMessages(ContentHandle ce) {
 	}
 }
 
-std::optional<std::pair<uint32_t, uint32_t>> SHA1_NGCFT1::selectPeerForRequest(ContentHandle ce) {
+std::optional<std::pair<uint32_t, uint32_t>> SHA1_NGCFT1::selectPeerForRequest(ObjectHandle ce) {
 	// get a list of peers we can request this file from
 	// TODO: randomly request from non SuspectedParticipants
 	std::vector<std::pair<uint32_t, uint32_t>> tox_peers;
@@ -248,11 +248,13 @@ std::optional<std::pair<uint32_t, uint32_t>> SHA1_NGCFT1::selectPeerForRequest(C
 }
 
 SHA1_NGCFT1::SHA1_NGCFT1(
+	ObjectStore2& os,
 	Contact3Registry& cr,
 	RegistryMessageModel& rmm,
 	NGCFT1& nft,
 	ToxContactModel2& tcm
 ) :
+	_os(os),
 	_cr(cr),
 	_rmm(rmm),
 	_nft(nft),
@@ -350,8 +352,8 @@ void SHA1_NGCFT1::iterate(float delta) {
 		}
 
 		{ // requested info timers
-			std::vector<Content> timed_out;
-			_contentr.view<Components::ReRequestInfoTimer>().each([delta, &timed_out](Content e, Components::ReRequestInfoTimer& rrit) {
+			std::vector<Object> timed_out;
+			_os.registry().view<Components::ReRequestInfoTimer>().each([delta, &timed_out](Object e, Components::ReRequestInfoTimer& rrit) {
 				rrit.timer += delta;
 
 				// 15sec, TODO: config
@@ -361,12 +363,13 @@ void SHA1_NGCFT1::iterate(float delta) {
 			});
 			for (const auto e : timed_out) {
 				// TODO: avoid dups
-				_queue_content_want_info.push_back({_contentr, e});
-				_contentr.remove<Components::ReRequestInfoTimer>(e);
+				_queue_content_want_info.push_back(_os.objectHandle(e));
+				_os.registry().remove<Components::ReRequestInfoTimer>(e);
+				// TODO: throw update?
 			}
 		}
 		{ // requested chunk timers
-			_contentr.view<Components::FT1ChunkSHA1Requested>().each([delta](Components::FT1ChunkSHA1Requested& ftchunk_requested) {
+			_os.registry().view<Components::FT1ChunkSHA1Requested>().each([delta](Components::FT1ChunkSHA1Requested& ftchunk_requested) {
 				for (auto it = ftchunk_requested.chunks.begin(); it != ftchunk_requested.chunks.end();) {
 					it->second += delta;
 
@@ -1087,12 +1090,13 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCFT1_recv_message& e) {
 
 	// check if content exists
 	const auto sha1_info_hash = std::vector<uint8_t>{e.file_id, e.file_id+e.file_id_size};
-	ContentHandle ce;
+	ObjectHandle ce;
 	if (_info_to_content.count(sha1_info_hash)) {
 		ce = _info_to_content.at(sha1_info_hash);
 		std::cout << "SHA1_NGCFT1: new message has existing content\n";
 	} else {
-		ce = {_contentr, _contentr.create()};
+		// TODO: backend
+		ce = {_os.registry(), _os.registry().create()};
 		_info_to_content[sha1_info_hash] = ce;
 		std::cout << "SHA1_NGCFT1: new message has new content\n";
 
@@ -1249,7 +1253,7 @@ bool SHA1_NGCFT1::sendFilePath(const Contact3 c, std::string_view file_name, std
 				std::cout << "SHA1_NGCFT1 sha1_info_hash: " << bin2hex(sha1_info_hash) << "\n";
 
 				// check if content exists
-				ContentHandle ce;
+				ObjectHandle ce;
 				if (self->_info_to_content.count(sha1_info_hash)) {
 					ce = self->_info_to_content.at(sha1_info_hash);
 
@@ -1318,7 +1322,8 @@ bool SHA1_NGCFT1::sendFilePath(const Contact3 c, std::string_view file_name, std
 						it = self->_queue_content_want_chunk.erase(it);
 					}
 				} else {
-					ce = {self->_contentr, self->_contentr.create()};
+					// TODO: backend
+					ce = {self->_os.registry(), self->_os.registry().create()};
 					self->_info_to_content[sha1_info_hash] = ce;
 
 					ce.emplace<Components::FT1InfoSHA1>(sha1_info);
