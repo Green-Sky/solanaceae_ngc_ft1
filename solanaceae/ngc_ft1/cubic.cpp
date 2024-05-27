@@ -51,6 +51,7 @@ void CUBIC::onCongestion(void) {
 		const auto current_cwnd = getCWnD(); // TODO: remove, only used by logging?
 		const auto current_wnd = getWindow(); // respects cwnd and fwnd
 
+		_bytes_leftover = 0;
 		resetReductionTimer();
 
 		if (current_cwnd < _window_max) {
@@ -90,7 +91,7 @@ int64_t CUBIC::canSend(float time_delta) {
 	}
 
 	const auto window = getCWnD();
-	int64_t cspace_bytes = window - _in_flight_bytes;
+	int64_t cspace_bytes = (window - _in_flight_bytes) + _bytes_leftover;
 	if (cspace_bytes < MAXIMUM_SEGMENT_DATA_SIZE) {
 		return 0u;
 	}
@@ -105,6 +106,8 @@ int64_t CUBIC::canSend(float time_delta) {
 
 	// limit to whole packets
 	int64_t cspace_pkgs = (cspace_bytes / MAXIMUM_SEGMENT_DATA_SIZE) * MAXIMUM_SEGMENT_DATA_SIZE;
+
+	_bytes_leftover = cspace_bytes - cspace_pkgs;
 
 	return std::min(cspace_pkgs, fspace_pkgs);
 }

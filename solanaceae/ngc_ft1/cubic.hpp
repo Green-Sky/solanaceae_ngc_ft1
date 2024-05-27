@@ -19,6 +19,7 @@ struct CUBIC : public FlowOnly {
 		//double _window_last_max {2.f * MAXIMUM_SEGMENT_SIZE};
 
 		double _time_since_reduction {12.f}; // warm start
+		int64_t _bytes_leftover {0};
 
 	private:
 		void updateReductionTimer(float time_delta);
