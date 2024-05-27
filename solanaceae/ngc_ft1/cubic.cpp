@@ -7,7 +7,7 @@ void CUBIC::updateReductionTimer(float time_delta) {
 	const auto now {getTimeNow()};
 
 	// only keep updating while the cca interaction is not too long ago
-	if (now - _time_point_last_update <= getCurrentDelay()*2.f) {
+	if (now - _time_point_last_update <= getCurrentDelay()*4.f) {
 		_time_since_reduction += time_delta;
 	}
 }
