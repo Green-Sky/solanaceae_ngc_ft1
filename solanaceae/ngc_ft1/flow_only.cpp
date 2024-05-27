@@ -6,7 +6,8 @@
 #include <algorithm>
 
 float FlowOnly::getCurrentDelay(void) const {
-	return std::min(_rtt_ema, RTT_MAX);
+	// below 1ms is useless
+	return std::clamp(_rtt_ema, 0.001f, RTT_MAX);
 }
 
 void FlowOnly::addRTT(float new_delay) {

@@ -66,5 +66,6 @@ target_link_libraries(solanaceae_sha1_ngcft1 PUBLIC
 	solanaceae_tox_contacts
 	solanaceae_message3
 	solanaceae_object_store
+	solanaceae_file2
 )
 

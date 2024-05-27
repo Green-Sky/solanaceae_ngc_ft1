@@ -7,8 +7,6 @@
 #include <solanaceae/message3/components.hpp>
 #include <solanaceae/tox_messages/components.hpp>
 
-#include <solanaceae/message3/file_r_file.hpp>
-
 #include "./ft1_sha1_info.hpp"
 #include "./hash_utils.hpp"
 
@@ -568,7 +566,7 @@ bool SHA1_NGCFT1::onEvent(const Message::Events::MessageUpdated& e) {
 	ce.emplace<Message::Components::Transfer::FileInfoLocal>(std::vector{full_file_path});
 
 	const bool file_exists = std::filesystem::exists(full_file_path);
-	std::unique_ptr<FileRWMapped> file_impl = std::make_unique<FileRWMapped>(full_file_path, info.file_size);
+	std::unique_ptr<File2I> file_impl = std::make_unique<File2RWMapped>(full_file_path, info.file_size);
 
 	if (!file_impl->isGood()) {
 		std::cerr << "SHA1_NGCFT1 error: failed opening file '" << full_file_path << "'!\n";
@@ -589,22 +587,24 @@ bool SHA1_NGCFT1::onEvent(const Message::Events::MessageUpdated& e) {
 			// iterate existing file
 			for (size_t i = 0; i < info.chunks.size(); i++) {
 				const uint64_t chunk_size = info.chunkSize(i);
-				auto existing_data = file_impl->read(i*uint64_t(info.chunk_size), chunk_size);
-				assert(existing_data.size() == chunk_size);
+				auto existing_data = file_impl->read(chunk_size, i*uint64_t(info.chunk_size));
 
-				// TODO: avoid copy
+				assert(existing_data.size == chunk_size);
+				if (existing_data.size == chunk_size) {
+					const auto data_hash = SHA1Digest{hash_sha1(existing_data.ptr, existing_data.size)};
+					const bool data_equal = data_hash == info.chunks.at(i);
 
-				const auto data_hash = SHA1Digest{hash_sha1(existing_data.data(), existing_data.size())};
-				const bool data_equal = data_hash == info.chunks.at(i);
+					cc.have_chunk.push_back(data_equal);
 
-				cc.have_chunk.push_back(data_equal);
-
-				if (data_equal) {
-					cc.have_count += 1;
-					bytes_received += chunk_size;
-					//std::cout << "existing i[" << info.chunks.at(i) << "] == d[" << data_hash << "]\n";
+					if (data_equal) {
+						cc.have_count += 1;
+						bytes_received += chunk_size;
+						//std::cout << "existing i[" << info.chunks.at(i) << "] == d[" << data_hash << "]\n";
+					} else {
+						//std::cout << "unk i[" << info.chunks.at(i) << "] != d[" << data_hash << "]\n";
+					}
 				} else {
-					//std::cout << "unk i[" << info.chunks.at(i) << "] != d[" << data_hash << "]\n";
+					// error reading?
 				}
 
 				_chunks[info.chunks[i]] = ce;
@@ -833,9 +833,7 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCFT1_recv_data& e) {
 		for (const auto chunk_index : std::get<ReceivingTransfer::Chunk>(tv).chunk_indices) {
 			const auto offset_into_file = chunk_index* ce.get<Components::FT1InfoSHA1>().chunk_size;
 
-			// TODO: avoid temporary copy
-			// TODO: check return
-			if (!file->write(offset_into_file + e.data_offset, {e.data, e.data + e.data_size})) {
+			if (!file->write({e.data, e.data_size}, offset_into_file + e.data_offset)) {
 				std::cerr << "SHA1_NGCFT1 error: writing file failed o:" << offset_into_file + e.data_offset << "\n";
 			}
 		}
@@ -873,14 +871,17 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCFT1_send_data& e) {
 		auto& chunk_transfer = std::get<SendingTransfer::Chunk>(transfer.v);
 		const auto& info = chunk_transfer.content.get<Components::FT1InfoSHA1>();
 		// TODO: should we really use file?
-		const auto data = chunk_transfer.content.get<Message::Components::Transfer::File>()->read((chunk_transfer.chunk_index * uint64_t(info.chunk_size)) + e.data_offset, e.data_size);
+		const auto data = chunk_transfer.content.get<Message::Components::Transfer::File>()->read(
+			e.data_size,
+			(chunk_transfer.chunk_index * uint64_t(info.chunk_size)) + e.data_offset
+		);
 
 		// TODO: optimize
-		for (size_t i = 0; i < e.data_size && i < data.size(); i++) {
+		for (size_t i = 0; i < e.data_size && i < data.size; i++) {
 			e.data[i] = data[i];
 		}
 
-		chunk_transfer.content.get_or_emplace<Message::Components::Transfer::BytesSent>().total += data.size();
+		chunk_transfer.content.get_or_emplace<Message::Components::Transfer::BytesSent>().total += data.size;
 		// TODO: add event to propergate to messages
 		//_rmm.throwEventUpdate(transfer); // should we?
 
@@ -961,10 +962,11 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCFT1_recv_done& e) {
 		const auto chunk_size = info.chunkSize(chunk_index);
 		assert(offset_into_file+chunk_size <= info.file_size);
 
-		const auto chunk_data = ce.get<Message::Components::Transfer::File>()->read(offset_into_file, chunk_size);
+		const auto chunk_data = ce.get<Message::Components::Transfer::File>()->read(chunk_size, offset_into_file);
+		assert(!chunk_data.empty());
 
 		// check hash of chunk
-		auto got_hash = hash_sha1(chunk_data.data(), chunk_data.size());
+		auto got_hash = hash_sha1(chunk_data.ptr, chunk_data.size);
 		if (info.chunks.at(chunk_index) == got_hash) {
 			std::cout << "SHA1_NGCFT1: got chunk [" << SHA1Digest{got_hash} << "]\n";
 
@@ -986,7 +988,7 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCFT1_recv_done& e) {
 							// HACK: remap file, to clear ram
 
 							// TODO: error checking
-							ce.get<Message::Components::Transfer::File>() = std::make_unique<FileRWMapped>(
+							ce.get<Message::Components::Transfer::File>() = std::make_unique<File2RWMapped>(
 								ce.get<Message::Components::Transfer::FileInfoLocal>().file_list.front(),
 								info.file_size
 							);
@@ -994,7 +996,7 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCFT1_recv_done& e) {
 
 						// good chunk
 						// TODO: have wasted + metadata
-						ce.get_or_emplace<Message::Components::Transfer::BytesReceived>().total += chunk_data.size();
+						ce.get_or_emplace<Message::Components::Transfer::BytesReceived>().total += chunk_data.size;
 					}
 				}
 			} else {
@@ -1184,9 +1186,7 @@ bool SHA1_NGCFT1::sendFilePath(const Contact3 c, std::string_view file_name, std
 		file_name_ = std::string(file_name),
 		file_path_ = std::string(file_path)
 	]() mutable {
-		// TODO: rw?
-		// TODO: memory mapped would be king
-		auto file_impl = std::make_unique<FileRFile>(file_path_);
+		auto file_impl = std::make_unique<File2RWMapped>(file_path_, -1);
 		if (!file_impl->isGood()) {
 			{
 				std::lock_guard l{self->_info_builder_queue_mutex};
@@ -1205,19 +1205,19 @@ bool SHA1_NGCFT1::sendFilePath(const Contact3 c, std::string_view file_name, std
 		FT1InfoSHA1 sha1_info;
 		// build info
 		sha1_info.file_name = file_name_;
-		sha1_info.file_size = file_impl->_file_size;
+		sha1_info.file_size = file_impl->_file_size; // TODO: remove the reliance on implementation details
 
 		{ // build chunks
 			// HACK: load file fully
-			// TODO: the speed is truly horrid
-			const auto file_data = file_impl->read(0, file_impl->_file_size);
+			// ... its only a hack if its not memory mapped, but reading in chunk_sized chunks is probably a good idea anyway
+			const auto file_data = file_impl->read(file_impl->_file_size, 0);
 			size_t i = 0;
-			for (; i + sha1_info.chunk_size < file_data.size(); i += sha1_info.chunk_size) {
-				sha1_info.chunks.push_back(hash_sha1(file_data.data()+i, sha1_info.chunk_size));
+			for (; i + sha1_info.chunk_size < file_data.size; i += sha1_info.chunk_size) {
+				sha1_info.chunks.push_back(hash_sha1(file_data.ptr+i, sha1_info.chunk_size));
 			}
 
-			if (i < file_data.size()) {
-				sha1_info.chunks.push_back(hash_sha1(file_data.data()+i, file_data.size()-i));
+			if (i < file_data.size) {
+				sha1_info.chunks.push_back(hash_sha1(file_data.ptr+i, file_data.size-i));
 			}
 		}
 
@@ -1236,7 +1236,7 @@ bool SHA1_NGCFT1::sendFilePath(const Contact3 c, std::string_view file_name, std
 			]() mutable { //
 				// back on iterate thread
 
-				auto file_impl = std::make_unique<FileRFile>(file_path_);
+				auto file_impl = std::make_unique<File2RWMapped>(file_path_, sha1_info.file_size);
 				if (!file_impl->isGood()) {
 					std::cerr << "SHA1_NGCFT1 error: failed opening file '" << file_path_ << "'!\n";
 					return;
