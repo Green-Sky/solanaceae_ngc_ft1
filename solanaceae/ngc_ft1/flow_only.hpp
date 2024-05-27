@@ -38,6 +38,9 @@ struct FlowOnly : public CCAI {
 
 		clock::time_point _time_start_offset;
 
+		// used to clamp growth rate in the void
+		double _time_point_last_update {getTimeNow()};
+
 	protected:
 		// make values relative to algo start for readability (and precision)
 		// get timestamp in seconds

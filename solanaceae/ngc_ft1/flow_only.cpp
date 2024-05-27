@@ -114,6 +114,8 @@ void FlowOnly::onSent(SeqIDType seq, size_t data_size) {
 	);
 	_in_flight_bytes += data_size + SEGMENT_OVERHEAD;
 	//_recently_sent_bytes += data_size + SEGMENT_OVERHEAD;
+
+	_time_point_last_update = getTimeNow();
 }
 
 void FlowOnly::onAck(std::vector<SeqIDType> seqs) {
@@ -123,6 +125,8 @@ void FlowOnly::onAck(std::vector<SeqIDType> seqs) {
 	}
 
 	const auto now {getTimeNow()};
+
+	_time_point_last_update = now;
 
 	// first seq in seqs is the actual value, all extra are for redundency
 	{ // skip in ack is congestion event
