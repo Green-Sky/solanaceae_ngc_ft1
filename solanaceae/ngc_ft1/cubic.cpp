@@ -3,14 +3,25 @@
 #include <cmath>
 #include <iostream>
 
+void CUBIC::updateReductionTimer(float time_delta) {
+	const auto now {getTimeNow()};
+
+	// only keep updating while the cca interaction is not too long ago
+	if (now - _time_point_last_update <= getCurrentDelay()*2.f) {
+		_time_since_reduction += time_delta;
+	}
+}
+
+void CUBIC::resetReductionTimer(void) {
+	_time_since_reduction = 0.f;
+}
+
 float CUBIC::getCWnD(void) const {
 	const double K = cbrt(
 		(_window_max * (1. - BETA)) / SCALING_CONSTANT
 	);
 
-	const double time_since_reduction = getTimeNow() - _time_point_reduction;
-
-	const double TK = time_since_reduction - K;
+	const double TK = _time_since_reduction - K;
 
 	const double cwnd =
 		SCALING_CONSTANT
@@ -34,13 +45,13 @@ float CUBIC::getCWnD(void) const {
 
 void CUBIC::onCongestion(void) {
 	// 8 is probably too much (800ms for 100ms rtt)
-	if (getTimeNow() - _time_point_reduction >= getCurrentDelay()*4.f) {
-		const auto tmp_old_tp = getTimeNow() - _time_point_reduction;
+	if (_time_since_reduction >= getCurrentDelay()*4.f) {
+		const auto tmp_old_tp = _time_since_reduction;
 
 		const auto current_cwnd = getCWnD(); // TODO: remove, only used by logging?
 		const auto current_wnd = getWindow(); // respects cwnd and fwnd
 
-		_time_point_reduction = getTimeNow();
+		resetReductionTimer();
 
 		if (current_cwnd < _window_max) {
 			// congestion before reaching the inflection point (prev window_max).
@@ -71,6 +82,8 @@ float CUBIC::getWindow(void) {
 
 int64_t CUBIC::canSend(float time_delta) {
 	const auto fspace_pkgs = FlowOnly::canSend(time_delta);
+
+	updateReductionTimer(time_delta);
 
 	if (fspace_pkgs == 0u) {
 		return 0u;

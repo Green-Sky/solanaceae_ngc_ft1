@@ -17,9 +17,13 @@ struct CUBIC : public FlowOnly {
 		// window size before last reduciton
 		double _window_max {2.f * MAXIMUM_SEGMENT_SIZE}; // start with mss*2
 		//double _window_last_max {2.f * MAXIMUM_SEGMENT_SIZE};
-		double _time_point_reduction {getTimeNow()};
+
+		double _time_since_reduction {12.f}; // warm start
 
 	private:
+		void updateReductionTimer(float time_delta);
+		void resetReductionTimer(void);
+
 		float getCWnD(void) const;
 
 		// moving avg over the last few delay samples
