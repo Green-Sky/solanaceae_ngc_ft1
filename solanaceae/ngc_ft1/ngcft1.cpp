@@ -686,7 +686,7 @@ bool NGCFT1::onEvent(const Events::NGCEXT_ft1_data_ack& e) {
 
 	// delete if all packets acked
 	if (transfer.file_size == transfer.file_size_current && transfer.ssb.size() == 0) {
-		std::cout << "NGCFT1: " << int(e.transfer_id) << " done\n";
+		std::cout << "NGCFT1: " << int(e.transfer_id) << " done. wnd:" << peer.cca->getWindow() << "\n";
 		dispatch(
 			NGCFT1_Event::send_done,
 			Events::NGCFT1_send_done{
