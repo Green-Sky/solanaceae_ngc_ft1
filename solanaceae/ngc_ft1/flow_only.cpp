@@ -98,6 +98,10 @@ std::vector<FlowOnly::SeqIDType> FlowOnly::getTimeouts(void) const {
 	return list;
 }
 
+int64_t FlowOnly::inFlightCount(void) const {
+	return _in_flight.size();
+}
+
 void FlowOnly::onSent(SeqIDType seq, size_t data_size) {
 	if constexpr (true) {
 		for (const auto& it : _in_flight) {
@@ -105,15 +109,15 @@ void FlowOnly::onSent(SeqIDType seq, size_t data_size) {
 		}
 	}
 
-	_in_flight.push_back(
+	const auto& new_entry = _in_flight.emplace_back(
 		FlyingBunch{
 			seq,
 			static_cast<float>(getTimeNow()),
-			data_size + SEGMENT_OVERHEAD
+			data_size + SEGMENT_OVERHEAD,
+			false
 		}
 	);
-	_in_flight_bytes += data_size + SEGMENT_OVERHEAD;
-	//_recently_sent_bytes += data_size + SEGMENT_OVERHEAD;
+	_in_flight_bytes += new_entry.bytes;
 
 	_time_point_last_update = getTimeNow();
 }

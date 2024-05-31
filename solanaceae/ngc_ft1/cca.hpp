@@ -64,6 +64,8 @@ struct CCAI {
 		// get the list of timed out seq_ids
 		virtual std::vector<SeqIDType> getTimeouts(void) const = 0;
 
+		virtual int64_t inFlightCount(void) const { return -1; }
+
 	public: // callbacks
 		// data size is without overhead
 		virtual void onSent(SeqIDType seq, size_t data_size) = 0;

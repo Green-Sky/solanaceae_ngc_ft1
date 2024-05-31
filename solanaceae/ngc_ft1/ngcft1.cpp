@@ -217,7 +217,7 @@ void NGCFT1::updateSendTransfer(float time_delta, uint32_t group_number, uint32_
 				// timeout increases with active transfers (otherwise we could starve them)
 				if (tf.time_since_activity >= (sending_give_up_after * peer.active_send_transfers)) {
 					// no ack after 30sec, close ft
-					std::cerr << "NGCFT1 warning: sending ft in progress timed out, deleting\n";
+					std::cerr << "NGCFT1 warning: sending ft in progress timed out, deleting (ifc:" << peer.cca->inFlightCount() << ")\n";
 					dispatch(
 						NGCFT1_Event::send_done,
 						Events::NGCFT1_send_done{
@@ -316,7 +316,7 @@ void NGCFT1::iteratePeer(float time_delta, uint32_t group_number, uint32_t peer_
 			}
 		}
 
-		// change iterat start position to not starve transfers in the back
+		// change iterate start position to not starve transfers in the back
 		size_t iterated_count = 0;
 		bool last_send_found = false;
 		for (size_t idx = peer.next_send_transfer_send_idx; iterated_count < peer.send_transfers.size(); idx++, iterated_count++) {

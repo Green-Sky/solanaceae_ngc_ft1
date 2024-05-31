@@ -75,6 +75,8 @@ struct FlowOnly : public CCAI {
 		// get the list of timed out seq_ids
 		std::vector<SeqIDType> getTimeouts(void) const override;
 
+		int64_t inFlightCount(void) const override;
+
 	public: // callbacks
 		// data size is without overhead
 		void onSent(SeqIDType seq, size_t data_size) override;
