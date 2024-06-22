@@ -119,12 +119,54 @@ namespace Events {
 		// - 4 byte (message_id)
 		uint32_t message_id;
 
-		// request the other side to initiate a FT
 		// - 4 byte (file_kind)
 		uint32_t file_kind;
 
 		// - X bytes (file_kind dependent id, differnt sizes)
 		std::vector<uint8_t> file_id;
+	};
+
+	struct NGCEXT_ft1_have {
+		uint32_t group_number;
+		uint32_t peer_number;
+
+		// - 4 byte (file_kind)
+		uint32_t file_kind;
+
+		// - X bytes (file_kind dependent id, differnt sizes)
+		std::vector<uint8_t> file_id;
+
+		// - array [
+		//   - 4 bytes (chunk index)
+		// - ]
+		std::vector<uint32_t> chunks;
+	};
+
+	struct NGCEXT_ft1_bitset {
+		uint32_t group_number;
+		uint32_t peer_number;
+
+		// - 4 byte (file_kind)
+		uint32_t file_kind;
+
+		// - X bytes (file_kind dependent id, differnt sizes)
+		std::vector<uint8_t> file_id;
+
+		uint32_t start_chunk;
+
+		// - array [
+		//   - 1 bit (have chunk)
+		// - ] (filled up with zero)
+		// high to low?
+		std::vector<uint8_t> chunk_bitset;
+	};
+
+	struct NGCEXT_pc1_announce {
+		uint32_t group_number;
+		uint32_t peer_number;
+
+		// - X bytes (id, differnt sizes)
+		std::vector<uint8_t> id;
 	};
 
 } // Events
@@ -186,10 +228,43 @@ enum class NGCEXT_Event : uint8_t {
 	// send file as message
 	// basically the opposite of request
 	// contains file_kind and file_id (and timestamp?)
-	// - 4 byte (message_id)
-	// - 4 byte (file_kind)
+	// - 4 bytes (message_id)
+	// - 4 bytes (file_kind)
 	// - X bytes (file_kind dependent id, differnt sizes)
 	FT1_MESSAGE,
+
+	// announce you have specified chunks, for given info
+	// this is info/chunk specific
+	// bundle these together to reduce overhead (like maybe every 16, max 1min)
+	// - 4 bytes (file_kind)
+	// - X bytes (file_kind dependent id, differnt sizes)
+	// - array [
+	//   - 4 bytes (chunk index)
+	// - ]
+	FT1_HAVE,
+
+	// tell the other peer which chunks, for a given info you have
+	// compressed down to a bitset (in parts)
+	// supposed to only be sent once on participation announcement, when mutual interest
+	// it is always assumed by the other side, that you dont have the chunk, until told otherwise,
+	// so you can be smart about what you send.
+	// - 4 bytes (file_kind)
+	// - X bytes (file_kind dependent id, differnt sizes)
+	// - 4 bytes (first chunk index in bitset)
+	// - array [
+	//   - 1 bit (have chunk)
+	// - ] (filled up with zero)
+	FT1_BITSET,
+
+	// TODO: FT1_IDONTHAVE, tell a peer you no longer have said chunk
+	// TODO: FT1_REJECT, tell a peer you wont fulfil the request
+
+	// tell another peer that you are participating in X
+	// you can reply with PC1_ANNOUNCE, to let the other side know, you too are participating in X
+	// you should NOT announce often, since this hits peers that not participate
+	// ft1 uses fk+id
+	// - x bytes (id, different sizes)
+	PC1_ANNOUNCE = 0x80 | 32u,
 
 	MAX
 };
@@ -204,6 +279,9 @@ struct NGCEXTEventI {
 	virtual bool onEvent(const Events::NGCEXT_ft1_data&) { return false; }
 	virtual bool onEvent(const Events::NGCEXT_ft1_data_ack&) { return false; }
 	virtual bool onEvent(const Events::NGCEXT_ft1_message&) { return false; }
+	virtual bool onEvent(const Events::NGCEXT_ft1_have&) { return false; }
+	virtual bool onEvent(const Events::NGCEXT_ft1_bitset&) { return false; }
+	virtual bool onEvent(const Events::NGCEXT_pc1_announce&) { return false; }
 };
 
 using NGCEXTEventProviderI = EventProviderI<NGCEXTEventI>;
@@ -264,6 +342,24 @@ class NGCEXTEventProvider : public ToxEventI, public NGCEXTEventProviderI {
 		);
 
 		bool parse_ft1_init_ack_v2(
+			uint32_t group_number, uint32_t peer_number,
+			const uint8_t* data, size_t data_size,
+			bool _private
+		);
+
+		bool parse_ft1_have(
+			uint32_t group_number, uint32_t peer_number,
+			const uint8_t* data, size_t data_size,
+			bool _private
+		);
+
+		bool parse_ft1_bitset(
+			uint32_t group_number, uint32_t peer_number,
+			const uint8_t* data, size_t data_size,
+			bool _private
+		);
+
+		bool parse_pc1_announce(
 			uint32_t group_number, uint32_t peer_number,
 			const uint8_t* data, size_t data_size,
 			bool _private

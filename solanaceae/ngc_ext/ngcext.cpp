@@ -1,5 +1,6 @@
 #include "./ngcext.hpp"
 
+#include <cstdint>
 #include <iostream>
 
 NGCEXTEventProvider::NGCEXTEventProvider(ToxEventProviderI& tep) : _tep(tep) {
@@ -261,6 +262,132 @@ bool NGCEXTEventProvider::parse_ft1_init_ack_v2(
 	);
 }
 
+bool NGCEXTEventProvider::parse_ft1_have(
+	uint32_t group_number, uint32_t peer_number,
+	const uint8_t* data, size_t data_size,
+	bool _private
+) {
+	if (!_private) {
+		std::cerr << "NGCEXT: ft1_have cant be public\n";
+		return false;
+	}
+
+	Events::NGCEXT_ft1_have e;
+	e.group_number = group_number;
+	e.peer_number = peer_number;
+	size_t curser = 0;
+
+	// - 4 byte (file_kind)
+	e.file_kind = 0u;
+	_DATA_HAVE(sizeof(e.file_kind), std::cerr << "NGCEXT: packet too small, missing file_kind\n"; return false)
+	for (size_t i = 0; i < sizeof(e.file_kind); i++, curser++) {
+		e.file_kind |= uint32_t(data[curser]) << (i*8);
+	}
+
+	// - X bytes (file_kind dependent id, differnt sizes)
+	uint16_t file_id_size = 0u;
+	_DATA_HAVE(sizeof(file_id_size), std::cerr << "NGCEXT: packet too small, missing file_id_size\n"; return false)
+	for (size_t i = 0; i < sizeof(file_id_size); i++, curser++) {
+		file_id_size |= uint32_t(data[curser]) << (i*8);
+	}
+
+	_DATA_HAVE(file_id_size, std::cerr << "NGCEXT: packet too small, missing file_id, or file_id_size too large\n"; return false)
+
+	e.file_id = {data+curser, data+curser+file_id_size};
+	curser += file_id_size;
+
+	// - array [
+	//   - 4 bytes (chunk index)
+	// - ]
+	while (curser < data_size) {
+		_DATA_HAVE(sizeof(uint32_t), std::cerr << "NGCEXT: packet too small, broken chunk index\n"; return false)
+		uint32_t chunk_index = 0u;
+		for (size_t i = 0; i < sizeof(chunk_index); i++, curser++) {
+			chunk_index |= uint32_t(data[curser]) << (i*8);
+		}
+		e.chunks.push_back(chunk_index);
+	}
+
+	return dispatch(
+		NGCEXT_Event::FT1_HAVE,
+		e
+	);
+}
+
+bool NGCEXTEventProvider::parse_ft1_bitset(
+	uint32_t group_number, uint32_t peer_number,
+	const uint8_t* data, size_t data_size,
+	bool _private
+) {
+	if (!_private) {
+		std::cerr << "NGCEXT: ft1_bitset cant be public\n";
+		return false;
+	}
+
+	Events::NGCEXT_ft1_bitset e;
+	e.group_number = group_number;
+	e.peer_number = peer_number;
+	size_t curser = 0;
+
+	// - 4 byte (file_kind)
+	e.file_kind = 0u;
+	_DATA_HAVE(sizeof(e.file_kind), std::cerr << "NGCEXT: packet too small, missing file_kind\n"; return false)
+	for (size_t i = 0; i < sizeof(e.file_kind); i++, curser++) {
+		e.file_kind |= uint32_t(data[curser]) << (i*8);
+	}
+
+	// - X bytes (file_kind dependent id, differnt sizes)
+	uint16_t file_id_size = 0u;
+	_DATA_HAVE(sizeof(file_id_size), std::cerr << "NGCEXT: packet too small, missing file_id_size\n"; return false)
+	for (size_t i = 0; i < sizeof(file_id_size); i++, curser++) {
+		file_id_size |= uint32_t(data[curser]) << (i*8);
+	}
+
+	_DATA_HAVE(file_id_size, std::cerr << "NGCEXT: packet too small, missing file_id, or file_id_size too large\n"; return false)
+
+	e.file_id = {data+curser, data+curser+file_id_size};
+	curser += file_id_size;
+
+	e.start_chunk = 0u;
+	_DATA_HAVE(sizeof(e.start_chunk), std::cerr << "NGCEXT: packet too small, missing start_chunk\n"; return false)
+	for (size_t i = 0; i < sizeof(e.start_chunk); i++, curser++) {
+		e.start_chunk |= uint32_t(data[curser]) << (i*8);
+	}
+
+	// - X bytes
+	// - array [
+	//   - 1 bit (have chunk)
+	// - ] (filled up with zero)
+	// high to low?
+	// simply rest of file packet
+	e.chunk_bitset = {data+curser, data+curser+(data_size-curser)};
+
+	return dispatch(
+		NGCEXT_Event::FT1_BITSET,
+		e
+	);
+}
+
+bool NGCEXTEventProvider::parse_pc1_announce(
+	uint32_t group_number, uint32_t peer_number,
+	const uint8_t* data, size_t data_size,
+	bool _private
+) {
+	// can be public
+	Events::NGCEXT_pc1_announce e;
+	e.group_number = group_number;
+	e.peer_number = peer_number;
+	size_t curser = 0;
+
+	// - X bytes (id, differnt sizes)
+	e.id = {data+curser, data+curser+(data_size-curser)};
+
+	return dispatch(
+		NGCEXT_Event::PC1_ANNOUNCE,
+		e
+	);
+}
+
 bool NGCEXTEventProvider::handlePacket(
 	const uint32_t group_number,
 	const uint32_t peer_number,
@@ -292,6 +419,12 @@ bool NGCEXTEventProvider::handlePacket(
 			return parse_ft1_data_ack(group_number, peer_number, data+1, data_size-1, _private);
 		case NGCEXT_Event::FT1_MESSAGE:
 			return parse_ft1_message(group_number, peer_number, data+1, data_size-1, _private);
+		case NGCEXT_Event::FT1_HAVE:
+			return parse_ft1_have(group_number, peer_number, data+1, data_size-1, _private);
+		case NGCEXT_Event::FT1_BITSET:
+			return parse_ft1_bitset(group_number, peer_number, data+1, data_size-1, _private);
+		case NGCEXT_Event::PC1_ANNOUNCE:
+			return parse_pc1_announce(group_number, peer_number, data+1, data_size-1, _private);
 		default:
 			return false;
 	}
