@@ -60,6 +60,7 @@ namespace Components {
 		entt::dense_map<size_t, float> chunks;
 	};
 
+	// TODO: once announce is shipped, remove the "Suspected"
 	struct SuspectedParticipants {
 		entt::dense_set<Contact3> participants;
 	};
@@ -199,11 +200,11 @@ std::optional<std::pair<uint32_t, uint32_t>> SHA1_NGCFT1::selectPeerForRequest(O
 		}
 	}
 
-	// 1 in 20 chance to ask random peer instead
+	// 1 in 40 chance to ask random peer instead
 	// TODO: config + tweak
 	// TODO: save group in content to avoid the tox_peers list build
 	// TODO: remove once pc1_announce is shipped
-	if (tox_peers.empty() || (_rng()%20) == 0) {
+	if (tox_peers.empty() || (_rng()%40) == 0) {
 		// meh
 		// HACK: determain group based on last tox_peers
 		if (!tox_peers.empty()) {
@@ -251,14 +252,16 @@ SHA1_NGCFT1::SHA1_NGCFT1(
 	RegistryMessageModel& rmm,
 	NGCFT1& nft,
 	ToxContactModel2& tcm,
-	ToxEventProviderI& tep
+	ToxEventProviderI& tep,
+	NGCEXTEventProviderI& neep
 ) :
 	_os(os),
 	_cr(cr),
 	_rmm(rmm),
 	_nft(nft),
 	_tcm(tcm),
-	_tep(tep)
+	_tep(tep),
+	_neep(neep)
 {
 	// TODO: also create and destroy
 	_rmm.subscribe(this, RegistryMessageModel_Event::message_updated);
@@ -278,6 +281,8 @@ SHA1_NGCFT1::SHA1_NGCFT1(
 	_rmm.subscribe(this, RegistryMessageModel_Event::send_file_path);
 
 	_tep.subscribe(this, Tox_Event_Type::TOX_EVENT_GROUP_PEER_EXIT);
+
+	_neep.subscribe(this, NGCEXT_Event::PC1_ANNOUNCE);
 }
 
 void SHA1_NGCFT1::iterate(float delta) {
@@ -1458,6 +1463,42 @@ bool SHA1_NGCFT1::onToxEvent(const Tox_Event_Group_Peer_Exit* e) {
 		} else {
 			it++;
 		}
+	}
+
+	return false;
+}
+
+bool SHA1_NGCFT1::onEvent(const Events::NGCEXT_pc1_announce& e) {
+	// id is file_kind + id
+	uint32_t file_kind = 0u;
+
+	static_assert(SHA1Digest{}.size() == 20);
+	if (e.id.size() != sizeof(file_kind) + 20) {
+		// not for us
+		return false;
+	}
+
+	for (size_t i = 0; i < sizeof(file_kind); i++) {
+		file_kind |= uint32_t(e.id[i]) << (i*8);
+	}
+
+	SHA1Digest hash{e.id.data()+sizeof(file_kind), 20};
+
+	// if have use hash(-info) for file, add to participants
+	std::cout << "SHA1_NGCFT1: got ParticipationChatter1 announce from " << e.group_number << ":" << e.peer_number << " for " << hash << "\n";
+
+	auto itc_it = _info_to_content.find(hash);
+	if (itc_it == _info_to_content.end()) {
+		// we are not interested and dont track this
+		return false;
+	}
+
+	// add them to participants
+	auto ce = itc_it->second;
+	const auto c = _tcm.getContactGroupPeer(e.group_number, e.peer_number);
+	const auto [_, was_new] = ce.get_or_emplace<Components::SuspectedParticipants>().participants.emplace(c);
+	if (was_new) {
+		std::cout << "SHA1_NGCFT1: and we where interested!\n";
 	}
 
 	return false;

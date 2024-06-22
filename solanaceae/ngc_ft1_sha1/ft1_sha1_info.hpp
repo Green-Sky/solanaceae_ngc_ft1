@@ -18,7 +18,7 @@ struct SHA1Digest {
 	bool operator==(const SHA1Digest& other) const { return data == other.data; }
 	bool operator!=(const SHA1Digest& other) const { return data != other.data; }
 
-	size_t size(void) const { return data.size(); }
+	constexpr size_t size(void) const { return data.size(); }
 };
 
 std::ostream& operator<<(std::ostream& out, const SHA1Digest& v);
