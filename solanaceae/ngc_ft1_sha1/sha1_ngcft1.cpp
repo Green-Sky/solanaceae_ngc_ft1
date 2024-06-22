@@ -185,7 +185,6 @@ void SHA1_NGCFT1::updateMessages(ObjectHandle ce) {
 
 std::optional<std::pair<uint32_t, uint32_t>> SHA1_NGCFT1::selectPeerForRequest(ObjectHandle ce) {
 	// get a list of peers we can request this file from
-	// TODO: randomly request from non SuspectedParticipants
 	std::vector<std::pair<uint32_t, uint32_t>> tox_peers;
 	for (const auto c : ce.get<Components::SuspectedParticipants>().participants) {
 		// TODO: sort by con state?
@@ -203,6 +202,7 @@ std::optional<std::pair<uint32_t, uint32_t>> SHA1_NGCFT1::selectPeerForRequest(O
 	// 1 in 20 chance to ask random peer instead
 	// TODO: config + tweak
 	// TODO: save group in content to avoid the tox_peers list build
+	// TODO: remove once pc1_announce is shipped
 	if (tox_peers.empty() || (_rng()%20) == 0) {
 		// meh
 		// HACK: determain group based on last tox_peers
@@ -250,13 +250,15 @@ SHA1_NGCFT1::SHA1_NGCFT1(
 	Contact3Registry& cr,
 	RegistryMessageModel& rmm,
 	NGCFT1& nft,
-	ToxContactModel2& tcm
+	ToxContactModel2& tcm,
+	ToxEventProviderI& tep
 ) :
 	_os(os),
 	_cr(cr),
 	_rmm(rmm),
 	_nft(nft),
-	_tcm(tcm)
+	_tcm(tcm),
+	_tep(tep)
 {
 	// TODO: also create and destroy
 	_rmm.subscribe(this, RegistryMessageModel_Event::message_updated);
@@ -274,6 +276,8 @@ SHA1_NGCFT1::SHA1_NGCFT1(
 	//_rmm.subscribe(this, RegistryMessageModel_Event::message_destroy);
 
 	_rmm.subscribe(this, RegistryMessageModel_Event::send_file_path);
+
+	_tep.subscribe(this, Tox_Event_Type::TOX_EVENT_GROUP_PEER_EXIT);
 }
 
 void SHA1_NGCFT1::iterate(float delta) {
@@ -319,7 +323,7 @@ void SHA1_NGCFT1::iterate(float delta) {
 				it->second.time_since_activity += delta;
 
 				// if we have not heard for 10sec, timeout
-				if (it->second.time_since_activity >= 10.f) {
+				if (it->second.time_since_activity >= 20.f) {
 					std::cerr << "SHA1_NGCFT1 warning: receiving tansfer timed out " << "." << int(it->first) << "\n";
 					// TODO: if info, requeue? or just keep the timer comp? - no, timer comp will continue ticking, even if loading
 					//it->second.v
@@ -1424,5 +1428,38 @@ bool SHA1_NGCFT1::sendFilePath(const Contact3 c, std::string_view file_name, std
 	})).detach();
 
 	return true;
+}
+
+bool SHA1_NGCFT1::onToxEvent(const Tox_Event_Group_Peer_Exit* e) {
+	const auto group_number = tox_event_group_peer_exit_get_group_number(e);
+	const auto peer_number = tox_event_group_peer_exit_get_peer_id(e);
+
+	// peer disconnected
+	// - remove from all participantions
+
+	auto ch = _tcm.getContactGroupPeer(group_number, peer_number);
+	if (!static_cast<bool>(ch)) {
+		return false;
+	}
+
+	for (const auto& [_, h] : _info_to_content) {
+		if (!h.all_of<Components::SuspectedParticipants>()) {
+			continue;
+		}
+
+		h.get<Components::SuspectedParticipants>().participants.erase(ch);
+	}
+
+	// - clear queues
+
+	for (auto it = _queue_requested_chunk.begin(); it != _queue_requested_chunk.end();) {
+		if (group_number == std::get<0>(*it) && peer_number == std::get<1>(*it)) {
+			it = _queue_requested_chunk.erase(it);
+		} else {
+			it++;
+		}
+	}
+
+	return false;
 }
 

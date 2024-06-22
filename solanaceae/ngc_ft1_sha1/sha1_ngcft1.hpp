@@ -21,13 +21,14 @@
 #include <mutex>
 #include <list>
 
-class SHA1_NGCFT1 : public RegistryMessageModelEventI, public NGCFT1EventI {
+class SHA1_NGCFT1 : public ToxEventI, public RegistryMessageModelEventI, public NGCFT1EventI {
 	ObjectStore2& _os;
 	// TODO: backend abstraction
 	Contact3Registry& _cr;
 	RegistryMessageModel& _rmm;
 	NGCFT1& _nft;
 	ToxContactModel2& _tcm;
+	ToxEventProviderI& _tep;
 
 	std::minstd_rand _rng {1337*11};
 
@@ -122,7 +123,8 @@ class SHA1_NGCFT1 : public RegistryMessageModelEventI, public NGCFT1EventI {
 			Contact3Registry& cr,
 			RegistryMessageModel& rmm,
 			NGCFT1& nft,
-			ToxContactModel2& tcm
+			ToxContactModel2& tcm,
+			ToxEventProviderI& tep
 		);
 
 		void iterate(float delta);
@@ -140,5 +142,7 @@ class SHA1_NGCFT1 : public RegistryMessageModelEventI, public NGCFT1EventI {
 		bool onEvent(const Events::NGCFT1_recv_message&) override;
 
 		bool sendFilePath(const Contact3 c, std::string_view file_name, std::string_view file_path) override;
+
+		bool onToxEvent(const Tox_Event_Group_Peer_Exit* e) override;
 };
 
