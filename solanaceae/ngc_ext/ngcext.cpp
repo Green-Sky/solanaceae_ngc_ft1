@@ -1,7 +1,7 @@
 #include "./ngcext.hpp"
 
-#include <cstdint>
 #include <iostream>
+#include <cassert>
 
 NGCEXTEventProvider::NGCEXTEventProvider(ToxI& t, ToxEventProviderI& tep) : _t(t), _tep(tep) {
 	_tep.subscribe(this, Tox_Event_Type::TOX_EVENT_GROUP_CUSTOM_PACKET);
@@ -432,6 +432,27 @@ bool NGCEXTEventProvider::handlePacket(
 	return false;
 }
 
+bool NGCEXTEventProvider::send_ft1_request(
+	uint32_t group_number, uint32_t peer_number,
+	uint32_t file_kind,
+	const uint8_t* file_id, size_t file_id_size
+) {
+	// - 1 byte packet id
+	// - 4 byte file_kind
+	// - X bytes file_id
+	std::vector<uint8_t> pkg;
+	pkg.push_back(static_cast<uint8_t>(NGCEXT_Event::FT1_REQUEST));
+	for (size_t i = 0; i < sizeof(file_kind); i++) {
+		pkg.push_back((file_kind>>(i*8)) & 0xff);
+	}
+	for (size_t i = 0; i < file_id_size; i++) {
+		pkg.push_back(file_id[i]);
+	}
+
+	// lossless
+	return _t.toxGroupSendCustomPrivatePacket(group_number, peer_number, true, pkg) == TOX_ERR_GROUP_SEND_CUSTOM_PRIVATE_PACKET_OK;
+}
+
 bool NGCEXTEventProvider::send_ft1_init(
 	uint32_t group_number, uint32_t peer_number,
 	uint32_t file_kind,
@@ -460,6 +481,96 @@ bool NGCEXTEventProvider::send_ft1_init(
 
 	// lossless
 	return _t.toxGroupSendCustomPrivatePacket(group_number, peer_number, true, pkg) == TOX_ERR_GROUP_SEND_CUSTOM_PRIVATE_PACKET_OK;
+}
+
+bool NGCEXTEventProvider::send_ft1_init_ack(
+	uint32_t group_number, uint32_t peer_number,
+	uint8_t transfer_id
+) {
+	// - 1 byte packet id
+	// - 1 byte transfer_id
+	std::vector<uint8_t> pkg;
+	pkg.push_back(static_cast<uint8_t>(NGCEXT_Event::FT1_INIT_ACK));
+	pkg.push_back(transfer_id);
+
+	// - 2 bytes max_lossy_data_size
+	const uint16_t max_lossy_data_size = _t.toxGroupMaxCustomLossyPacketLength() - 4;
+	for (size_t i = 0; i < sizeof(uint16_t); i++) {
+		pkg.push_back((max_lossy_data_size>>(i*8)) & 0xff);
+	}
+
+	// lossless
+	return _t.toxGroupSendCustomPrivatePacket(group_number, peer_number, true, pkg) == TOX_ERR_GROUP_SEND_CUSTOM_PRIVATE_PACKET_OK;
+}
+
+bool NGCEXTEventProvider::send_ft1_data(
+	uint32_t group_number, uint32_t peer_number,
+	uint8_t transfer_id,
+	uint16_t sequence_id,
+	const uint8_t* data, size_t data_size
+) {
+	assert(data_size > 0);
+
+	// TODO
+	// check header_size+data_size <= max pkg size
+
+	std::vector<uint8_t> pkg;
+	pkg.reserve(2048); // saves a ton of allocations
+	pkg.push_back(static_cast<uint8_t>(NGCEXT_Event::FT1_DATA));
+	pkg.push_back(transfer_id);
+	pkg.push_back(sequence_id & 0xff);
+	pkg.push_back((sequence_id >> (1*8)) & 0xff);
+
+	// TODO: optimize
+	for (size_t i = 0; i < data_size; i++) {
+		pkg.push_back(data[i]);
+	}
+
+	// lossy
+	return _t.toxGroupSendCustomPrivatePacket(group_number, peer_number, false, pkg) == TOX_ERR_GROUP_SEND_CUSTOM_PRIVATE_PACKET_OK;
+}
+
+bool NGCEXTEventProvider::send_ft1_data_ack(
+	uint32_t group_number, uint32_t peer_number,
+	uint8_t transfer_id,
+	const uint16_t* seq_ids, size_t seq_ids_size
+) {
+	std::vector<uint8_t> pkg;
+	pkg.reserve(1+1+2*32); // 32acks in a single pkg should be unlikely
+	pkg.push_back(static_cast<uint8_t>(NGCEXT_Event::FT1_DATA_ACK));
+	pkg.push_back(transfer_id);
+
+	// TODO: optimize
+	for (size_t i = 0; i < seq_ids_size; i++) {
+		pkg.push_back(seq_ids[i] & 0xff);
+		pkg.push_back((seq_ids[i] >> (1*8)) & 0xff);
+	}
+
+	// lossy
+	return _t.toxGroupSendCustomPrivatePacket(group_number, peer_number, false, pkg) == TOX_ERR_GROUP_SEND_CUSTOM_PRIVATE_PACKET_OK;
+}
+
+bool NGCEXTEventProvider::send_all_ft1_message(
+	uint32_t group_number,
+	uint32_t message_id,
+	uint32_t file_kind,
+	const uint8_t* file_id, size_t file_id_size
+) {
+	std::vector<uint8_t> pkg;
+	pkg.push_back(static_cast<uint8_t>(NGCEXT_Event::FT1_MESSAGE));
+
+	for (size_t i = 0; i < sizeof(message_id); i++) {
+		pkg.push_back((message_id>>(i*8)) & 0xff);
+	}
+	for (size_t i = 0; i < sizeof(file_kind); i++) {
+		pkg.push_back((file_kind>>(i*8)) & 0xff);
+	}
+	for (size_t i = 0; i < file_id_size; i++) {
+		pkg.push_back(file_id[i]);
+	}
+
+	// lossless
+	return _t.toxGroupSendCustomPacket(group_number, true, pkg) == TOX_ERR_GROUP_SEND_CUSTOM_PACKET_OK;
 }
 
 static std::vector<uint8_t> build_pc1_announce(const uint8_t* id_data, size_t id_size) {

@@ -376,11 +376,43 @@ class NGCEXTEventProvider : public ToxEventI, public NGCEXTEventProviderI {
 		);
 
 	public: // send api
+		bool send_ft1_request(
+			uint32_t group_number, uint32_t peer_number,
+			uint32_t file_kind,
+			const uint8_t* file_id, size_t file_id_size
+		);
+
 		bool send_ft1_init(
 			uint32_t group_number, uint32_t peer_number,
 			uint32_t file_kind,
 			uint64_t file_size,
 			uint8_t transfer_id,
+			const uint8_t* file_id, size_t file_id_size
+		);
+
+		bool send_ft1_init_ack(
+			uint32_t group_number, uint32_t peer_number,
+			uint8_t transfer_id
+		);
+
+		bool send_ft1_data(
+			uint32_t group_number, uint32_t peer_number,
+			uint8_t transfer_id,
+			uint16_t sequence_id,
+			const uint8_t* data, size_t data_size
+		);
+
+		bool send_ft1_data_ack(
+			uint32_t group_number, uint32_t peer_number,
+			uint8_t transfer_id,
+			const uint16_t* seq_ids, size_t seq_ids_size
+		);
+
+		// TODO: add private version
+		bool send_all_ft1_message(
+			uint32_t group_number,
+			uint32_t message_id,
+			uint32_t file_kind,
 			const uint8_t* file_id, size_t file_id_size
 		);
 
