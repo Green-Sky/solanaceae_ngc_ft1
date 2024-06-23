@@ -15,150 +15,6 @@
 #include <cassert>
 #include <vector>
 
-bool NGCFT1::sendPKG_FT1_REQUEST(
-	uint32_t group_number, uint32_t peer_number,
-	uint32_t file_kind,
-	const uint8_t* file_id, size_t file_id_size
-) {
-	// - 1 byte packet id
-	// - 4 byte file_kind
-	// - X bytes file_id
-	std::vector<uint8_t> pkg;
-	pkg.push_back(static_cast<uint8_t>(NGCEXT_Event::FT1_REQUEST));
-	for (size_t i = 0; i < sizeof(file_kind); i++) {
-		pkg.push_back((file_kind>>(i*8)) & 0xff);
-	}
-	for (size_t i = 0; i < file_id_size; i++) {
-		pkg.push_back(file_id[i]);
-	}
-
-	// lossless
-	return _t.toxGroupSendCustomPrivatePacket(group_number, peer_number, true, pkg) == TOX_ERR_GROUP_SEND_CUSTOM_PRIVATE_PACKET_OK;
-}
-
-#if 0
-bool NGCFT1::sendPKG_FT1_INIT(
-	uint32_t group_number, uint32_t peer_number,
-	uint32_t file_kind,
-	uint64_t file_size,
-	uint8_t transfer_id,
-	const uint8_t* file_id, size_t file_id_size
-) {
-	// - 1 byte packet id
-	// - 4 byte (file_kind)
-	// - 8 bytes (data size)
-	// - 1 byte (temporary_file_tf_id, for this peer only, technically just a prefix to distinguish between simultainious fts)
-	// - X bytes (file_kind dependent id, differnt sizes)
-
-	std::vector<uint8_t> pkg;
-	pkg.push_back(static_cast<uint8_t>(NGCEXT_Event::FT1_INIT));
-	for (size_t i = 0; i < sizeof(file_kind); i++) {
-		pkg.push_back((file_kind>>(i*8)) & 0xff);
-	}
-	for (size_t i = 0; i < sizeof(file_size); i++) {
-		pkg.push_back((file_size>>(i*8)) & 0xff);
-	}
-	pkg.push_back(transfer_id);
-	for (size_t i = 0; i < file_id_size; i++) {
-		pkg.push_back(file_id[i]);
-	}
-
-	// lossless
-	return _t.toxGroupSendCustomPrivatePacket(group_number, peer_number, true, pkg) == TOX_ERR_GROUP_SEND_CUSTOM_PRIVATE_PACKET_OK;
-}
-
-#endif
-
-bool NGCFT1::sendPKG_FT1_INIT_ACK(
-	uint32_t group_number, uint32_t peer_number,
-	uint8_t transfer_id
-) {
-	// - 1 byte packet id
-	// - 1 byte transfer_id
-	std::vector<uint8_t> pkg;
-	pkg.push_back(static_cast<uint8_t>(NGCEXT_Event::FT1_INIT_ACK));
-	pkg.push_back(transfer_id);
-
-	// - 2 bytes max_lossy_data_size
-	const uint16_t max_lossy_data_size = _t.toxGroupMaxCustomLossyPacketLength() - 4;
-	for (size_t i = 0; i < sizeof(uint16_t); i++) {
-		pkg.push_back((max_lossy_data_size>>(i*8)) & 0xff);
-	}
-
-	// lossless
-	return _t.toxGroupSendCustomPrivatePacket(group_number, peer_number, true, pkg) == TOX_ERR_GROUP_SEND_CUSTOM_PRIVATE_PACKET_OK;
-}
-
-bool NGCFT1::sendPKG_FT1_DATA(
-	uint32_t group_number, uint32_t peer_number,
-	uint8_t transfer_id,
-	uint16_t sequence_id,
-	const uint8_t* data, size_t data_size
-) {
-	assert(data_size > 0);
-
-	// TODO
-	// check header_size+data_size <= max pkg size
-
-	std::vector<uint8_t> pkg;
-	pkg.reserve(2048); // saves a ton of allocations
-	pkg.push_back(static_cast<uint8_t>(NGCEXT_Event::FT1_DATA));
-	pkg.push_back(transfer_id);
-	pkg.push_back(sequence_id & 0xff);
-	pkg.push_back((sequence_id >> (1*8)) & 0xff);
-
-	// TODO: optimize
-	for (size_t i = 0; i < data_size; i++) {
-		pkg.push_back(data[i]);
-	}
-
-	// lossy
-	return _t.toxGroupSendCustomPrivatePacket(group_number, peer_number, false, pkg) == TOX_ERR_GROUP_SEND_CUSTOM_PRIVATE_PACKET_OK;
-}
-
-bool NGCFT1::sendPKG_FT1_DATA_ACK(
-	uint32_t group_number, uint32_t peer_number,
-	uint8_t transfer_id,
-	const uint16_t* seq_ids, size_t seq_ids_size
-) {
-	std::vector<uint8_t> pkg;
-	pkg.reserve(1+1+2*32); // 32acks in a single pkg should be unlikely
-	pkg.push_back(static_cast<uint8_t>(NGCEXT_Event::FT1_DATA_ACK));
-	pkg.push_back(transfer_id);
-
-	// TODO: optimize
-	for (size_t i = 0; i < seq_ids_size; i++) {
-		pkg.push_back(seq_ids[i] & 0xff);
-		pkg.push_back((seq_ids[i] >> (1*8)) & 0xff);
-	}
-
-	// lossy
-	return _t.toxGroupSendCustomPrivatePacket(group_number, peer_number, false, pkg) == TOX_ERR_GROUP_SEND_CUSTOM_PRIVATE_PACKET_OK;
-}
-
-bool NGCFT1::sendPKG_FT1_MESSAGE(
-	uint32_t group_number,
-	uint32_t message_id,
-	uint32_t file_kind,
-	const uint8_t* file_id, size_t file_id_size
-) {
-	std::vector<uint8_t> pkg;
-	pkg.push_back(static_cast<uint8_t>(NGCEXT_Event::FT1_MESSAGE));
-
-	for (size_t i = 0; i < sizeof(message_id); i++) {
-		pkg.push_back((message_id>>(i*8)) & 0xff);
-	}
-	for (size_t i = 0; i < sizeof(file_kind); i++) {
-		pkg.push_back((file_kind>>(i*8)) & 0xff);
-	}
-	for (size_t i = 0; i < file_id_size; i++) {
-		pkg.push_back(file_id[i]);
-	}
-
-	// lossless
-	return _t.toxGroupSendCustomPacket(group_number, true, pkg) == TOX_ERR_GROUP_SEND_CUSTOM_PACKET_OK;
-}
-
 void NGCFT1::updateSendTransfer(float time_delta, uint32_t group_number, uint32_t peer_number, Group::Peer& peer, size_t idx, std::set<CCAI::SeqIDType>& timeouts_set, int64_t& can_packet_size) {
 	auto& tf_opt = peer.send_transfers.at(idx);
 	assert(tf_opt.has_value());
@@ -195,7 +51,7 @@ void NGCFT1::updateSendTransfer(float time_delta, uint32_t group_number, uint32_
 		case State::FINISHING: // we still have unacked packets
 			tf.ssb.for_each(time_delta, [&](uint16_t id, const std::vector<uint8_t>& data, float& time_since_activity) {
 				if (can_packet_size >= data.size() && timeouts_set.count({idx, id})) {
-					sendPKG_FT1_DATA(group_number, peer_number, idx, id, data.data(), data.size());
+					_neep.send_ft1_data(group_number, peer_number, idx, id, data.data(), data.size());
 					peer.cca->onLoss({idx, id}, false);
 					time_since_activity = 0.f;
 					timeouts_set.erase({idx, id});
@@ -245,7 +101,7 @@ void NGCFT1::updateSendTransfer(float time_delta, uint32_t group_number, uint32_
 				tf.ssb.for_each(time_delta, [&](uint16_t id, const std::vector<uint8_t>& data, float& time_since_activity) {
 					if (can_packet_size >= data.size() && time_since_activity >= peer.cca->getCurrentDelay() && timeouts_set.count({idx, id})) {
 						// TODO: can fail
-						sendPKG_FT1_DATA(group_number, peer_number, idx, id, data.data(), data.size());
+						_neep.send_ft1_data(group_number, peer_number, idx, id, data.data(), data.size());
 						peer.cca->onLoss({idx, id}, false);
 						time_since_activity = 0.f;
 						timeouts_set.erase({idx, id});
@@ -282,7 +138,7 @@ void NGCFT1::updateSendTransfer(float time_delta, uint32_t group_number, uint32_
 					);
 
 					uint16_t seq_id = tf.ssb.add(std::move(new_data));
-					const bool sent = sendPKG_FT1_DATA(group_number, peer_number, idx, seq_id, tf.ssb.entries.at(seq_id).data.data(), tf.ssb.entries.at(seq_id).data.size());
+					const bool sent = _neep.send_ft1_data(group_number, peer_number, idx, seq_id, tf.ssb.entries.at(seq_id).data.data(), tf.ssb.entries.at(seq_id).data.size());
 					if (sent) {
 						peer.cca->onSent({idx, seq_id}, chunk_size);
 					} else {
@@ -396,7 +252,7 @@ void NGCFT1::NGC_FT1_send_request_private(
 	const uint8_t* file_id, size_t file_id_size
 ) {
 	// TODO: error check
-	sendPKG_FT1_REQUEST(group_number, peer_number, file_kind, file_id, file_id_size);
+	_neep.send_ft1_request(group_number, peer_number, file_kind, file_id, file_id_size);
 }
 
 bool NGCFT1::NGC_FT1_send_init_private(
@@ -437,7 +293,6 @@ bool NGCFT1::NGC_FT1_send_init_private(
 	}
 
 	// TODO: check return value
-	//sendPKG_FT1_INIT(group_number, peer_number, file_kind, file_size, idx, file_id, file_id_size);
 	_neep.send_ft1_init(group_number, peer_number, file_kind, file_size, idx, file_id, file_id_size);
 
 	peer.send_transfers[idx] = Group::Peer::SendTransfer{
@@ -468,7 +323,7 @@ bool NGCFT1::NGC_FT1_send_message_public(
 	message_id = randombytes_random();
 
 	// TODO: check return value
-	return sendPKG_FT1_MESSAGE(group_number, message_id, file_kind, file_id, file_id_size);
+	return _neep.send_all_ft1_message(group_number, message_id, file_kind, file_id, file_id_size);
 }
 
 bool NGCFT1::onEvent(const Events::NGCEXT_ft1_request& e) {
@@ -511,7 +366,7 @@ bool NGCFT1::onEvent(const Events::NGCEXT_ft1_init& e) {
 		return true; // return true?
 	}
 
-	sendPKG_FT1_INIT_ACK(e.group_number, e.peer_number, e.transfer_id);
+	_neep.send_ft1_init_ack(e.group_number, e.peer_number, e.transfer_id);
 
 	std::cout << "NGCFT1: accepted init\n";
 
@@ -633,7 +488,7 @@ bool NGCFT1::onEvent(const Events::NGCEXT_ft1_data& e) {
 	// TODO: check if this caps at max acks
 	if (!ack_seq_ids.empty()) {
 		// TODO: check return value
-		sendPKG_FT1_DATA_ACK(e.group_number, e.peer_number, e.transfer_id, ack_seq_ids.data(), ack_seq_ids.size());
+		_neep.send_ft1_data_ack(e.group_number, e.peer_number, e.transfer_id, ack_seq_ids.data(), ack_seq_ids.size());
 	}
 
 
