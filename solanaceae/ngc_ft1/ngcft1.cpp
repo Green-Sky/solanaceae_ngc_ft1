@@ -36,6 +36,7 @@ bool NGCFT1::sendPKG_FT1_REQUEST(
 	return _t.toxGroupSendCustomPrivatePacket(group_number, peer_number, true, pkg) == TOX_ERR_GROUP_SEND_CUSTOM_PRIVATE_PACKET_OK;
 }
 
+#if 0
 bool NGCFT1::sendPKG_FT1_INIT(
 	uint32_t group_number, uint32_t peer_number,
 	uint32_t file_kind,
@@ -65,6 +66,8 @@ bool NGCFT1::sendPKG_FT1_INIT(
 	// lossless
 	return _t.toxGroupSendCustomPrivatePacket(group_number, peer_number, true, pkg) == TOX_ERR_GROUP_SEND_CUSTOM_PRIVATE_PACKET_OK;
 }
+
+#endif
 
 bool NGCFT1::sendPKG_FT1_INIT_ACK(
 	uint32_t group_number, uint32_t peer_number,
@@ -181,7 +184,8 @@ void NGCFT1::updateSendTransfer(float time_delta, uint32_t group_number, uint32_
 				} else {
 					// timed out, resend
 					std::cerr << "NGCFT1 warning: ft init timed out, resending\n";
-					sendPKG_FT1_INIT(group_number, peer_number, tf.file_kind, tf.file_size, idx, tf.file_id.data(), tf.file_id.size());
+					//sendPKG_FT1_INIT(group_number, peer_number, tf.file_kind, tf.file_size, idx, tf.file_id.data(), tf.file_id.size());
+					_neep.send_ft1_init(group_number, peer_number, tf.file_kind, tf.file_size, idx, tf.file_id.data(), tf.file_id.size());
 					tf.inits_sent++;
 					tf.time_since_activity = 0.f;
 				}
@@ -338,7 +342,7 @@ void NGCFT1::iteratePeer(float time_delta, uint32_t group_number, uint32_t peer_
 NGCFT1::NGCFT1(
 	ToxI& t,
 	ToxEventProviderI& tep,
-	NGCEXTEventProviderI& neep
+	NGCEXTEventProvider& neep
 ) : _t(t), _tep(tep), _neep(neep)
 {
 	_neep.subscribe(this, NGCEXT_Event::FT1_REQUEST);
@@ -433,7 +437,8 @@ bool NGCFT1::NGC_FT1_send_init_private(
 	}
 
 	// TODO: check return value
-	sendPKG_FT1_INIT(group_number, peer_number, file_kind, file_size, idx, file_id, file_id_size);
+	//sendPKG_FT1_INIT(group_number, peer_number, file_kind, file_size, idx, file_id, file_id_size);
+	_neep.send_ft1_init(group_number, peer_number, file_kind, file_size, idx, file_id, file_id_size);
 
 	peer.send_transfers[idx] = Group::Peer::SendTransfer{
 		file_kind,

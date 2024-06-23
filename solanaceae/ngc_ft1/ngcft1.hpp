@@ -131,7 +131,7 @@ using NGCFT1EventProviderI = EventProviderI<NGCFT1EventI>;
 class NGCFT1 : public ToxEventI, public NGCEXTEventI, public NGCFT1EventProviderI {
 	ToxI& _t;
 	ToxEventProviderI& _tep;
-	NGCEXTEventProviderI& _neep;
+	NGCEXTEventProvider& _neep; // not the interface?
 
 	std::default_random_engine _rng{std::random_device{}()};
 
@@ -202,7 +202,7 @@ class NGCFT1 : public ToxEventI, public NGCEXTEventI, public NGCFT1EventProvider
 
 	protected:
 		bool sendPKG_FT1_REQUEST(uint32_t group_number, uint32_t peer_number, uint32_t file_kind, const uint8_t* file_id, size_t file_id_size);
-		bool sendPKG_FT1_INIT(uint32_t group_number, uint32_t peer_number, uint32_t file_kind, uint64_t file_size, uint8_t transfer_id, const uint8_t* file_id, size_t file_id_size);
+		//bool sendPKG_FT1_INIT(uint32_t group_number, uint32_t peer_number, uint32_t file_kind, uint64_t file_size, uint8_t transfer_id, const uint8_t* file_id, size_t file_id_size);
 		bool sendPKG_FT1_INIT_ACK(uint32_t group_number, uint32_t peer_number, uint8_t transfer_id);
 		bool sendPKG_FT1_DATA(uint32_t group_number, uint32_t peer_number, uint8_t transfer_id, uint16_t sequence_id, const uint8_t* data, size_t data_size);
 		bool sendPKG_FT1_DATA_ACK(uint32_t group_number, uint32_t peer_number, uint8_t transfer_id, const uint16_t* seq_ids, size_t seq_ids_size);
@@ -215,7 +215,7 @@ class NGCFT1 : public ToxEventI, public NGCEXTEventI, public NGCFT1EventProvider
 		NGCFT1(
 			ToxI& t,
 			ToxEventProviderI& tep,
-			NGCEXTEventProviderI& neep
+			NGCEXTEventProvider& neep
 		);
 
 		float iterate(float delta);

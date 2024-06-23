@@ -3,7 +3,7 @@
 #include <cstdint>
 #include <iostream>
 
-NGCEXTEventProvider::NGCEXTEventProvider(ToxEventProviderI& tep) : _tep(tep) {
+NGCEXTEventProvider::NGCEXTEventProvider(ToxI& t, ToxEventProviderI& tep) : _t(t), _tep(tep) {
 	_tep.subscribe(this, Tox_Event_Type::TOX_EVENT_GROUP_CUSTOM_PACKET);
 	_tep.subscribe(this, Tox_Event_Type::TOX_EVENT_GROUP_CUSTOM_PRIVATE_PACKET);
 }
@@ -430,6 +430,72 @@ bool NGCEXTEventProvider::handlePacket(
 	}
 
 	return false;
+}
+
+bool NGCEXTEventProvider::send_ft1_init(
+	uint32_t group_number, uint32_t peer_number,
+	uint32_t file_kind,
+	uint64_t file_size,
+	uint8_t transfer_id,
+	const uint8_t* file_id, size_t file_id_size
+) {
+	// - 1 byte packet id
+	// - 4 byte (file_kind)
+	// - 8 bytes (data size)
+	// - 1 byte (temporary_file_tf_id, for this peer only, technically just a prefix to distinguish between simultainious fts)
+	// - X bytes (file_kind dependent id, differnt sizes)
+
+	std::vector<uint8_t> pkg;
+	pkg.push_back(static_cast<uint8_t>(NGCEXT_Event::FT1_INIT));
+	for (size_t i = 0; i < sizeof(file_kind); i++) {
+		pkg.push_back((file_kind>>(i*8)) & 0xff);
+	}
+	for (size_t i = 0; i < sizeof(file_size); i++) {
+		pkg.push_back((file_size>>(i*8)) & 0xff);
+	}
+	pkg.push_back(transfer_id);
+	for (size_t i = 0; i < file_id_size; i++) {
+		pkg.push_back(file_id[i]);
+	}
+
+	// lossless
+	return _t.toxGroupSendCustomPrivatePacket(group_number, peer_number, true, pkg) == TOX_ERR_GROUP_SEND_CUSTOM_PRIVATE_PACKET_OK;
+}
+
+static std::vector<uint8_t> build_pc1_announce(const uint8_t* id_data, size_t id_size) {
+	// - 1 byte packet id
+	// - X bytes (id, differnt sizes)
+
+	std::vector<uint8_t> pkg;
+	pkg.push_back(static_cast<uint8_t>(NGCEXT_Event::PC1_ANNOUNCE));
+	for (size_t i = 0; i < id_size; i++) {
+		pkg.push_back(id_data[i]);
+	}
+	return pkg;
+}
+
+bool NGCEXTEventProvider::send_pc1_announce(
+	uint32_t group_number, uint32_t peer_number,
+	const uint8_t* id_data, size_t id_size
+) {
+	auto pkg = build_pc1_announce(id_data, id_size);
+
+	std::cout << "NEEP: sending PC1_ANNOUNCE s:" << pkg.size() - sizeof(NGCEXT_Event::PC1_ANNOUNCE) << "\n";
+
+	// lossless?
+	return _t.toxGroupSendCustomPrivatePacket(group_number, peer_number, true, pkg) == TOX_ERR_GROUP_SEND_CUSTOM_PRIVATE_PACKET_OK;
+}
+
+bool NGCEXTEventProvider::send_all_pc1_announce(
+	uint32_t group_number,
+	const uint8_t* id_data, size_t id_size
+) {
+	auto pkg = build_pc1_announce(id_data, id_size);
+
+	std::cout << "NEEP: sending all PC1_ANNOUNCE s:" << pkg.size() - sizeof(NGCEXT_Event::PC1_ANNOUNCE) << "\n";
+
+	// lossless?
+	return _t.toxGroupSendCustomPacket(group_number, true, pkg) == TOX_ERR_GROUP_SEND_CUSTOM_PACKET_OK;
 }
 
 bool NGCEXTEventProvider::onToxEvent(const Tox_Event_Group_Custom_Packet* e) {

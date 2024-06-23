@@ -3,6 +3,7 @@
 // solanaceae port of tox_ngc_ext
 
 #include <solanaceae/toxcore/tox_event_interface.hpp>
+#include <solanaceae/toxcore/tox_interface.hpp>
 #include <solanaceae/util/event_provider.hpp>
 
 #include <solanaceae/toxcore/tox_key.hpp>
@@ -287,10 +288,11 @@ struct NGCEXTEventI {
 using NGCEXTEventProviderI = EventProviderI<NGCEXTEventI>;
 
 class NGCEXTEventProvider : public ToxEventI, public NGCEXTEventProviderI {
+	ToxI& _t;
 	ToxEventProviderI& _tep;
 
 	public:
-		NGCEXTEventProvider(ToxEventProviderI& tep/*, ToxI& t*/);
+		NGCEXTEventProvider(ToxI& t, ToxEventProviderI& tep);
 
 	protected:
 		bool parse_hs1_request_last_ids(
@@ -371,6 +373,25 @@ class NGCEXTEventProvider : public ToxEventI, public NGCEXTEventProviderI {
 			const uint8_t* data,
 			const size_t data_size,
 			const bool _private
+		);
+
+	public: // send api
+		bool send_ft1_init(
+			uint32_t group_number, uint32_t peer_number,
+			uint32_t file_kind,
+			uint64_t file_size,
+			uint8_t transfer_id,
+			const uint8_t* file_id, size_t file_id_size
+		);
+
+		bool send_pc1_announce(
+			uint32_t group_number, uint32_t peer_number,
+			const uint8_t* id_data, size_t id_size
+		);
+
+		bool send_all_pc1_announce(
+			uint32_t group_number,
+			const uint8_t* id_data, size_t id_size
 		);
 
 	protected:
