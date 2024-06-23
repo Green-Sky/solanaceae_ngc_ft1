@@ -573,6 +573,80 @@ bool NGCEXTEventProvider::send_all_ft1_message(
 	return _t.toxGroupSendCustomPacket(group_number, true, pkg) == TOX_ERR_GROUP_SEND_CUSTOM_PACKET_OK;
 }
 
+bool NGCEXTEventProvider::send_ft1_have(
+	uint32_t group_number, uint32_t peer_number,
+	uint32_t file_kind,
+	const uint8_t* file_id, size_t file_id_size,
+	const uint32_t* chunks_data, size_t chunks_size
+) {
+	// 16bit file id size
+	assert(file_id_size <= 0xffff);
+	if (file_id_size > 0xffff) {
+		return false;
+	}
+
+	std::vector<uint8_t> pkg;
+	pkg.push_back(static_cast<uint8_t>(NGCEXT_Event::FT1_HAVE));
+
+	for (size_t i = 0; i < sizeof(file_kind); i++) {
+		pkg.push_back((file_kind>>(i*8)) & 0xff);
+	}
+
+	// file id not last in packet, needs explicit size
+	const uint16_t file_id_size_cast = file_id_size;
+	for (size_t i = 0; i < sizeof(file_id_size_cast); i++) {
+		pkg.push_back((file_id_size_cast>>(i*8)) & 0xff);
+	}
+	for (size_t i = 0; i < file_id_size; i++) {
+		pkg.push_back(file_id[i]);
+	}
+
+	// rest is chunks
+	for (size_t i = 0; i < chunks_size; i++) {
+		for (size_t i = 0; i < sizeof(chunks_data[i]); i++) {
+			pkg.push_back((chunks_data[i]>>(i*8)) & 0xff);
+		}
+	}
+
+	// lossless
+	return _t.toxGroupSendCustomPrivatePacket(group_number, peer_number, true, pkg) == TOX_ERR_GROUP_SEND_CUSTOM_PRIVATE_PACKET_OK;
+}
+
+bool NGCEXTEventProvider::send_ft1_bitset(
+	uint32_t group_number, uint32_t peer_number,
+	uint32_t file_kind,
+	const uint8_t* file_id, size_t file_id_size,
+	uint32_t start_chunk,
+	const uint8_t* bitset_data, size_t bitset_size // size is bytes
+) {
+	std::vector<uint8_t> pkg;
+	pkg.push_back(static_cast<uint8_t>(NGCEXT_Event::FT1_BITSET));
+
+	for (size_t i = 0; i < sizeof(file_kind); i++) {
+		pkg.push_back((file_kind>>(i*8)) & 0xff);
+	}
+
+	// file id not last in packet, needs explicit size
+	const uint16_t file_id_size_cast = file_id_size;
+	for (size_t i = 0; i < sizeof(file_id_size_cast); i++) {
+		pkg.push_back((file_id_size_cast>>(i*8)) & 0xff);
+	}
+	for (size_t i = 0; i < file_id_size; i++) {
+		pkg.push_back(file_id[i]);
+	}
+
+	for (size_t i = 0; i < sizeof(start_chunk); i++) {
+		pkg.push_back((start_chunk>>(i*8)) & 0xff);
+	}
+
+	for (size_t i = 0; i < bitset_size; i++) {
+		pkg.push_back(bitset_data[i]);
+	}
+
+	// lossless
+	return _t.toxGroupSendCustomPrivatePacket(group_number, peer_number, true, pkg) == TOX_ERR_GROUP_SEND_CUSTOM_PRIVATE_PACKET_OK;
+}
+
 static std::vector<uint8_t> build_pc1_announce(const uint8_t* id_data, size_t id_size) {
 	// - 1 byte packet id
 	// - X bytes (id, differnt sizes)

@@ -416,6 +416,21 @@ class NGCEXTEventProvider : public ToxEventI, public NGCEXTEventProviderI {
 			const uint8_t* file_id, size_t file_id_size
 		);
 
+		bool send_ft1_have(
+			uint32_t group_number, uint32_t peer_number,
+			uint32_t file_kind,
+			const uint8_t* file_id, size_t file_id_size,
+			const uint32_t* chunks_data, size_t chunks_size
+		);
+
+		bool send_ft1_bitset(
+			uint32_t group_number, uint32_t peer_number,
+			uint32_t file_kind,
+			const uint8_t* file_id, size_t file_id_size,
+			uint32_t start_chunk,
+			const uint8_t* bitset_data, size_t bitset_size // size is bytes
+		);
+
 		bool send_pc1_announce(
 			uint32_t group_number, uint32_t peer_number,
 			const uint8_t* id_data, size_t id_size
