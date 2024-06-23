@@ -147,6 +147,9 @@ class SHA1_NGCFT1 : public ToxEventI, public RegistryMessageModelEventI, public 
 
 		bool onToxEvent(const Tox_Event_Group_Peer_Exit* e) override;
 
+		bool onEvent(const Events::NGCEXT_ft1_have&) override;
+		bool onEvent(const Events::NGCEXT_ft1_bitset&) override;
+
 		bool onEvent(const Events::NGCEXT_pc1_announce&) override;
 };
 

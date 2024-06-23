@@ -284,6 +284,8 @@ SHA1_NGCFT1::SHA1_NGCFT1(
 	_tep.subscribe(this, Tox_Event_Type::TOX_EVENT_GROUP_PEER_EXIT);
 
 	_neep.subscribe(this, NGCEXT_Event::PC1_ANNOUNCE);
+	_neep.subscribe(this, NGCEXT_Event::FT1_HAVE);
+	_neep.subscribe(this, NGCEXT_Event::FT1_BITSET);
 }
 
 void SHA1_NGCFT1::iterate(float delta) {
@@ -1037,6 +1039,31 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCFT1_recv_done& e) {
 						ce.get_or_emplace<Message::Components::Transfer::BytesReceived>().total += chunk_data.size;
 					}
 				}
+
+				// queue chunk have for all participants
+				// HACK: send immediatly to all participants
+				for (const auto c_part : ce.get<Components::SuspectedParticipants>().participants) {
+					if (!_cr.all_of<Contact::Components::ToxGroupPeerEphemeral>(c_part)) {
+						continue;
+					}
+
+					const auto [part_group_number, part_peer_number] = _cr.get<Contact::Components::ToxGroupPeerEphemeral>(c_part);
+
+					const auto& info_hash = ce.get<Components::FT1InfoSHA1Hash>().hash;
+
+					// convert size_t to uint32_t
+					const std::vector<uint32_t> chunk_indices {
+						std::get<ReceivingTransfer::Chunk>(tv).chunk_indices.cbegin(),
+						std::get<ReceivingTransfer::Chunk>(tv).chunk_indices.cend()
+					};
+
+					_neep.send_ft1_have(
+						part_group_number, part_peer_number,
+						static_cast<uint32_t>(NGCFT1_file_kind::HASH_SHA1_INFO),
+						info_hash.data(), info_hash.size(),
+						chunk_indices.data(), chunk_indices.size()
+					);
+				}
 			} else {
 				std::cout << "SHA1_NGCFT1 warning: got chunk duplicate\n";
 			}
@@ -1498,6 +1525,16 @@ bool SHA1_NGCFT1::onToxEvent(const Tox_Event_Group_Peer_Exit* e) {
 	return false;
 }
 
+bool SHA1_NGCFT1::onEvent(const Events::NGCEXT_ft1_have& e) {
+	std::cerr << "SHA1_NGCFT1: FT1_HAVE s:" << e.chunks.size() << "\n";
+	return false;
+}
+
+bool SHA1_NGCFT1::onEvent(const Events::NGCEXT_ft1_bitset& e) {
+	std::cerr << "SHA1_NGCFT1: FT1_BITSET o:" << e.start_chunk << " s:" << e.chunk_bitset.size() << "\n";
+	return false;
+}
+
 bool SHA1_NGCFT1::onEvent(const Events::NGCEXT_pc1_announce& e) {
 	std::cerr << "SHA1_NGCFT1: PC1_ANNOUNCE s:" << e.id.size() << "\n";
 	// id is file_kind + id
@@ -1530,6 +1567,7 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCEXT_pc1_announce& e) {
 	const auto [_, was_new] = ce.get_or_emplace<Components::SuspectedParticipants>().participants.emplace(c);
 	if (was_new) {
 		std::cout << "SHA1_NGCFT1: and we where interested!\n";
+		// we should probably send the bitset back here / add to queue (can be multiple packets)
 	}
 
 	return false;
