@@ -29,7 +29,7 @@ class SHA1_NGCFT1 : public ToxEventI, public RegistryMessageModelEventI, public 
 	NGCFT1& _nft;
 	ToxContactModel2& _tcm;
 	ToxEventProviderI& _tep;
-	NGCEXTEventProviderI& _neep;
+	NGCEXTEventProvider& _neep;
 
 	std::minstd_rand _rng {1337*11};
 
@@ -126,7 +126,7 @@ class SHA1_NGCFT1 : public ToxEventI, public RegistryMessageModelEventI, public 
 			NGCFT1& nft,
 			ToxContactModel2& tcm,
 			ToxEventProviderI& tep,
-			NGCEXTEventProviderI& neep
+			NGCEXTEventProvider& neep
 		);
 
 		void iterate(float delta);

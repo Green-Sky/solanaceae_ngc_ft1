@@ -21,6 +21,7 @@
 #include <filesystem>
 #include <mutex>
 #include <future>
+#include <vector>
 
 namespace Message::Components {
 
@@ -253,7 +254,7 @@ SHA1_NGCFT1::SHA1_NGCFT1(
 	NGCFT1& nft,
 	ToxContactModel2& tcm,
 	ToxEventProviderI& tep,
-	NGCEXTEventProviderI& neep
+	NGCEXTEventProvider& neep
 ) :
 	_os(os),
 	_cr(cr),
@@ -640,6 +641,34 @@ bool SHA1_NGCFT1::onEvent(const Message::Events::MessageUpdated& e) {
 	}
 
 	ce.emplace<Message::Components::Transfer::File>(std::move(file_impl));
+
+	// announce we are participating
+	// since this is the first time, we publicly announce to all
+	if (e.e.all_of<Message::Components::ContactFrom, Message::Components::ContactTo>()) {
+		const auto c_f = e.e.get<Message::Components::ContactFrom>().c;
+		const auto c_t = e.e.get<Message::Components::ContactTo>().c;
+
+		std::vector<uint8_t> announce_id;
+		const uint32_t file_kind = static_cast<uint32_t>(NGCFT1_file_kind::HASH_SHA1_INFO);
+		for (size_t i = 0; i < sizeof(file_kind); i++) {
+			announce_id.push_back((file_kind>>(i*8)) & 0xff);
+		}
+		assert(ce.all_of<Components::FT1InfoSHA1Hash>());
+		const auto& info_hash = ce.get<Components::FT1InfoSHA1Hash>().hash;
+		announce_id.insert(announce_id.cend(), info_hash.cbegin(), info_hash.cend());
+
+		if (_cr.all_of<Contact::Components::ToxGroupEphemeral>(c_t)) {
+			// public
+			const auto group_number = _cr.get<Contact::Components::ToxGroupEphemeral>(c_t).group_number;
+
+			_neep.send_all_pc1_announce(group_number, announce_id.data(), announce_id.size());
+		} else if (_cr.all_of<Contact::Components::ToxGroupPeerEphemeral>(c_f)) {
+			// private ?
+			const auto [group_number, peer_number] = _cr.get<Contact::Components::ToxGroupPeerEphemeral>(c_f);
+
+			_neep.send_pc1_announce(group_number, peer_number, announce_id.data(), announce_id.size());
+		}
+	}
 
 	ce.remove<Message::Components::Transfer::TagPaused>();
 
@@ -1067,6 +1096,7 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCFT1_recv_message& e) {
 
 	Message3Registry& reg = *reg_ptr;
 	// TODO: check for existence, hs or other syncing mechanics might have sent it already (or like, it arrived 2x or whatever)
+	// TODO: use the message dup test provided via rmm
 	auto new_msg_e = reg.create();
 
 	{ // contact
@@ -1469,6 +1499,7 @@ bool SHA1_NGCFT1::onToxEvent(const Tox_Event_Group_Peer_Exit* e) {
 }
 
 bool SHA1_NGCFT1::onEvent(const Events::NGCEXT_pc1_announce& e) {
+	std::cerr << "SHA1_NGCFT1: PC1_ANNOUNCE s:" << e.id.size() << "\n";
 	// id is file_kind + id
 	uint32_t file_kind = 0u;
 
