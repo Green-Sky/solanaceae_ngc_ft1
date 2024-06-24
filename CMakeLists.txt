@@ -54,6 +54,9 @@ add_library(solanaceae_sha1_ngcft1
 	./solanaceae/ngc_ft1_sha1/ft1_sha1_info.hpp
 	./solanaceae/ngc_ft1_sha1/ft1_sha1_info.cpp
 
+	./solanaceae/ngc_ft1_sha1/components.hpp
+	./solanaceae/ngc_ft1_sha1/components.cpp
+
 	./solanaceae/ngc_ft1_sha1/sha1_ngcft1.hpp
 	./solanaceae/ngc_ft1_sha1/sha1_ngcft1.cpp
 )

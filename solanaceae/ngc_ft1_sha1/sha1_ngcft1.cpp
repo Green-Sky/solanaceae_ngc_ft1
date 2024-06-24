@@ -16,6 +16,8 @@
 
 #include "./file_rw_mapped.hpp"
 
+#include "./components.hpp"
+
 #include <iostream>
 #include <variant>
 #include <filesystem>
@@ -28,80 +30,6 @@ namespace Message::Components {
 	using Content = ObjectHandle;
 
 } // Message::Components
-
-// TODO: rename to object components
-namespace Components {
-
-	struct Messages {
-		std::vector<Message3Handle> messages;
-	};
-
-	using FT1InfoSHA1 = FT1InfoSHA1;
-
-	struct FT1InfoSHA1Data {
-		std::vector<uint8_t> data;
-	};
-
-	struct FT1InfoSHA1Hash {
-		std::vector<uint8_t> hash;
-	};
-
-	struct FT1ChunkSHA1Cache {
-		std::vector<bool> have_chunk;
-		bool have_all {false};
-		size_t have_count {0};
-		entt::dense_map<SHA1Digest, std::vector<size_t>> chunk_hash_to_index;
-
-		std::vector<size_t> chunkIndices(const SHA1Digest& hash) const;
-		bool haveChunk(const SHA1Digest& hash) const;
-	};
-
-	struct FT1ChunkSHA1Requested {
-		// requested chunks with a timer since last request
-		entt::dense_map<size_t, float> chunks;
-	};
-
-	// TODO: once announce is shipped, remove the "Suspected"
-	struct SuspectedParticipants {
-		entt::dense_set<Contact3> participants;
-	};
-
-	struct ReRequestInfoTimer {
-		float timer {0.f};
-	};
-
-	struct ReadHeadHint {
-		// points to the first byte we want
-		// this is just a hint, that can be set from outside
-		// to guide the sequential "piece picker" strategy
-		// the strategy *should* set this to the first byte we dont yet have
-		uint64_t offset_into_file {0u};
-	};
-
-} // Components
-
-std::vector<size_t> Components::FT1ChunkSHA1Cache::chunkIndices(const SHA1Digest& hash) const {
-	const auto it = chunk_hash_to_index.find(hash);
-	if (it != chunk_hash_to_index.cend()) {
-		return it->second;
-	} else {
-		return {};
-	}
-}
-
-bool Components::FT1ChunkSHA1Cache::haveChunk(const SHA1Digest& hash) const {
-	if (have_all) { // short cut
-		return true;
-	}
-
-	if (auto i_vec = chunkIndices(hash); !i_vec.empty()) {
-		// TODO: should i test all?
-		return have_chunk[i_vec.front()];
-	}
-
-	// not part of this file
-	return false;
-}
 
 static size_t chunkSize(const FT1InfoSHA1& sha1_info, size_t chunk_index) {
 	if (chunk_index+1 == sha1_info.chunks.size()) {
