@@ -69,3 +69,22 @@ target_link_libraries(solanaceae_sha1_ngcft1 PUBLIC
 	solanaceae_file2
 )
 
+########################################
+
+option(SOLANACEAE_NGCFT1_SHA1_BUILD_TESTING "Build the solanaceae_ngcft1_sha1 tests" OFF)
+message("II SOLANACEAE_NGCFT1_SHA1_BUILD_TESTING " ${SOLANACEAE_NGCFT1_SHA1_BUILD_TESTING})
+
+# TODO: proper options n shit
+if (SOLANACEAE_NGCFT1_SHA1_BUILD_TESTING)
+	include(CTest)
+
+	add_executable(bitset_tests
+		./solanaceae/ngc_ft1_sha1/bitset_tests.cpp
+	)
+
+	target_link_libraries(bitset_tests PUBLIC
+		solanaceae_sha1_ngcft1
+	)
+
+endif()
+
