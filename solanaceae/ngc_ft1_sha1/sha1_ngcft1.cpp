@@ -424,49 +424,54 @@ void SHA1_NGCFT1::iterate(float delta) {
 					auto& cc = ce.get<Components::FT1ChunkSHA1Cache>();
 					const auto& info = ce.get<Components::FT1InfoSHA1>();
 
-					// naive, choose first chunk we dont have (double requests!!)
-					for (size_t chunk_idx = 0; chunk_idx < cc.have_chunk.size(); chunk_idx++) {
-						if (cc.have_chunk[chunk_idx]) {
-							continue;
-						}
-
-						// check by hash
-						if (cc.haveChunk(info.chunks.at(chunk_idx))) {
-							// TODO: fix this, a completed chunk should fill all the indecies it occupies
-							cc.have_chunk[chunk_idx] = true;
-							cc.have_count += 1;
-							if (cc.have_count == info.chunks.size()) {
-								cc.have_all = true;
-								cc.have_chunk.clear();
-								break;
+					if (cc.have_all) {
+						_queue_content_want_chunk.pop_front();
+					} else {
+						// naive, choose first chunk we dont have (double requests!!)
+						// TODO: piece picker, choose what other have (invert selectPeerForRequest)
+						for (size_t chunk_idx = 0; chunk_idx < info.chunks.size() /* cc.total_ */; chunk_idx++) {
+							if (cc.have_chunk[chunk_idx]) {
+								continue;
 							}
-							continue;
+
+							// check by hash
+							if (cc.haveChunk(info.chunks.at(chunk_idx))) {
+								// TODO: fix this, a completed chunk should fill all the indecies it occupies
+								cc.have_chunk.set(chunk_idx);
+								cc.have_count += 1;
+								if (cc.have_count == info.chunks.size()) {
+									cc.have_all = true;
+									cc.have_chunk = BitSet(0); // conserve space
+									break;
+								}
+								continue;
+							}
+
+							if (requested_chunks.count(chunk_idx)) {
+								// already requested
+								continue;
+							}
+
+							// request chunk_idx
+							_nft.NGC_FT1_send_request_private(
+								group_number, peer_number,
+								static_cast<uint32_t>(NGCFT1_file_kind::HASH_SHA1_CHUNK),
+								info.chunks.at(chunk_idx).data.data(), info.chunks.at(chunk_idx).size()
+							);
+							requested_chunks[chunk_idx] = 0.f;
+							std::cout << "SHA1_NGCFT1: requesting chunk [" << info.chunks.at(chunk_idx) << "] from " << group_number << ":" << peer_number << "\n";
+
+							break;
 						}
 
-						if (requested_chunks.count(chunk_idx)) {
-							// already requested
-							continue;
+						// ...
+
+						// TODO: properly determine
+						if (!cc.have_all) {
+							_queue_content_want_chunk.push_back(ce);
 						}
-
-						// request chunk_idx
-						_nft.NGC_FT1_send_request_private(
-							group_number, peer_number,
-							static_cast<uint32_t>(NGCFT1_file_kind::HASH_SHA1_CHUNK),
-							info.chunks.at(chunk_idx).data.data(), info.chunks.at(chunk_idx).size()
-						);
-						requested_chunks[chunk_idx] = 0.f;
-						std::cout << "SHA1_NGCFT1: requesting chunk [" << info.chunks.at(chunk_idx) << "] from " << group_number << ":" << peer_number << "\n";
-
-						break;
+						_queue_content_want_chunk.pop_front();
 					}
-
-					// ...
-
-					// TODO: properly determine
-					if (!cc.have_all) {
-						_queue_content_want_chunk.push_back(ce);
-					}
-					_queue_content_want_chunk.pop_front();
 				}
 			}
 		}
@@ -518,6 +523,7 @@ bool SHA1_NGCFT1::onEvent(const Message::Events::MessageUpdated& e) {
 	{ // next, create chuck cache and check for existing data
 		auto& cc = ce.emplace<Components::FT1ChunkSHA1Cache>();
 		auto& bytes_received = ce.get_or_emplace<Message::Components::Transfer::BytesReceived>().total;
+		cc.have_chunk = BitSet(info.chunks.size());
 		cc.have_all = false;
 		cc.have_count = 0;
 
@@ -534,9 +540,8 @@ bool SHA1_NGCFT1::onEvent(const Message::Events::MessageUpdated& e) {
 					const auto data_hash = SHA1Digest{hash_sha1(existing_data.ptr, existing_data.size)};
 					const bool data_equal = data_hash == info.chunks.at(i);
 
-					cc.have_chunk.push_back(data_equal);
-
 					if (data_equal) {
+						cc.have_chunk.set(i);
 						cc.have_count += 1;
 						bytes_received += chunk_size;
 						//std::cout << "existing i[" << info.chunks.at(i) << "] == d[" << data_hash << "]\n";
@@ -558,7 +563,6 @@ bool SHA1_NGCFT1::onEvent(const Message::Events::MessageUpdated& e) {
 			}
 		} else {
 			for (size_t i = 0; i < info.chunks.size(); i++) {
-				cc.have_chunk.push_back(false);
 				_chunks[info.chunks[i]] = ce;
 				cc.chunk_hash_to_index[info.chunks[i]].push_back(i);
 			}
@@ -940,17 +944,17 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCFT1_recv_done& e) {
 
 			if (!cc.have_all) {
 				for (const auto inner_chunk_index : std::get<ReceivingTransfer::Chunk>(tv).chunk_indices) {
-					if (!cc.have_all && !cc.have_chunk.at(inner_chunk_index)) {
-						cc.have_chunk.at(inner_chunk_index) = true;
+					if (!cc.have_all && !cc.have_chunk[inner_chunk_index]) {
+						cc.have_chunk.set(inner_chunk_index);
 						cc.have_count += 1;
 						if (cc.have_count == info.chunks.size()) {
 							// debug check
-							for ([[maybe_unused]] const bool it : cc.have_chunk) {
-								assert(it);
+							for ([[maybe_unused]] size_t i = 0; i < info.chunks.size(); i++) {
+								assert(cc.have_chunk[i]);
 							}
 
 							cc.have_all = true;
-							cc.have_chunk.clear(); // not wasting memory
+							cc.have_chunk = BitSet(0); // not wasting memory
 							std::cout << "SHA1_NGCFT1: got all chunks for \n" << info << "\n";
 
 							// HACK: remap file, to clear ram

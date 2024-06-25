@@ -11,12 +11,15 @@
 struct BitSet {
 	std::vector<uint8_t> _bytes;
 
-	BitSet(void) = delete;
+	BitSet(void) = default;
 	BitSet(const BitSet&) = default;
 	BitSet(BitSet&&) = default;
 	BitSet(size_t size) {
 		_bytes.resize((size+7)/8);
 	}
+
+	BitSet& operator=(const BitSet&) = default;
+	BitSet& operator=(BitSet&&) = default;
 
 	bool operator[](size_t pos) const {
 		assert(pos < size_bits());

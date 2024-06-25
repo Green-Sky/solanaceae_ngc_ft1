@@ -8,6 +8,7 @@
 
 #include "./ft1_sha1_info.hpp"
 #include "./hash_utils.hpp"
+#include "./bitset.hpp"
 
 
 #include <vector>
@@ -31,7 +32,11 @@ namespace Components {
 	};
 
 	struct FT1ChunkSHA1Cache {
-		std::vector<bool> have_chunk;
+		//std::vector<bool> have_chunk;
+		// have_chunk is the size of info.chunks.size(), or empty if have_all
+		// keep in mind bitset rounds up to 8s
+		BitSet have_chunk{0};
+
 		bool have_all {false};
 		size_t have_count {0};
 		entt::dense_map<SHA1Digest, std::vector<size_t>> chunk_hash_to_index;
