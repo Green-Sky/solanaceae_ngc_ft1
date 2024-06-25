@@ -4,12 +4,12 @@
 #include <solanaceae/message3/components.hpp>
 #include <solanaceae/message3/registry_message_model.hpp>
 
+#include <solanaceae/util/bitset.hpp>
+
 #include <entt/container/dense_set.hpp>
 
 #include "./ft1_sha1_info.hpp"
 #include "./hash_utils.hpp"
-#include "./bitset.hpp"
-
 
 #include <vector>
 
@@ -18,6 +18,7 @@
 namespace Components {
 
 	struct Messages {
+		// dense set instead?
 		std::vector<Message3Handle> messages;
 	};
 

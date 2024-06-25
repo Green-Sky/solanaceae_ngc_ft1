@@ -81,13 +81,13 @@ message("II SOLANACEAE_NGCFT1_SHA1_BUILD_TESTING " ${SOLANACEAE_NGCFT1_SHA1_BUIL
 if (SOLANACEAE_NGCFT1_SHA1_BUILD_TESTING)
 	include(CTest)
 
-	add_executable(bitset_tests
-		./solanaceae/ngc_ft1_sha1/bitset_tests.cpp
-	)
+	#add_executable(bitset_tests
+	#    ./solanaceae/ngc_ft1_sha1/bitset_tests.cpp
+	#)
 
-	target_link_libraries(bitset_tests PUBLIC
-		solanaceae_sha1_ngcft1
-	)
+	#target_link_libraries(bitset_tests PUBLIC
+	#    solanaceae_sha1_ngcft1
+	#)
 
 endif()
 
