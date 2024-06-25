@@ -996,6 +996,17 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCFT1_recv_done& e) {
 						chunk_indices.data(), chunk_indices.size()
 					);
 				}
+
+				if (!cc.have_all) { // debug print self have set
+					std::cout << "DEBUG print have bitset: s:" << cc.have_chunk.size_bits();
+					for (size_t i = 0; i < cc.have_chunk.size_bytes(); i++) {
+						if (i % 16 == 0) {
+							std::cout << "\n";
+						}
+						std::cout << std::hex << (uint16_t)cc.have_chunk.data()[i] << " ";
+					}
+					std::cout << std::dec << "\n";
+				}
 			} else {
 				std::cout << "SHA1_NGCFT1 warning: got chunk duplicate\n";
 			}
@@ -1437,11 +1448,13 @@ bool SHA1_NGCFT1::onToxEvent(const Tox_Event_Group_Peer_Exit* e) {
 	}
 
 	for (const auto& [_, h] : _info_to_content) {
-		if (!h.all_of<Components::SuspectedParticipants>()) {
-			continue;
+		if (h.all_of<Components::SuspectedParticipants>()) {
+			h.get<Components::SuspectedParticipants>().participants.erase(ch);
 		}
 
-		h.get<Components::SuspectedParticipants>().participants.erase(ch);
+		if (h.all_of<Components::RemoteHave>()) {
+			h.get<Components::RemoteHave>().others.erase(ch);
+		}
 	}
 
 	// - clear queues
@@ -1459,12 +1472,135 @@ bool SHA1_NGCFT1::onToxEvent(const Tox_Event_Group_Peer_Exit* e) {
 
 bool SHA1_NGCFT1::onEvent(const Events::NGCEXT_ft1_have& e) {
 	std::cerr << "SHA1_NGCFT1: FT1_HAVE s:" << e.chunks.size() << "\n";
-	return false;
+
+	if (e.file_kind != static_cast<uint32_t>(NGCFT1_file_kind::HASH_SHA1_INFO)) {
+		return false;
+	}
+
+	SHA1Digest info_hash{e.file_id};
+
+	auto itc_it = _info_to_content.find(info_hash);
+	if (itc_it == _info_to_content.end()) {
+		// we are not interested and dont track this
+		return false;
+	}
+
+	auto ce = itc_it->second;
+
+	if (!static_cast<bool>(ce)) {
+		std::cerr << "SHA1_NGCFT1 error: tracking info has null object\n";
+		return false;
+	}
+
+	const size_t num_total_chunks = ce.get<Components::FT1InfoSHA1>().chunks.size();
+
+	const auto c = _tcm.getContactGroupPeer(e.group_number, e.peer_number);
+
+	auto& remote_have = ce.get_or_emplace<Components::RemoteHave>().others;
+	if (!remote_have.contains(c)) {
+		// init
+		remote_have.emplace(c, Components::RemoteHave::Entry{false, num_total_chunks});
+	}
+
+	auto& remote_have_peer = remote_have.at(c);
+	if (!remote_have_peer.have_all) {
+		assert(remote_have_peer.have.size_bits() >= num_total_chunks);
+
+		for (const auto c_i : e.chunks) {
+			if (c_i >= num_total_chunks) {
+				std::cerr << "SHA1_NGCFT1 error: remote sent have with out-of-range chunk index!!!\n";
+				continue;
+			}
+
+			assert(c_i < num_total_chunks);
+			remote_have_peer.have.set(c_i);
+		}
+
+		// check for completion?
+		// TODO: optimize
+		bool test_all {true};
+		for (size_t i = 0; i < remote_have_peer.have.size_bits(); i++) {
+			if (!remote_have_peer.have[i]) {
+				test_all = false;
+				break;
+			}
+		}
+
+		if (test_all) {
+			// optimize
+			remote_have_peer.have_all = true;
+			remote_have_peer.have = BitSet{};
+		}
+	}
+
+	return true;
 }
 
 bool SHA1_NGCFT1::onEvent(const Events::NGCEXT_ft1_bitset& e) {
 	std::cerr << "SHA1_NGCFT1: FT1_BITSET o:" << e.start_chunk << " s:" << e.chunk_bitset.size() << "\n";
-	return false;
+
+	if (e.file_kind != static_cast<uint32_t>(NGCFT1_file_kind::HASH_SHA1_INFO)) {
+		return false;
+	}
+
+	if (e.chunk_bitset.empty()) {
+		// what
+		return false;
+	}
+
+	SHA1Digest info_hash{e.file_id};
+
+	auto itc_it = _info_to_content.find(info_hash);
+	if (itc_it == _info_to_content.end()) {
+		// we are not interested and dont track this
+		return false;
+	}
+
+	auto ce = itc_it->second;
+
+	if (!static_cast<bool>(ce)) {
+		std::cerr << "SHA1_NGCFT1 error: tracking info has null object\n";
+		return false;
+	}
+
+	const size_t num_total_chunks = ce.get<Components::FT1InfoSHA1>().chunks.size();
+	// +1 for byte rounding
+	if (num_total_chunks+1 < e.start_chunk + (e.chunk_bitset.size()*8)) {
+		std::cerr << "SHA1_NGCFT1 error: got bitset.size+start that is larger then number of chunks!!\n";
+		return false;
+	}
+
+	const auto c = _tcm.getContactGroupPeer(e.group_number, e.peer_number);
+
+	auto& remote_have = ce.get_or_emplace<Components::RemoteHave>().others;
+	if (!remote_have.contains(c)) {
+		// init
+		remote_have.emplace(c, Components::RemoteHave::Entry{false, num_total_chunks});
+	}
+
+	auto& remote_have_peer = remote_have.at(c);
+	if (!remote_have_peer.have_all) { // TODO: maybe unset with bitset?
+		BitSet event_bitset{e.chunk_bitset};
+		remote_have_peer.have.merge(event_bitset, e.start_chunk);
+
+		// check for completion?
+		// TODO: optimize
+		bool test_all {true};
+		for (size_t i = 0; i < remote_have_peer.have.size_bits(); i++) {
+			if (!remote_have_peer.have[i]) {
+				test_all = false;
+				break;
+			}
+		}
+
+		if (test_all) {
+			// optimize
+			remote_have_peer.have_all = true;
+			remote_have_peer.have = BitSet{};
+		}
+	}
+
+	return true;
 }
 
 bool SHA1_NGCFT1::onEvent(const Events::NGCEXT_pc1_announce& e) {
@@ -1480,6 +1616,10 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCEXT_pc1_announce& e) {
 
 	for (size_t i = 0; i < sizeof(file_kind); i++) {
 		file_kind |= uint32_t(e.id[i]) << (i*8);
+	}
+
+	if (file_kind != static_cast<uint32_t>(NGCFT1_file_kind::HASH_SHA1_INFO)) {
+		return false;
 	}
 
 	SHA1Digest hash{e.id.data()+sizeof(file_kind), 20};

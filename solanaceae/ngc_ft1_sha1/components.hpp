@@ -33,7 +33,8 @@ namespace Components {
 	};
 
 	struct FT1ChunkSHA1Cache {
-		//std::vector<bool> have_chunk;
+		// TODO: extract have_chunk, have_all and have_count to generic comp
+
 		// have_chunk is the size of info.chunks.size(), or empty if have_all
 		// keep in mind bitset rounds up to 8s
 		BitSet have_chunk{0};
@@ -54,6 +55,14 @@ namespace Components {
 	// TODO: once announce is shipped, remove the "Suspected"
 	struct SuspectedParticipants {
 		entt::dense_set<Contact3> participants;
+	};
+
+	struct RemoteHave {
+		struct Entry {
+			bool have_all {false};
+			BitSet have;
+		};
+		entt::dense_map<Contact3, Entry> others;
 	};
 
 	struct ReRequestInfoTimer {
