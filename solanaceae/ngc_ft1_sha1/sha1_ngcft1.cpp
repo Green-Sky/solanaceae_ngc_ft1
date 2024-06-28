@@ -18,6 +18,7 @@
 
 #include "./components.hpp"
 #include "./chunk_picker.hpp"
+#include "./participation.hpp"
 
 #include <iostream>
 #include <variant>
@@ -111,36 +112,6 @@ void SHA1_NGCFT1::updateMessages(ObjectHandle ce) {
 		}
 
 		_rmm.throwEventUpdate(msg);
-	}
-}
-
-bool SHA1_NGCFT1::addParticipation(Contact3 c, ObjectHandle o) {
-	bool was_new {false};
-
-	if (static_cast<bool>(o)) {
-		const auto [_, inserted] = o.get_or_emplace<Components::SuspectedParticipants>().participants.emplace(c);
-		was_new = inserted;
-	}
-
-	if (_cr.valid(c)) {
-		const auto [_, inserted] = _cr.get_or_emplace<ChunkPicker>(c).participating.emplace(o);
-		was_new = was_new || inserted;
-
-		// TODO: if not have_all
-		_cr.get_or_emplace<ChunkPicker>(c).participating_unfinished.emplace(o, ChunkPicker::ParticipationEntry{});
-	}
-
-	return was_new;
-}
-
-void SHA1_NGCFT1::removeParticipation(Contact3 c, ObjectHandle o) {
-	if (static_cast<bool>(o) && o.all_of<Components::SuspectedParticipants>()) {
-		o.get<Components::SuspectedParticipants>().participants.erase(c);
-	}
-
-	if (_cr.valid(c) && _cr.all_of<ChunkPicker>(c)) {
-		_cr.get<ChunkPicker>(c).participating.erase(o);
-		_cr.get<ChunkPicker>(c).participating_unfinished.erase(o);
 	}
 }
 
@@ -1474,16 +1445,16 @@ bool SHA1_NGCFT1::onToxEvent(const Tox_Event_Group_Peer_Exit* e) {
 	// peer disconnected
 	// - remove from all participantions
 
-	auto ch = _tcm.getContactGroupPeer(group_number, peer_number);
-	if (!static_cast<bool>(ch)) {
+	auto c = _tcm.getContactGroupPeer(group_number, peer_number);
+	if (!static_cast<bool>(c)) {
 		return false;
 	}
 
-	for (const auto& [_, h] : _info_to_content) {
-		removeParticipation(ch, h);
+	for (const auto& [_, o] : _info_to_content) {
+		removeParticipation(c, o);
 
-		if (h.all_of<Components::RemoteHave>()) {
-			h.get<Components::RemoteHave>().others.erase(ch);
+		if (o.all_of<Components::RemoteHave>()) {
+			o.get<Components::RemoteHave>().others.erase(c);
 		}
 	}
 
@@ -1515,21 +1486,21 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCEXT_ft1_have& e) {
 		return false;
 	}
 
-	auto ce = itc_it->second;
+	auto o = itc_it->second;
 
-	if (!static_cast<bool>(ce)) {
+	if (!static_cast<bool>(o)) {
 		std::cerr << "SHA1_NGCFT1 error: tracking info has null object\n";
 		return false;
 	}
 
-	const size_t num_total_chunks = ce.get<Components::FT1InfoSHA1>().chunks.size();
+	const size_t num_total_chunks = o.get<Components::FT1InfoSHA1>().chunks.size();
 
 	const auto c = _tcm.getContactGroupPeer(e.group_number, e.peer_number);
 
 	// we might not know yet
-	addParticipation(c, ce);
+	addParticipation(c, o);
 
-	auto& remote_have = ce.get_or_emplace<Components::RemoteHave>().others;
+	auto& remote_have = o.get_or_emplace<Components::RemoteHave>().others;
 	if (!remote_have.contains(c)) {
 		// init
 		remote_have.emplace(c, Components::RemoteHave::Entry{false, num_total_chunks});
@@ -1589,14 +1560,14 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCEXT_ft1_bitset& e) {
 		return false;
 	}
 
-	auto ce = itc_it->second;
+	auto o = itc_it->second;
 
-	if (!static_cast<bool>(ce)) {
+	if (!static_cast<bool>(o)) {
 		std::cerr << "SHA1_NGCFT1 error: tracking info has null object\n";
 		return false;
 	}
 
-	const size_t num_total_chunks = ce.get<Components::FT1InfoSHA1>().chunks.size();
+	const size_t num_total_chunks = o.get<Components::FT1InfoSHA1>().chunks.size();
 	// +1 for byte rounding
 	if (num_total_chunks+1 < e.start_chunk + (e.chunk_bitset.size()*8)) {
 		std::cerr << "SHA1_NGCFT1 error: got bitset.size+start that is larger then number of chunks!!\n";
@@ -1606,9 +1577,9 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCEXT_ft1_bitset& e) {
 	const auto c = _tcm.getContactGroupPeer(e.group_number, e.peer_number);
 
 	// we might not know yet
-	addParticipation(c, ce);
+	addParticipation(c, o);
 
-	auto& remote_have = ce.get_or_emplace<Components::RemoteHave>().others;
+	auto& remote_have = o.get_or_emplace<Components::RemoteHave>().others;
 	if (!remote_have.contains(c)) {
 		// init
 		remote_have.emplace(c, Components::RemoteHave::Entry{false, num_total_chunks});
@@ -1670,9 +1641,9 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCEXT_pc1_announce& e) {
 	}
 
 	// add them to participants
-	auto ce = itc_it->second;
 	const auto c = _tcm.getContactGroupPeer(e.group_number, e.peer_number);
-	const bool was_new = addParticipation(c, ce);
+	auto o = itc_it->second;
+	const bool was_new = addParticipation(c, o);
 	if (was_new) {
 		std::cout << "SHA1_NGCFT1: and we where interested!\n";
 		// we should probably send the bitset back here / add to queue (can be multiple packets)
