@@ -17,6 +17,7 @@
 #include "./file_rw_mapped.hpp"
 
 #include "./components.hpp"
+#include "./chunk_picker.hpp"
 
 #include <iostream>
 #include <variant>
@@ -110,6 +111,36 @@ void SHA1_NGCFT1::updateMessages(ObjectHandle ce) {
 		}
 
 		_rmm.throwEventUpdate(msg);
+	}
+}
+
+bool SHA1_NGCFT1::addParticipation(Contact3 c, ObjectHandle o) {
+	bool was_new {false};
+
+	if (static_cast<bool>(o)) {
+		const auto [_, inserted] = o.get_or_emplace<Components::SuspectedParticipants>().participants.emplace(c);
+		was_new = inserted;
+	}
+
+	if (_cr.valid(c)) {
+		const auto [_, inserted] = _cr.get_or_emplace<ChunkPicker>(c).participating.emplace(o);
+		was_new = was_new || inserted;
+
+		// TODO: if not have_all
+		_cr.get_or_emplace<ChunkPicker>(c).participating_unfinished.emplace(o, ChunkPicker::ParticipationEntry{});
+	}
+
+	return was_new;
+}
+
+void SHA1_NGCFT1::removeParticipation(Contact3 c, ObjectHandle o) {
+	if (static_cast<bool>(o) && o.all_of<Components::SuspectedParticipants>()) {
+		o.get<Components::SuspectedParticipants>().participants.erase(c);
+	}
+
+	if (_cr.valid(c) && _cr.all_of<ChunkPicker>(c)) {
+		_cr.get<ChunkPicker>(c).participating.erase(o);
+		_cr.get<ChunkPicker>(c).participating_unfinished.erase(o);
 	}
 }
 
@@ -673,7 +704,7 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCFT1_recv_request& e) {
 
 		{ // they advertise interest in the content
 			const auto c = _tcm.getContactGroupPeer(e.group_number, e.peer_number);
-			ce.get_or_emplace<Components::SuspectedParticipants>().participants.emplace(c);
+			addParticipation(c, ce);
 		}
 
 		assert(ce.all_of<Components::FT1ChunkSHA1Cache>());
@@ -740,7 +771,7 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCFT1_recv_init& e) {
 
 		{ // they have the content (probably, might be fake, should move this to done)
 			const auto c = _tcm.getContactGroupPeer(e.group_number, e.peer_number);
-			ce.get_or_emplace<Components::SuspectedParticipants>().participants.emplace(c);
+			addParticipation(c, ce);
 		}
 
 		assert(ce.all_of<Components::FT1InfoSHA1>());
@@ -1134,7 +1165,8 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCFT1_recv_message& e) {
 	ce.get_or_emplace<Components::Messages>().messages.push_back({reg, new_msg_e});
 	reg_ptr->emplace<Message::Components::Content>(new_msg_e, ce);
 
-	ce.get_or_emplace<Components::SuspectedParticipants>().participants.emplace(c);
+	// HACK: assume the message sender is participating. usually a safe bet.
+	addParticipation(c, ce);
 
 	if (!ce.all_of<Components::ReRequestInfoTimer>() && !ce.all_of<Components::FT1InfoSHA1>()) {
 		// TODO: check if already receiving
@@ -1448,9 +1480,7 @@ bool SHA1_NGCFT1::onToxEvent(const Tox_Event_Group_Peer_Exit* e) {
 	}
 
 	for (const auto& [_, h] : _info_to_content) {
-		if (h.all_of<Components::SuspectedParticipants>()) {
-			h.get<Components::SuspectedParticipants>().participants.erase(ch);
-		}
+		removeParticipation(ch, h);
 
 		if (h.all_of<Components::RemoteHave>()) {
 			h.get<Components::RemoteHave>().others.erase(ch);
@@ -1495,6 +1525,9 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCEXT_ft1_have& e) {
 	const size_t num_total_chunks = ce.get<Components::FT1InfoSHA1>().chunks.size();
 
 	const auto c = _tcm.getContactGroupPeer(e.group_number, e.peer_number);
+
+	// we might not know yet
+	addParticipation(c, ce);
 
 	auto& remote_have = ce.get_or_emplace<Components::RemoteHave>().others;
 	if (!remote_have.contains(c)) {
@@ -1572,6 +1605,9 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCEXT_ft1_bitset& e) {
 
 	const auto c = _tcm.getContactGroupPeer(e.group_number, e.peer_number);
 
+	// we might not know yet
+	addParticipation(c, ce);
+
 	auto& remote_have = ce.get_or_emplace<Components::RemoteHave>().others;
 	if (!remote_have.contains(c)) {
 		// init
@@ -1636,7 +1672,7 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCEXT_pc1_announce& e) {
 	// add them to participants
 	auto ce = itc_it->second;
 	const auto c = _tcm.getContactGroupPeer(e.group_number, e.peer_number);
-	const auto [_, was_new] = ce.get_or_emplace<Components::SuspectedParticipants>().participants.emplace(c);
+	const bool was_new = addParticipation(c, ce);
 	if (was_new) {
 		std::cout << "SHA1_NGCFT1: and we where interested!\n";
 		// we should probably send the bitset back here / add to queue (can be multiple packets)

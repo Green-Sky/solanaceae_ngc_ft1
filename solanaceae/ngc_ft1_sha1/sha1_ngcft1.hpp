@@ -108,6 +108,9 @@ class SHA1_NGCFT1 : public ToxEventI, public RegistryMessageModelEventI, public 
 
 	void updateMessages(ObjectHandle ce);
 
+	bool addParticipation(Contact3 c, ObjectHandle o);
+	void removeParticipation(Contact3 c, ObjectHandle o);
+
 	std::optional<std::pair<uint32_t, uint32_t>> selectPeerForRequest(ObjectHandle ce);
 
 	public: // TODO: config
