@@ -256,28 +256,7 @@ void SHA1_NGCFT1::iterate(float delta) {
 		}
 
 		// receiving transfers
-		for (auto peer_it = _receiving_transfers.begin(); peer_it != _receiving_transfers.end();) {
-			for (auto it = peer_it->second.begin(); it != peer_it->second.end();) {
-				it->second.time_since_activity += delta;
-
-				// if we have not heard for 10sec, timeout
-				if (it->second.time_since_activity >= 20.f) {
-					std::cerr << "SHA1_NGCFT1 warning: receiving tansfer timed out " << "." << int(it->first) << "\n";
-					// TODO: if info, requeue? or just keep the timer comp? - no, timer comp will continue ticking, even if loading
-					//it->second.v
-					it = peer_it->second.erase(it);
-				} else {
-					it++;
-				}
-			}
-
-			if (peer_it->second.empty()) {
-				// cleanup unused peers too agressive?
-				peer_it = _receiving_transfers.erase(peer_it);
-			} else {
-				peer_it++;
-			}
-		}
+		_receiving_transfers.tick(delta);
 
 		// queued requests
 		for (auto it = _queue_requested_chunk.begin(); it != _queue_requested_chunk.end();) {
@@ -330,10 +309,7 @@ void SHA1_NGCFT1::iterate(float delta) {
 	for (const auto& [_, transfers] : _sending_transfers) {
 		running_sending_transfer_count += transfers.size();
 	}
-	size_t running_receiving_transfer_count {0};
-	for (const auto& [_, transfers] : _receiving_transfers) {
-		running_receiving_transfer_count += transfers.size();
-	}
+	size_t running_receiving_transfer_count {_receiving_transfers.size()};
 
 	if (running_sending_transfer_count < _max_concurrent_out) {
 		// TODO: for each peer? transfer cap per peer?
@@ -722,10 +698,11 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCFT1_recv_init& e) {
 			return false;
 		}
 
-		_receiving_transfers
-			[combineIds(e.group_number, e.peer_number)]
-			[e.transfer_id]
-				.v = ReceivingTransfer::Info{ce, std::vector<uint8_t>(e.file_size)};
+		_receiving_transfers.emplaceInfo(
+			combineIds(e.group_number, e.peer_number),
+			e.transfer_id,
+			{ce, std::vector<uint8_t>(e.file_size)}
+		);
 
 		e.accept = true;
 	} else if (e.file_kind == NGCFT1_file_kind::HASH_SHA1_CHUNK) {
@@ -765,10 +742,11 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCFT1_recv_init& e) {
 		// TODO: check e.file_size
 		assert(e.file_size == info.chunkSize(idx_vec.front()));
 
-		_receiving_transfers
-			[combineIds(e.group_number, e.peer_number)]
-			[e.transfer_id]
-				.v = ReceivingTransfer::Chunk{ce, idx_vec};
+		_receiving_transfers.emplaceChunk(
+			combineIds(e.group_number, e.peer_number),
+			e.transfer_id,
+			ReceivingTransfers::Entry::Chunk{ce, idx_vec}
+		);
 
 		e.accept = true;
 
@@ -781,31 +759,28 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCFT1_recv_init& e) {
 }
 
 bool SHA1_NGCFT1::onEvent(const Events::NGCFT1_recv_data& e) {
-	if (!_receiving_transfers.count(combineIds(e.group_number, e.peer_number))) {
+	if (!_receiving_transfers.containsPeerTransfer(combineIds(e.group_number, e.peer_number), e.transfer_id)) {
 		return false;
 	}
 
-	auto& peer_transfers = _receiving_transfers.at(combineIds(e.group_number, e.peer_number));
-	if (!peer_transfers.count(e.transfer_id)) {
-		return false;
-	}
+	auto& transfer = _receiving_transfers.getTransfer(combineIds(e.group_number, e.peer_number), e.transfer_id);
 
-	auto& tv = peer_transfers[e.transfer_id].v;
-	peer_transfers[e.transfer_id].time_since_activity = 0.f;
-	if (std::holds_alternative<ReceivingTransfer::Info>(tv)) {
-		auto& info_data = std::get<ReceivingTransfer::Info>(tv).info_data;
+	transfer.time_since_activity = 0.f;
+	if (transfer.isInfo()) {
+		auto& info_data = transfer.getInfo().info_data;
 		for (size_t i = 0; i < e.data_size && i + e.data_offset < info_data.size(); i++) {
 			info_data[i+e.data_offset] = e.data[i];
 		}
-	} else if (std::holds_alternative<ReceivingTransfer::Chunk>(tv)) {
-		auto ce = std::get<ReceivingTransfer::Chunk>(tv).content;
+	} else if (transfer.isChunk()) {
+		auto o = transfer.getChunk().content;
 
-		assert(ce.all_of<Message::Components::Transfer::File>());
-		auto* file = ce.get<Message::Components::Transfer::File>().get();
+		assert(o.all_of<Message::Components::Transfer::File>());
+		auto* file = o.get<Message::Components::Transfer::File>().get();
 		assert(file != nullptr);
 
-		for (const auto chunk_index : std::get<ReceivingTransfer::Chunk>(tv).chunk_indices) {
-			const auto offset_into_file = chunk_index* ce.get<Components::FT1InfoSHA1>().chunk_size;
+		const auto chunk_size = o.get<Components::FT1InfoSHA1>().chunk_size;
+		for (const auto chunk_index : transfer.getChunk().chunk_indices) {
+			const auto offset_into_file = chunk_index * chunk_size;
 
 			if (!file->write({e.data, e.data_size}, offset_into_file + e.data_offset)) {
 				std::cerr << "SHA1_NGCFT1 error: writing file failed o:" << offset_into_file + e.data_offset << "\n";
@@ -871,72 +846,68 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCFT1_send_data& e) {
 }
 
 bool SHA1_NGCFT1::onEvent(const Events::NGCFT1_recv_done& e) {
-	if (!_receiving_transfers.count(combineIds(e.group_number, e.peer_number))) {
+	if (!_receiving_transfers.containsPeerTransfer(combineIds(e.group_number, e.peer_number), e.transfer_id)) {
 		return false;
 	}
 
-	auto& peer_transfers = _receiving_transfers.at(combineIds(e.group_number, e.peer_number));
-	if (!peer_transfers.count(e.transfer_id)) {
-		return false;
-	}
+	auto& transfer = _receiving_transfers.getTransfer(combineIds(e.group_number, e.peer_number), e.transfer_id);
 
-	const auto& tv = peer_transfers[e.transfer_id].v;
-	if (std::holds_alternative<ReceivingTransfer::Info>(tv)) {
-		auto& info = std::get<ReceivingTransfer::Info>(tv);
-		auto ce = info.content;
+	if (transfer.isInfo()) {
+		auto& info = transfer.getInfo();
+		auto o = info.content;
 
-		if (ce.any_of<Components::FT1InfoSHA1, Components::FT1InfoSHA1Data>()) {
+		if (o.any_of<Components::FT1InfoSHA1, Components::FT1InfoSHA1Data>()) {
 			// we already have the info, discard
-			peer_transfers.erase(e.transfer_id);
+			_receiving_transfers.removePeerTransfer(combineIds(e.group_number, e.peer_number), e.transfer_id);
 			return true;
 		}
 
 		// check if data matches hash
 		auto hash = hash_sha1(info.info_data.data(), info.info_data.size());
 
-		assert(ce.all_of<Components::FT1InfoSHA1Hash>());
-		if (ce.get<Components::FT1InfoSHA1Hash>().hash != hash) {
+		assert(o.all_of<Components::FT1InfoSHA1Hash>());
+		if (o.get<Components::FT1InfoSHA1Hash>().hash != hash) {
 			std::cerr << "SHA1_NGCFT1 error: got info data mismatching its hash\n";
-			// requeue info request
-			peer_transfers.erase(e.transfer_id);
+			// TODO: requeue info request; eg manipulate o.get<Components::ReRequestInfoTimer>();
+			_receiving_transfers.removePeerTransfer(combineIds(e.group_number, e.peer_number), e.transfer_id);
 			return true;
 		}
 
-		const auto& info_data = ce.emplace_or_replace<Components::FT1InfoSHA1Data>(std::move(info.info_data)).data;
-		auto& ft_info = ce.emplace_or_replace<Components::FT1InfoSHA1>();
+		const auto& info_data = o.emplace_or_replace<Components::FT1InfoSHA1Data>(std::move(info.info_data)).data;
+		auto& ft_info = o.emplace_or_replace<Components::FT1InfoSHA1>();
 		ft_info.fromBuffer(info_data);
 
 		{ // file info
 			// TODO: not overwrite fi? since same?
-			auto& file_info = ce.emplace_or_replace<Message::Components::Transfer::FileInfo>();
+			auto& file_info = o.emplace_or_replace<Message::Components::Transfer::FileInfo>();
 			file_info.file_list.emplace_back() = {ft_info.file_name, ft_info.file_size};
 			file_info.total_size = ft_info.file_size;
 		}
 
 		std::cout << "SHA1_NGCFT1: got info for [" << SHA1Digest{hash} << "]\n" << ft_info << "\n";
 
-		ce.remove<Components::ReRequestInfoTimer>();
-		if (auto it = std::find(_queue_content_want_info.begin(), _queue_content_want_info.end(), ce); it != _queue_content_want_info.end()) {
+		o.remove<Components::ReRequestInfoTimer>();
+		if (auto it = std::find(_queue_content_want_info.begin(), _queue_content_want_info.end(), o); it != _queue_content_want_info.end()) {
 			_queue_content_want_info.erase(it);
 		}
 
-		ce.emplace_or_replace<Message::Components::Transfer::TagPaused>();
+		o.emplace_or_replace<Message::Components::Transfer::TagPaused>();
 
-		updateMessages(ce);
-	} else if (std::holds_alternative<ReceivingTransfer::Chunk>(tv)) {
-		auto ce = std::get<ReceivingTransfer::Chunk>(tv).content;
-		const auto& info = ce.get<Components::FT1InfoSHA1>();
-		auto& cc = ce.get<Components::FT1ChunkSHA1Cache>();
+		updateMessages(o);
+	} else if (transfer.isChunk()) {
+		auto o = transfer.getChunk().content;
+		const auto& info = o.get<Components::FT1InfoSHA1>();
+		auto& cc = o.get<Components::FT1ChunkSHA1Cache>();
 
 		// HACK: only check first chunk (they *should* all be the same)
-		const auto chunk_index = std::get<ReceivingTransfer::Chunk>(tv).chunk_indices.front();
+		const auto chunk_index = transfer.getChunk().chunk_indices.front();
 		const uint64_t offset_into_file = chunk_index * uint64_t(info.chunk_size);
 
 		assert(chunk_index < info.chunks.size());
 		const auto chunk_size = info.chunkSize(chunk_index);
 		assert(offset_into_file+chunk_size <= info.file_size);
 
-		const auto chunk_data = ce.get<Message::Components::Transfer::File>()->read(chunk_size, offset_into_file);
+		const auto chunk_data = o.get<Message::Components::Transfer::File>()->read(chunk_size, offset_into_file);
 		assert(!chunk_data.empty());
 
 		// check hash of chunk
@@ -945,7 +916,7 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCFT1_recv_done& e) {
 			std::cout << "SHA1_NGCFT1: got chunk [" << SHA1Digest{got_hash} << "]\n";
 
 			if (!cc.have_all) {
-				for (const auto inner_chunk_index : std::get<ReceivingTransfer::Chunk>(tv).chunk_indices) {
+				for (const auto inner_chunk_index : transfer.getChunk().chunk_indices) {
 					if (!cc.have_all && !cc.have_chunk[inner_chunk_index]) {
 						cc.have_chunk.set(inner_chunk_index);
 						cc.have_count += 1;
@@ -962,33 +933,33 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCFT1_recv_done& e) {
 							// HACK: remap file, to clear ram
 
 							// TODO: error checking
-							ce.get<Message::Components::Transfer::File>() = std::make_unique<File2RWMapped>(
-								ce.get<Message::Components::Transfer::FileInfoLocal>().file_list.front(),
+							o.get<Message::Components::Transfer::File>() = std::make_unique<File2RWMapped>(
+								o.get<Message::Components::Transfer::FileInfoLocal>().file_list.front(),
 								info.file_size
 							);
 						}
 
 						// good chunk
 						// TODO: have wasted + metadata
-						ce.get_or_emplace<Message::Components::Transfer::BytesReceived>().total += chunk_data.size;
+						o.get_or_emplace<Message::Components::Transfer::BytesReceived>().total += chunk_data.size;
 					}
 				}
 
 				// queue chunk have for all participants
 				// HACK: send immediatly to all participants
-				for (const auto c_part : ce.get<Components::SuspectedParticipants>().participants) {
+				for (const auto c_part : o.get<Components::SuspectedParticipants>().participants) {
 					if (!_cr.all_of<Contact::Components::ToxGroupPeerEphemeral>(c_part)) {
 						continue;
 					}
 
 					const auto [part_group_number, part_peer_number] = _cr.get<Contact::Components::ToxGroupPeerEphemeral>(c_part);
 
-					const auto& info_hash = ce.get<Components::FT1InfoSHA1Hash>().hash;
+					const auto& info_hash = o.get<Components::FT1InfoSHA1Hash>().hash;
 
 					// convert size_t to uint32_t
 					const std::vector<uint32_t> chunk_indices {
-						std::get<ReceivingTransfer::Chunk>(tv).chunk_indices.cbegin(),
-						std::get<ReceivingTransfer::Chunk>(tv).chunk_indices.cend()
+						transfer.getChunk().chunk_indices.cbegin(),
+						transfer.getChunk().chunk_indices.cend()
 					};
 
 					_neep.send_ft1_have(
@@ -1019,14 +990,14 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCFT1_recv_done& e) {
 
 		// remove from requested
 		// TODO: remove at init and track running transfers differently
-		for (const auto it : std::get<ReceivingTransfer::Chunk>(tv).chunk_indices) {
-			ce.get_or_emplace<Components::FT1ChunkSHA1Requested>().chunks.erase(it);
+		for (const auto it : transfer.getChunk().chunk_indices) {
+			o.get_or_emplace<Components::FT1ChunkSHA1Requested>().chunks.erase(it);
 		}
 
-		updateMessages(ce); // mostly for received bytes
+		updateMessages(o); // mostly for received bytes
 	}
 
-	peer_transfers.erase(e.transfer_id);
+	_receiving_transfers.removePeerTransfer(combineIds(e.group_number, e.peer_number), e.transfer_id);
 
 	return true;
 }
@@ -1467,6 +1438,8 @@ bool SHA1_NGCFT1::onToxEvent(const Tox_Event_Group_Peer_Exit* e) {
 			it++;
 		}
 	}
+
+	// TODO: nfcft1 should have fired receive/send done events for all them running transfers
 
 	return false;
 }

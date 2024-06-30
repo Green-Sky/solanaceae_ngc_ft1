@@ -10,6 +10,7 @@
 #include <solanaceae/ngc_ft1/ngcft1.hpp>
 
 #include "./ft1_sha1_info.hpp"
+#include "./receiving_transfers.hpp"
 
 #include <entt/entity/registry.hpp>
 #include <entt/entity/handle.hpp>
@@ -68,27 +69,7 @@ class SHA1_NGCFT1 : public ToxEventI, public RegistryMessageModelEventI, public 
 	// key is groupid + peerid
 	entt::dense_map<uint64_t, entt::dense_map<uint8_t, SendingTransfer>> _sending_transfers;
 
-	struct ReceivingTransfer {
-		struct Info {
-			ObjectHandle content;
-			// copy of info data
-			// too large?
-			std::vector<uint8_t> info_data;
-		};
-
-		struct Chunk {
-			ObjectHandle content;
-			std::vector<size_t> chunk_indices;
-			// or data?
-			// if memmapped, this would be just a pointer
-		};
-
-		std::variant<Info, Chunk> v;
-
-		float time_since_activity {0.f};
-	};
-	// key is groupid + peerid
-	entt::dense_map<uint64_t, entt::dense_map<uint8_t, ReceivingTransfer>> _receiving_transfers;
+	ReceivingTransfers _receiving_transfers;
 
 	// makes request rotate around open content
 	std::deque<ObjectHandle> _queue_content_want_info;
