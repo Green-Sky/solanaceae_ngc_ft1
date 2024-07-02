@@ -4,6 +4,8 @@
 
 #include <entt/container/dense_map.hpp>
 
+#include "./util.hpp"
+
 #include <cstdint>
 #include <variant>
 #include <vector>
@@ -44,21 +46,21 @@ struct ReceivingTransfers {
 
 	void tick(float delta);
 
-	Entry& emplaceInfo(uint64_t combined_id, uint8_t transfer_id, const Entry::Info& info);
-	Entry& emplaceChunk(uint64_t combined_id, uint8_t transfer_id, const Entry::Chunk& chunk);
+	Entry& emplaceInfo(uint32_t group_number, uint32_t peer_number, uint8_t transfer_id, const Entry::Info& info);
+	Entry& emplaceChunk(uint32_t group_number, uint32_t peer_number, uint8_t transfer_id, const Entry::Chunk& chunk);
 
-	bool containsPeer(uint64_t combined_id) const { return _data.count(combined_id); }
-	bool containsPeerTransfer(uint64_t combined_id, uint8_t transfer_id) const;
+	bool containsPeer(uint32_t group_number, uint32_t peer_number) const { return _data.count(combine_ids(group_number, peer_number)); }
+	bool containsPeerTransfer(uint32_t group_number, uint32_t peer_number, uint8_t transfer_id) const;
 	bool containsChunk(ObjectHandle o, size_t chunk_idx) const;
-	bool containsPeerChunk(uint64_t combined_id, ObjectHandle o, size_t chunk_idx) const;
+	bool containsPeerChunk(uint32_t group_number, uint32_t peer_number, ObjectHandle o, size_t chunk_idx) const;
 
-	auto& getPeer(uint64_t combined_id) { return _data.at(combined_id); }
-	auto& getTransfer(uint64_t combined_id, uint8_t transfer_id) { return getPeer(combined_id).at(transfer_id); }
+	auto& getPeer(uint32_t group_number, uint32_t peer_number) { return _data.at(combine_ids(group_number, peer_number)); }
+	auto& getTransfer(uint32_t group_number, uint32_t peer_number, uint8_t transfer_id) { return getPeer(group_number, peer_number).at(transfer_id); }
 
-	void removePeer(uint64_t combined_id);
-	void removePeerTransfer(uint64_t combined_id, uint8_t transfer_id);
+	void removePeer(uint32_t group_number, uint32_t peer_number);
+	void removePeerTransfer(uint32_t group_number, uint32_t peer_number, uint8_t transfer_id);
 
 	size_t size(void) const;
-	size_t sizePeer(uint64_t combined_id) const;
+	size_t sizePeer(uint32_t group_number, uint32_t peer_number) const;
 };
 

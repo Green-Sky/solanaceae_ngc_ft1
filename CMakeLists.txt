@@ -51,6 +51,8 @@ add_library(solanaceae_sha1_ngcft1
 	./solanaceae/ngc_ft1_sha1/hash_utils.hpp
 	./solanaceae/ngc_ft1_sha1/hash_utils.cpp
 
+	./solanaceae/ngc_ft1_sha1/util.hpp
+
 	./solanaceae/ngc_ft1_sha1/ft1_sha1_info.hpp
 	./solanaceae/ngc_ft1_sha1/ft1_sha1_info.cpp
 

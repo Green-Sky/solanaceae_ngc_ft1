@@ -80,8 +80,6 @@ class SHA1_NGCFT1 : public ToxEventI, public RegistryMessageModelEventI, public 
 	using InfoBuilderEntry = std::function<void(void)>;
 	std::list<InfoBuilderEntry> _info_builder_queue;
 
-	static uint64_t combineIds(const uint32_t group_number, const uint32_t peer_number);
-
 	void updateMessages(ObjectHandle ce);
 
 	std::optional<std::pair<uint32_t, uint32_t>> selectPeerForRequest(ObjectHandle ce);

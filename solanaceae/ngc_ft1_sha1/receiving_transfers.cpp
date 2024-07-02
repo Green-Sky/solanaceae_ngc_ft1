@@ -27,22 +27,22 @@ void ReceivingTransfers::tick(float delta) {
 	}
 }
 
-ReceivingTransfers::Entry& ReceivingTransfers::emplaceInfo(uint64_t combined_id, uint8_t transfer_id, const Entry::Info& info) {
-	auto& ent = _data[combined_id][transfer_id];
+ReceivingTransfers::Entry& ReceivingTransfers::emplaceInfo(uint32_t group_number, uint32_t peer_number, uint8_t transfer_id, const Entry::Info& info) {
+	auto& ent = _data[combine_ids(group_number, peer_number)][transfer_id];
 	ent.v = info;
 	return ent;
 }
 
-ReceivingTransfers::Entry& ReceivingTransfers::emplaceChunk(uint64_t combined_id, uint8_t transfer_id, const Entry::Chunk& chunk) {
+ReceivingTransfers::Entry& ReceivingTransfers::emplaceChunk(uint32_t group_number, uint32_t peer_number, uint8_t transfer_id, const Entry::Chunk& chunk) {
 	assert(!chunk.chunk_indices.empty());
-	assert(!containsPeerChunk(combined_id, chunk.content, chunk.chunk_indices.front()));
-	auto& ent = _data[combined_id][transfer_id];
+	assert(!containsPeerChunk(group_number, peer_number, chunk.content, chunk.chunk_indices.front()));
+	auto& ent = _data[combine_ids(group_number, peer_number)][transfer_id];
 	ent.v = chunk;
 	return ent;
 }
 
-bool ReceivingTransfers::containsPeerTransfer(uint64_t combined_id, uint8_t transfer_id) const {
-	auto it = _data.find(combined_id);
+bool ReceivingTransfers::containsPeerTransfer(uint32_t group_number, uint32_t peer_number, uint8_t transfer_id) const {
+	auto it = _data.find(combine_ids(group_number, peer_number));
 	if (it == _data.end()) {
 		return false;
 	}
@@ -73,8 +73,8 @@ bool ReceivingTransfers::containsChunk(ObjectHandle o, size_t chunk_idx) const {
 	return false;
 }
 
-bool ReceivingTransfers::containsPeerChunk(uint64_t combined_id, ObjectHandle o, size_t chunk_idx) const {
-	auto it = _data.find(combined_id);
+bool ReceivingTransfers::containsPeerChunk(uint32_t group_number, uint32_t peer_number, ObjectHandle o, size_t chunk_idx) const {
+	auto it = _data.find(combine_ids(group_number, peer_number));
 	if (it == _data.end()) {
 		return false;
 	}
@@ -99,12 +99,12 @@ bool ReceivingTransfers::containsPeerChunk(uint64_t combined_id, ObjectHandle o,
 	return false;
 }
 
-void ReceivingTransfers::removePeer(uint64_t combined_id) {
-	_data.erase(combined_id);
+void ReceivingTransfers::removePeer(uint32_t group_number, uint32_t peer_number) {
+	_data.erase(combine_ids(group_number, peer_number));
 }
 
-void ReceivingTransfers::removePeerTransfer(uint64_t combined_id, uint8_t transfer_id) {
-	auto it = _data.find(combined_id);
+void ReceivingTransfers::removePeerTransfer(uint32_t group_number, uint32_t peer_number, uint8_t transfer_id) {
+	auto it = _data.find(combine_ids(group_number, peer_number));
 	if (it == _data.end()) {
 		return;
 	}
@@ -120,8 +120,8 @@ size_t ReceivingTransfers::size(void) const {
 	return count;
 }
 
-size_t ReceivingTransfers::sizePeer(uint64_t combined_id) const {
-	auto it = _data.find(combined_id);
+size_t ReceivingTransfers::sizePeer(uint32_t group_number, uint32_t peer_number) const {
+	auto it = _data.find(combine_ids(group_number, peer_number));
 	if (it == _data.end()) {
 		return 0;
 	}
