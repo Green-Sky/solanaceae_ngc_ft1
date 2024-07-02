@@ -120,3 +120,12 @@ size_t ReceivingTransfers::size(void) const {
 	return count;
 }
 
+size_t ReceivingTransfers::sizePeer(uint64_t combined_id) const {
+	auto it = _data.find(combined_id);
+	if (it == _data.end()) {
+		return 0;
+	}
+
+	return it->second.size();
+}
+

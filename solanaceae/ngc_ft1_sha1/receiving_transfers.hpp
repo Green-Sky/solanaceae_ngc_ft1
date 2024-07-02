@@ -59,5 +59,6 @@ struct ReceivingTransfers {
 	void removePeerTransfer(uint64_t combined_id, uint8_t transfer_id);
 
 	size_t size(void) const;
+	size_t sizePeer(uint64_t combined_id) const;
 };
 
