@@ -58,6 +58,7 @@ add_library(solanaceae_sha1_ngcft1
 	./solanaceae/ngc_ft1_sha1/components.cpp
 
 	./solanaceae/ngc_ft1_sha1/chunk_picker.hpp
+	./solanaceae/ngc_ft1_sha1/chunk_picker.cpp
 
 	./solanaceae/ngc_ft1_sha1/participation.hpp
 	./solanaceae/ngc_ft1_sha1/participation.cpp

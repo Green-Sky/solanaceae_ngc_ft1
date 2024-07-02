@@ -77,11 +77,6 @@ class SHA1_NGCFT1 : public ToxEventI, public RegistryMessageModelEventI, public 
 
 	std::atomic_bool _info_builder_dirty {false};
 	std::mutex _info_builder_queue_mutex;
-	//struct InfoBuilderEntry {
-		//// called on completion on the iterate thread
-		//// (owning)
-		//std::function<void(void)> fn;
-	//};
 	using InfoBuilderEntry = std::function<void(void)>;
 	std::list<InfoBuilderEntry> _info_builder_queue;
 
@@ -94,7 +89,7 @@ class SHA1_NGCFT1 : public ToxEventI, public RegistryMessageModelEventI, public 
 	public: // TODO: config
 		bool _udp_only {false};
 
-		size_t _max_concurrent_in {6};
+		size_t _max_concurrent_in {4};
 		size_t _max_concurrent_out {8};
 		// TODO: probably also includes running transfers rn (meh)
 		size_t _max_pending_requests {32}; // per content
