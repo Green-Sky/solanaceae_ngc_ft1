@@ -45,7 +45,7 @@ static size_t chunkSize(const FT1InfoSHA1& sha1_info, size_t chunk_index) {
 }
 
 void SHA1_NGCFT1::queueUpRequestChunk(uint32_t group_number, uint32_t peer_number, ObjectHandle content, const SHA1Digest& hash) {
-	for (auto& [i_g, i_p, i_m, i_h, i_t] : _queue_requested_chunk) {
+	for (auto& [i_g, i_p, i_o, i_h, i_t] : _queue_requested_chunk) {
 		// if already in queue
 		if (i_g == group_number && i_p == peer_number && i_h == hash) {
 			// update timer
@@ -261,6 +261,7 @@ void SHA1_NGCFT1::iterate(float delta) {
 			float& timer = std::get<float>(*it);
 			timer += delta;
 
+			// forget after 10sec
 			if (timer >= 10.f) {
 				it = _queue_requested_chunk.erase(it);
 			} else {
@@ -290,8 +291,8 @@ void SHA1_NGCFT1::iterate(float delta) {
 				for (auto it = ftchunk_requested.chunks.begin(); it != ftchunk_requested.chunks.end();) {
 					it->second += delta;
 
-					// 20sec, TODO: config
-					if (it->second >= 20.f) {
+					// 15sec, TODO: config
+					if (it->second >= 15.f) {
 						it = ftchunk_requested.chunks.erase(it);
 					} else {
 						it++;
@@ -386,6 +387,7 @@ void SHA1_NGCFT1::iterate(float delta) {
 
 				std::cout << "SHA1_NGCFT1: sent info request for [" << SHA1Digest{info_hash} << "] to " << group_number << ":" << peer_number << "\n";
 			}
+#if 0
 		} else if (!_queue_content_want_chunk.empty()) {
 			const auto ce = _queue_content_want_chunk.front();
 
@@ -450,7 +452,47 @@ void SHA1_NGCFT1::iterate(float delta) {
 					}
 				}
 			}
+#endif
 		}
+
+		// new chunk picker code
+		_cr.view<ChunkPicker>().each([this](const Contact3 cv, ChunkPicker& cp) {
+			Contact3Handle c{_cr, cv};
+			// HACK: expensive, dont do every tick, only on events
+			// do verification in debug instead?
+			cp.updateParticipation(
+				c,
+				_os.registry()
+			);
+
+			assert(!cp.participating.empty());
+
+			auto new_requests = cp.updateChunkRequests(
+				c,
+				_os.registry(),
+				_receiving_transfers
+			);
+
+			if (new_requests.empty()) {
+				return;
+			}
+
+			assert(c.all_of<Contact::Components::ToxGroupPeerEphemeral>());
+			const auto [group_number, peer_number] = c.get<Contact::Components::ToxGroupPeerEphemeral>();
+
+			for (const auto [r_o, r_idx] : new_requests) {
+				auto& cc = r_o.get<Components::FT1ChunkSHA1Cache>();
+				const auto& info = r_o.get<Components::FT1InfoSHA1>();
+
+				// request chunk_idx
+				_nft.NGC_FT1_send_request_private(
+					group_number, peer_number,
+					static_cast<uint32_t>(NGCFT1_file_kind::HASH_SHA1_CHUNK),
+					info.chunks.at(r_idx).data.data(), info.chunks.at(r_idx).size()
+				);
+				std::cout << "SHA1_NGCFT1: requesting chunk [" << info.chunks.at(r_idx) << "] from " << group_number << ":" << peer_number << "\n";
+			}
+		});
 	}
 }
 
@@ -645,22 +687,22 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCFT1_recv_request& e) {
 			return false;
 		}
 
-		auto ce = _chunks.at(chunk_hash);
+		auto o = _chunks.at(chunk_hash);
 
 		{ // they advertise interest in the content
 			const auto c = _tcm.getContactGroupPeer(e.group_number, e.peer_number);
-			addParticipation(c, ce);
+			addParticipation(c, o);
 		}
 
-		assert(ce.all_of<Components::FT1ChunkSHA1Cache>());
+		assert(o.all_of<Components::FT1ChunkSHA1Cache>());
 
-		if (!ce.get<Components::FT1ChunkSHA1Cache>().haveChunk(chunk_hash)) {
+		if (!o.get<Components::FT1ChunkSHA1Cache>().haveChunk(chunk_hash)) {
 			// we dont have the chunk
 			return false;
 		}
 
 		// queue good request
-		queueUpRequestChunk(e.group_number, e.peer_number, ce, chunk_hash);
+		queueUpRequestChunk(e.group_number, e.peer_number, o, chunk_hash);
 	} else {
 		assert(false && "unhandled case");
 	}
@@ -711,19 +753,17 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCFT1_recv_init& e) {
 			return false;
 		}
 
-		auto ce = _chunks.at(sha1_chunk_hash);
-
-		// CHECK IF TRANSFER IN PROGESS!!
+		auto o = _chunks.at(sha1_chunk_hash);
 
 		{ // they have the content (probably, might be fake, should move this to done)
 			const auto c = _tcm.getContactGroupPeer(e.group_number, e.peer_number);
-			addParticipation(c, ce);
+			addParticipation(c, o);
 		}
 
-		assert(ce.all_of<Components::FT1InfoSHA1>());
-		assert(ce.all_of<Components::FT1ChunkSHA1Cache>());
+		assert(o.all_of<Components::FT1InfoSHA1>());
+		assert(o.all_of<Components::FT1ChunkSHA1Cache>());
 
-		const auto& cc = ce.get<Components::FT1ChunkSHA1Cache>();
+		const auto& cc = o.get<Components::FT1ChunkSHA1Cache>();
 		if (cc.haveChunk(sha1_chunk_hash)) {
 			std::cout << "SHA1_NGCFT1: chunk rejected, already have [" << SHA1Digest{sha1_chunk_hash} << "]\n";
 			// we have the chunk
@@ -735,7 +775,15 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCFT1_recv_init& e) {
 		auto idx_vec = cc.chunkIndices(sha1_chunk_hash);
 		assert(!idx_vec.empty());
 
-		const auto& info = ce.get<Components::FT1InfoSHA1>();
+		// CHECK IF TRANSFER IN PROGESS!!
+		for (const auto idx : idx_vec) {
+			if (_receiving_transfers.containsPeerChunk(e.group_number, e.peer_number, o, idx)) {
+				std::cerr << "SHA1_NGCFT1 error: " << e.group_number << ":" << e.peer_number << " offered chunk(" << idx << ") it is already receiving!!\n";
+				return false;
+			}
+		}
+
+		const auto& info = o.get<Components::FT1InfoSHA1>();
 
 		// TODO: check e.file_size
 		assert(e.file_size == info.chunkSize(idx_vec.front()));
@@ -743,7 +791,7 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCFT1_recv_init& e) {
 		_receiving_transfers.emplaceChunk(
 			e.group_number, e.peer_number,
 			e.transfer_id,
-			ReceivingTransfers::Entry::Chunk{ce, idx_vec}
+			ReceivingTransfers::Entry::Chunk{o, idx_vec}
 		);
 
 		e.accept = true;
@@ -1108,6 +1156,9 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCFT1_recv_message& e) {
 	// HACK: assume the message sender is participating. usually a safe bet.
 	addParticipation(c, ce);
 
+	// HACK: assume the message sender has all
+	ce.get_or_emplace<Components::RemoteHave>().others[c] = {true, {}};
+
 	if (!ce.all_of<Components::ReRequestInfoTimer>() && !ce.all_of<Components::FT1InfoSHA1>()) {
 		// TODO: check if already receiving
 		_queue_content_want_info.push_back(ce);
@@ -1419,6 +1470,8 @@ bool SHA1_NGCFT1::onToxEvent(const Tox_Event_Group_Peer_Exit* e) {
 		return false;
 	}
 
+	c.remove<ChunkPicker>();
+
 	for (const auto& [_, o] : _info_to_content) {
 		removeParticipation(c, o);
 
@@ -1484,6 +1537,7 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCEXT_ft1_have& e) {
 		for (const auto c_i : e.chunks) {
 			if (c_i >= num_total_chunks) {
 				std::cerr << "SHA1_NGCFT1 error: remote sent have with out-of-range chunk index!!!\n";
+				std::cerr << info_hash << ": " << c_i << " >= " << num_total_chunks << "\n";
 				continue;
 			}
 

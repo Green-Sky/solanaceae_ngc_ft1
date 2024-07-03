@@ -41,6 +41,11 @@ struct ChunkPicker {
 	entt::dense_set<Object> participating;
 	Object participating_in_last {entt::null};
 
+	void updateParticipation(
+		Contact3Handle c,
+		ObjectRegistry& objreg
+	);
+
 	// tick
 	//void sendInfoRequests();
 	// is this like a system?
@@ -54,7 +59,7 @@ struct ChunkPicker {
 		size_t chunk_index;
 	};
 	// returns list of chunks to request
-	std::vector<ContentChunkR> updateChunkRequests(
+	[[nodiscard]] std::vector<ContentChunkR> updateChunkRequests(
 		Contact3Handle c,
 		ObjectRegistry& objreg,
 		ReceivingTransfers& rt
