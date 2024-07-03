@@ -602,9 +602,9 @@ bool NGCEXTEventProvider::send_ft1_have(
 	}
 
 	// rest is chunks
-	for (size_t i = 0; i < chunks_size; i++) {
-		for (size_t i = 0; i < sizeof(chunks_data[i]); i++) {
-			pkg.push_back((chunks_data[i]>>(i*8)) & 0xff);
+	for (size_t c_i = 0; c_i < chunks_size; c_i++) {
+		for (size_t i = 0; i < sizeof(chunks_data[c_i]); i++) {
+			pkg.push_back((chunks_data[c_i]>>(i*8)) & 0xff);
 		}
 	}
 
