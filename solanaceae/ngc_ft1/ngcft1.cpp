@@ -372,7 +372,7 @@ bool NGCFT1::onEvent(const Events::NGCEXT_ft1_init& e) {
 
 	auto& peer = groups[e.group_number].peers[e.peer_number];
 	if (peer.recv_transfers[e.transfer_id].has_value()) {
-		std::cerr << "NGCFT1 warning: overwriting existing recv_transfer " << int(e.transfer_id) << "\n";
+		std::cerr << "NGCFT1 warning: overwriting existing recv_transfer " << int(e.transfer_id) << ", other peer started new transfer on preexising\n";
 	}
 
 	peer.recv_transfers[e.transfer_id] = Group::Peer::RecvTransfer{
@@ -502,6 +502,11 @@ bool NGCFT1::onEvent(const Events::NGCEXT_ft1_data& e) {
 				e.transfer_id
 			}
 		);
+
+		// delete transfer
+		// TODO: keep around for remote timeout + delay + offset, so we can be sure all acks where received
+		// or implement a dedicated finished that needs to be acked
+		peer.recv_transfers[e.transfer_id].reset();
 	}
 
 	return true;
