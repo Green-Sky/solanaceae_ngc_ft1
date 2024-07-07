@@ -35,7 +35,8 @@ void ChunkPicker::updateParticipation(
 std::vector<ChunkPicker::ContentChunkR> ChunkPicker::updateChunkRequests(
 	Contact3Handle c,
 	ObjectRegistry& objreg,
-	ReceivingTransfers& rt
+	ReceivingTransfers& rt,
+	const size_t open_requests
 	//NGCFT1& nft
 ) {
 	if (!static_cast<bool>(c)) {
@@ -47,20 +48,22 @@ std::vector<ChunkPicker::ContentChunkR> ChunkPicker::updateChunkRequests(
 	}
 	const auto [group_number, peer_number] = c.get<Contact::Components::ToxGroupPeerEphemeral>();
 
+	if (participating_unfinished.empty()) {
+		participating_in_last = entt::null;
+		return {};
+	}
+
 	std::vector<ContentChunkR> req_ret;
 
 	// count running tf and open requests
 	const size_t num_ongoing_transfers = rt.sizePeer(group_number, peer_number);
 	// TODO: account for open requests
+	const int64_t num_total = num_ongoing_transfers + open_requests;
 	// TODO: base max on rate(chunks per sec), gonna be ass with variable chunk size
-	const size_t num_requests = std::max<int64_t>(0, max_tf_chunk_requests-num_ongoing_transfers);
+	const size_t num_requests = std::max<int64_t>(0, int64_t(max_tf_chunk_requests)-num_total);
+	std::cerr << "CP: want " << num_requests << "(rt:" << num_ongoing_transfers << " or:" << open_requests << ") from " << group_number << ":" << peer_number << "\n";
 
 	// while n < X
-
-	if (participating_unfinished.empty()) {
-		participating_in_last = entt::null;
-		return {};
-	}
 
 	// round robin content (remember last obj)
 	if (!objreg.valid(participating_in_last) || !participating_unfinished.count(participating_in_last)) {
@@ -133,28 +136,29 @@ std::vector<ChunkPicker::ContentChunkR> ChunkPicker::updateChunkRequests(
 		//  - arbitrary priority maps/functions (and combine with above in rations)
 
 		// simple, we use first
+		// TODO: optimize simple and start at first chunk we dont have
 		for (size_t i = 0; i < total_chunks && req_ret.size() < num_requests && i < chunk_candidates.size_bits(); i++) {
 			if (!chunk_candidates[i]) {
 				continue;
 			}
 
-			// i is a candidate we can request form peer
+			// i is a potential candidate we can request form peer
 
-			// first check against double requests
-			if (std::find_if(req_ret.cbegin(), req_ret.cend(), [&](const auto& x) -> bool {
-				return false;
+			// - check against double requests
+			if (std::find_if(req_ret.cbegin(), req_ret.cend(), [&](const ContentChunkR& x) -> bool {
+				return x.object == o && x.chunk_index == i;
 			}) != req_ret.cend()) {
 				// already in return array
 				// how did we get here? should we fast exit? if simple-first strat, we would want to
 				continue; // skip
 			}
 
-			// second check against global requests (this might differ based on strat)
+			// - check against global requests (this might differ based on strat)
 			if (requested_chunks.count(i) != 0) {
 				continue;
 			}
 
-			// third we check against globally running transfers (this might differ based on strat)
+			// - we check against globally running transfers (this might differ based on strat)
 			if (rt.containsChunk(o, i)) {
 				continue;
 			}
@@ -162,9 +166,14 @@ std::vector<ChunkPicker::ContentChunkR> ChunkPicker::updateChunkRequests(
 			// if nothing else blocks this, add to ret
 			req_ret.push_back(ContentChunkR{o, i});
 
-			assert(requested_chunks.count(i) == 0);
-			requested_chunks[i] = 0.f;
+			// TODO: move this after packet was sent successfully
+			// (move net in? hmm)
+			requested_chunks[i] = Components::FT1ChunkSHA1Requested::Entry{0.f, c};
 		}
+	}
+
+	if (req_ret.size() < num_requests) {
+		std::cerr << "CP: could not fulfil, " << group_number << ":" << peer_number << " only has " << req_ret.size() << " candidates\n";
 	}
 
 	// -- no -- (just compat with old code, ignore)

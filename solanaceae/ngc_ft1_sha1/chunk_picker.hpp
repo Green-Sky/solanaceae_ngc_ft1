@@ -22,12 +22,12 @@
 struct ChunkPicker {
 	// max transfers
 	static constexpr size_t max_tf_info_requests {1};
-	static constexpr size_t max_tf_chunk_requests {2};
+	static constexpr size_t max_tf_chunk_requests {3};
 
-	// max outstanding requests
-	// TODO: should this include transfers?
-	static constexpr size_t max_open_info_requests {1};
-	const size_t max_open_chunk_requests {6};
+	//// max outstanding requests
+	//// TODO: should this include transfers?
+	//static constexpr size_t max_open_info_requests {1};
+	//const size_t max_open_chunk_requests {6};
 
 	// TODO: handle with hash utils?
 	struct ParticipationEntry {
@@ -62,7 +62,8 @@ struct ChunkPicker {
 	[[nodiscard]] std::vector<ContentChunkR> updateChunkRequests(
 		Contact3Handle c,
 		ObjectRegistry& objreg,
-		ReceivingTransfers& rt
+		ReceivingTransfers& rt,
+		const size_t open_requests
 		//NGCFT1& nft
 	);
 

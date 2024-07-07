@@ -49,7 +49,11 @@ namespace Components {
 
 	struct FT1ChunkSHA1Requested {
 		// requested chunks with a timer since last request
-		entt::dense_map<size_t, float> chunks;
+		struct Entry {
+			float timer {0.f};
+			Contact3 c {entt::null};
+		};
+		entt::dense_map<size_t, Entry> chunks;
 	};
 
 	// TODO: once announce is shipped, remove the "Suspected"
