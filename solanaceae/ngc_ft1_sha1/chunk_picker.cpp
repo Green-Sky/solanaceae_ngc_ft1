@@ -8,6 +8,104 @@
 
 #include <iostream>
 
+// TODO: move ps to own file
+// picker strategies are generators
+// gen returns true if a valid chunk was picked
+// ps should be light weight and no persistant state
+// ps produce an index only once
+
+// simply scans from the beginning, requesting chunks in that order
+struct PickerStrategySimpleFirst {
+	const BitSet& chunk_candidates;
+	const size_t total_chunks;
+
+	// TODO: optimize simple and start at first chunk we dont have
+	size_t i {0u};
+
+	PickerStrategySimpleFirst(
+		const BitSet& chunk_candidates_,
+		const size_t total_chunks_
+	) :
+		chunk_candidates(chunk_candidates_),
+		total_chunks(total_chunks_)
+	{}
+
+
+	bool gen(size_t& out_chunk_idx) {
+		for (; i < total_chunks && i < chunk_candidates.size_bits(); i++) {
+			if (chunk_candidates[i]) {
+				out_chunk_idx = i;
+				i++;
+				return true;
+			}
+		}
+
+		return false;
+	}
+};
+
+// chooses a random start position and then requests linearly from there
+struct PickerStrategyRandom {
+	const BitSet& chunk_candidates;
+	const size_t total_chunks;
+	std::default_random_engine& rng;
+
+	size_t count {0u};
+	size_t i {rng()%total_chunks};
+
+	PickerStrategyRandom(
+		const BitSet& chunk_candidates_,
+		const size_t total_chunks_,
+		std::default_random_engine& rng_
+	) :
+		chunk_candidates(chunk_candidates_),
+		total_chunks(total_chunks_),
+		rng(rng_)
+	{}
+
+	bool gen(size_t& out_chunk_idx) {
+		for (; count < total_chunks; count++, i++) {
+			// wrap around
+			if (i >= total_chunks) {
+				i = i%total_chunks;
+			}
+
+			if (chunk_candidates[i]) {
+				out_chunk_idx = i;
+				count++;
+				i++;
+				return true;
+			}
+		}
+
+		return false;
+	}
+};
+
+// switches randomly between random and simple first
+struct PickerStrategyRandomFirst {
+	PickerStrategyRandom psr;
+	PickerStrategySimpleFirst pssf;
+
+	std::bernoulli_distribution d{0.5f};
+
+	PickerStrategyRandomFirst(
+		const BitSet& chunk_candidates_,
+		const size_t total_chunks_,
+		std::default_random_engine& rng_
+	) :
+		psr(chunk_candidates_, total_chunks_, rng_),
+		pssf(chunk_candidates_, total_chunks_)
+	{}
+
+	bool gen(size_t& out_chunk_idx) {
+		if (d(psr.rng)) {
+			return psr.gen(out_chunk_idx);
+		} else {
+			return pssf.gen(out_chunk_idx);
+		}
+	}
+};
 
 void ChunkPicker::updateParticipation(
 	Contact3Handle c,
@@ -126,7 +224,6 @@ std::vector<ChunkPicker::ContentChunkR> ChunkPicker::updateChunkRequests(
 		// TODO: trim off round up to 8, since they are now always set
 
 		// now select (globaly) unrequested other have
-		// TODO: pick strategies
 		// TODO: how do we prioratize within a file?
 		//  - first (walk from start (or readhead?))
 		//  - random (choose random start pos and walk)
@@ -135,18 +232,17 @@ std::vector<ChunkPicker::ContentChunkR> ChunkPicker::updateChunkRequests(
 		//    maybe look into libtorrens deadline stuff
 		//  - arbitrary priority maps/functions (and combine with above in rations)
 
-		// simple, we use first
-		// TODO: optimize simple and start at first chunk we dont have
-		for (size_t i = 0; i < total_chunks && req_ret.size() < num_requests && i < chunk_candidates.size_bits(); i++) {
-			if (!chunk_candidates[i]) {
-				continue;
-			}
-
-			// i is a potential candidate we can request form peer
+		//PickerStrategySimpleFirst ps(chunk_candidates, total_chunks);
+		//PickerStrategyRandom ps(chunk_candidates, total_chunks, _rng);
+		// TODO: configurable
+		PickerStrategyRandomFirst ps(chunk_candidates, total_chunks, _rng);
+		size_t out_chunk_idx {0};
+		while (ps.gen(out_chunk_idx) && req_ret.size() < num_requests) {
+			// out_chunk_idx is a potential candidate we can request form peer
 
 			// - check against double requests
 			if (std::find_if(req_ret.cbegin(), req_ret.cend(), [&](const ContentChunkR& x) -> bool {
-				return x.object == o && x.chunk_index == i;
+				return x.object == o && x.chunk_index == out_chunk_idx;
 			}) != req_ret.cend()) {
 				// already in return array
 				// how did we get here? should we fast exit? if simple-first strat, we would want to
@@ -154,21 +250,21 @@ std::vector<ChunkPicker::ContentChunkR> ChunkPicker::updateChunkRequests(
 			}
 
 			// - check against global requests (this might differ based on strat)
-			if (requested_chunks.count(i) != 0) {
+			if (requested_chunks.count(out_chunk_idx) != 0) {
 				continue;
 			}
 
 			// - we check against globally running transfers (this might differ based on strat)
-			if (rt.containsChunk(o, i)) {
+			if (rt.containsChunk(o, out_chunk_idx)) {
 				continue;
 			}
 
 			// if nothing else blocks this, add to ret
-			req_ret.push_back(ContentChunkR{o, i});
+			req_ret.push_back(ContentChunkR{o, out_chunk_idx});
 
 			// TODO: move this after packet was sent successfully
 			// (move net in? hmm)
-			requested_chunks[i] = Components::FT1ChunkSHA1Requested::Entry{0.f, c};
+			requested_chunks[out_chunk_idx] = Components::FT1ChunkSHA1Requested::Entry{0.f, c};
 		}
 	}
 

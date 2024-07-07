@@ -12,6 +12,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <random>
 
 //#include <solanaceae/ngc_ft1/ngcft1.hpp>
 
@@ -23,6 +24,8 @@ struct ChunkPicker {
 	// max transfers
 	static constexpr size_t max_tf_info_requests {1};
 	static constexpr size_t max_tf_chunk_requests {3};
+
+	std::default_random_engine _rng{1337*17};
 
 	//// max outstanding requests
 	//// TODO: should this include transfers?
