@@ -101,7 +101,7 @@ class SHA1_NGCFT1 : public ToxEventI, public RegistryMessageModelEventI, public 
 			NGCEXTEventProvider& neep
 		);
 
-		void iterate(float delta);
+		float iterate(float delta);
 
 	protected: // rmm events (actions)
 		bool onEvent(const Message::Events::MessageUpdated&) override;

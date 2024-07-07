@@ -216,7 +216,7 @@ SHA1_NGCFT1::SHA1_NGCFT1(
 	_neep.subscribe(this, NGCEXT_Event::FT1_BITSET);
 }
 
-void SHA1_NGCFT1::iterate(float delta) {
+float SHA1_NGCFT1::iterate(float delta) {
 	std::cerr << "---------- new tick ----------\n";
 	// info builder queue
 	if (_info_builder_dirty) {
@@ -437,6 +437,14 @@ void SHA1_NGCFT1::iterate(float delta) {
 				std::cout << "SHA1_NGCFT1: requesting chunk [" << info.chunks.at(r_idx) << "] from " << group_number << ":" << peer_number << "\n";
 			}
 		});
+	}
+
+	if (_peer_open_requests.empty()) {
+		return 2.f;
+	} else {
+		// pretty conservative and should be ajusted on a per peer, per delay basis
+		// seems to do the trick
+		return 0.05f;
 	}
 }
 
