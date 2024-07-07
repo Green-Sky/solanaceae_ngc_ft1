@@ -88,7 +88,7 @@ class SHA1_NGCFT1 : public ToxEventI, public RegistryMessageModelEventI, public 
 		bool _udp_only {false};
 
 		size_t _max_concurrent_in {4};
-		size_t _max_concurrent_out {4};
+		size_t _max_concurrent_out {3*4}; // HACK: allow ideal number for 4 peers
 
 	public:
 		SHA1_NGCFT1(
