@@ -968,12 +968,13 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCFT1_recv_done& e) {
 				if (!cc.have_all) { // debug print self have set
 					std::cout << "DEBUG print have bitset: s:" << cc.have_chunk.size_bits();
 					for (size_t i = 0; i < cc.have_chunk.size_bytes(); i++) {
-						if (i % 16 == 0) {
-							std::cout << "\n";
+						if (i % 32 == 0) {
+							printf("\n");
 						}
-						std::cout << std::hex << (uint16_t)cc.have_chunk.data()[i] << " ";
+						// f cout
+						printf("%.2x", (uint16_t)cc.have_chunk.data()[i]);
 					}
-					std::cout << std::dec << "\n";
+					printf("\n");
 				}
 			} else {
 				std::cout << "SHA1_NGCFT1 warning: got chunk duplicate\n";
