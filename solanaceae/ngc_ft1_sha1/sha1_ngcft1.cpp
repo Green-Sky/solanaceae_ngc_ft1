@@ -394,8 +394,16 @@ float SHA1_NGCFT1::iterate(float delta) {
 		}
 
 		// new chunk picker code
-		_cr.view<ChunkPicker>().each([this, &_peer_open_requests](const Contact3 cv, ChunkPicker& cp) {
+		// HACK: work around missing contact events
+		std::vector<Contact3Handle> cp_to_remove;
+		_cr.view<ChunkPicker>().each([this, &_peer_open_requests, &cp_to_remove](const Contact3 cv, ChunkPicker& cp) {
 			Contact3Handle c{_cr, cv};
+
+			if (!c.all_of<Contact::Components::ToxGroupPeerEphemeral>()) {
+				cp_to_remove.push_back(c);
+				return;
+			}
+
 			// HACK: expensive, dont do every tick, only on events
 			// do verification in debug instead?
 			cp.updateParticipation(
@@ -437,6 +445,18 @@ float SHA1_NGCFT1::iterate(float delta) {
 				std::cout << "SHA1_NGCFT1: requesting chunk [" << info.chunks.at(r_idx) << "] from " << group_number << ":" << peer_number << "\n";
 			}
 		});
+
+		for (const auto& c : cp_to_remove) {
+			c.remove<ChunkPicker>();
+
+			for (const auto& [_, o] : _info_to_content) {
+				removeParticipation(c, o);
+
+				if (o.all_of<Components::RemoteHave>()) {
+					o.get<Components::RemoteHave>().others.erase(c);
+				}
+			}
+		}
 	}
 
 	if (_peer_open_requests.empty()) {
@@ -1423,18 +1443,21 @@ bool SHA1_NGCFT1::onToxEvent(const Tox_Event_Group_Peer_Exit* e) {
 	// peer disconnected
 	// - remove from all participantions
 
-	auto c = _tcm.getContactGroupPeer(group_number, peer_number);
-	if (!static_cast<bool>(c)) {
-		return false;
-	}
+	{
+		// FIXME: this does not work, tcm just delteded the relation ship
+		auto c = _tcm.getContactGroupPeer(group_number, peer_number);
+		if (!static_cast<bool>(c)) {
+			return false;
+		}
 
-	c.remove<ChunkPicker>();
+		c.remove<ChunkPicker>();
 
-	for (const auto& [_, o] : _info_to_content) {
-		removeParticipation(c, o);
+		for (const auto& [_, o] : _info_to_content) {
+			removeParticipation(c, o);
 
-		if (o.all_of<Components::RemoteHave>()) {
-			o.get<Components::RemoteHave>().others.erase(c);
+			if (o.all_of<Components::RemoteHave>()) {
+				o.get<Components::RemoteHave>().others.erase(c);
+			}
 		}
 	}
 
