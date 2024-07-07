@@ -73,8 +73,8 @@ std::vector<ChunkPicker::ContentChunkR> ChunkPicker::updateChunkRequests(
 	assert(objreg.valid(participating_in_last));
 
 	auto it = participating_unfinished.find(participating_in_last);
-	// hard limit robin rounds to array size time 100
-	for (size_t i = 0; req_ret.size() < num_requests && i < participating_unfinished.size()*100; i++) {
+	// hard limit robin rounds to array size time 20
+	for (size_t i = 0; req_ret.size() < num_requests && i < participating_unfinished.size()*20; i++) {
 		if (it == participating_unfinished.end()) {
 			it = participating_unfinished.begin();
 		}
@@ -170,6 +170,12 @@ std::vector<ChunkPicker::ContentChunkR> ChunkPicker::updateChunkRequests(
 			// (move net in? hmm)
 			requested_chunks[i] = Components::FT1ChunkSHA1Requested::Entry{0.f, c};
 		}
+	}
+
+	if (it == participating_unfinished.end() || ++it == participating_unfinished.end()) {
+		participating_in_last = entt::null;
+	} else {
+		participating_in_last = it->first;
 	}
 
 	if (req_ret.size() < num_requests) {
