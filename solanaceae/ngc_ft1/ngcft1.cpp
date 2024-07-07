@@ -212,6 +212,7 @@ NGCFT1::NGCFT1(
 }
 
 float NGCFT1::iterate(float time_delta) {
+	_time_since_activity += time_delta;
 	bool transfer_in_progress {false};
 	for (auto& [group_number, group] : groups) {
 		for (auto& [peer_number, peer] : group.peers) {
@@ -238,9 +239,13 @@ float NGCFT1::iterate(float time_delta) {
 	}
 
 	if (transfer_in_progress) {
+		_time_since_activity = 0.f;
 		// ~15ms for up to 1mb/s
 		// ~5ms for up to 4mb/s
 		return 0.005f; // 5ms
+	} else if (_time_since_activity < 0.5f) {
+		// bc of temporality
+		return 0.025f;
 	} else {
 		return 1.f; // once a sec might be too little
 	}
