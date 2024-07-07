@@ -25,7 +25,7 @@ struct ChunkPicker {
 	static constexpr size_t max_tf_info_requests {1};
 	static constexpr size_t max_tf_chunk_requests {3};
 
-	std::default_random_engine _rng{1337*17};
+	std::default_random_engine _rng{std::random_device{}()};
 
 	//// max outstanding requests
 	//// TODO: should this include transfers?
