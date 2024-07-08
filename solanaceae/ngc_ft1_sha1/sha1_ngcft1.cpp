@@ -435,7 +435,7 @@ float SHA1_NGCFT1::iterate(float delta) {
 		_cr.view<ChunkPicker, ChunkPickerUpdateTag>().each([this, &_peer_open_requests, &cp_to_remove, &c_offline_to_remove](const Contact3 cv, ChunkPicker& cp) {
 			Contact3Handle c{_cr, cv};
 
-			if (!c.any_of<Contact::Components::ToxGroupPeerEphemeral, Contact::Components::FT1Participation>()) {
+			if (!c.all_of<Contact::Components::ToxGroupPeerEphemeral, Contact::Components::FT1Participation>()) {
 				//cp_to_remove.push_back(c);
 				c_offline_to_remove.push_back(c);
 				return;
