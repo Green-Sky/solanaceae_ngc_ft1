@@ -19,6 +19,7 @@
 #include "./file_rw_mapped.hpp"
 
 #include "./components.hpp"
+#include "./contact_components.hpp"
 #include "./chunk_picker.hpp"
 #include "./participation.hpp"
 
@@ -217,7 +218,7 @@ SHA1_NGCFT1::SHA1_NGCFT1(
 }
 
 float SHA1_NGCFT1::iterate(float delta) {
-	std::cerr << "---------- new tick ----------\n";
+	//std::cerr << "---------- new tick ----------\n";
 	// info builder queue
 	if (_info_builder_dirty) {
 		std::lock_guard l{_info_builder_queue_mutex};
@@ -392,26 +393,59 @@ float SHA1_NGCFT1::iterate(float delta) {
 				std::cout << "SHA1_NGCFT1: sent info request for [" << SHA1Digest{info_hash} << "] to " << group_number << ":" << peer_number << "\n";
 			}
 		}
+	}
 
-		// new chunk picker code
+	// ran regardless of _max_concurrent_in
+	{ // new chunk picker code
 		// HACK: work around missing contact events
+		std::vector<Contact3Handle> c_offline_to_remove;
 		std::vector<Contact3Handle> cp_to_remove;
-		_cr.view<ChunkPicker>().each([this, &_peer_open_requests, &cp_to_remove](const Contact3 cv, ChunkPicker& cp) {
+
+		// first, update timers
+		_cr.view<ChunkPickerTimer>().each([this, delta](const Contact3 cv, ChunkPickerTimer& cpt) {
+			cpt.timer -= delta;
+			if (cpt.timer <= 0.f) {
+				_cr.emplace_or_replace<ChunkPickerUpdateTag>(cv);
+			}
+		});
+
+		//std::cout << "number of chunkpickers: " << _cr.storage<ChunkPicker>().size() << ", of which " << _cr.storage<ChunkPickerUpdateTag>().size() << " need updating\n";
+
+		// now check for potentially missing cp
+		auto cput_view = _cr.view<ChunkPickerUpdateTag>();
+		cput_view.each([this, &c_offline_to_remove](const Contact3 cv) {
 			Contact3Handle c{_cr, cv};
 
-			if (!c.all_of<Contact::Components::ToxGroupPeerEphemeral>()) {
-				cp_to_remove.push_back(c);
+			//std::cout << "cput :)\n";
+
+			if (!c.any_of<Contact::Components::ToxGroupPeerEphemeral, Contact::Components::FT1Participation>()) {
+				std::cout << "cput uh nuh :(\n";
+				c_offline_to_remove.push_back(c);
 				return;
 			}
 
+			if (!c.all_of<ChunkPicker>()) {
+				std::cout << "creating new cp!!\n";
+				c.emplace<ChunkPicker>();
+				c.emplace_or_replace<ChunkPickerTimer>();
+			}
+		});
+
+		// now update all cp that are tagged
+		_cr.view<ChunkPicker, ChunkPickerUpdateTag>().each([this, &_peer_open_requests, &cp_to_remove, &c_offline_to_remove](const Contact3 cv, ChunkPicker& cp) {
+			Contact3Handle c{_cr, cv};
+
+			if (!c.any_of<Contact::Components::ToxGroupPeerEphemeral, Contact::Components::FT1Participation>()) {
+				//cp_to_remove.push_back(c);
+				c_offline_to_remove.push_back(c);
+				return;
+			}
+
+			//std::cout << "cpu :)\n";
+
 			// HACK: expensive, dont do every tick, only on events
 			// do verification in debug instead?
-			cp.updateParticipation(
-				c,
-				_os.registry()
-			);
-
-			assert(!cp.participating.empty());
+			//cp.validateParticipation(c, _os.registry());
 
 			size_t peer_open_request = 0;
 			if (_peer_open_requests.contains(c)) {
@@ -426,6 +460,15 @@ float SHA1_NGCFT1::iterate(float delta) {
 			);
 
 			if (new_requests.empty()) {
+				// updateChunkRequests updates the unfinished
+				// TODO: pull out and check there?
+				if (cp.participating_unfinished.empty()) {
+					std::cout << "destorying empty useless cp\n";
+					cp_to_remove.push_back(c);
+				} else {
+					c.get_or_emplace<ChunkPickerTimer>().timer = 60.f;
+				}
+
 				return;
 			}
 
@@ -444,10 +487,21 @@ float SHA1_NGCFT1::iterate(float delta) {
 				);
 				std::cout << "SHA1_NGCFT1: requesting chunk [" << info.chunks.at(r_idx) << "] from " << group_number << ":" << peer_number << "\n";
 			}
+
+			// force update every minute
+			// TODO: add small random bias to spread load
+			c.get_or_emplace<ChunkPickerTimer>().timer = 60.f;
 		});
 
+		// unmark all marked
+		_cr.clear<ChunkPickerUpdateTag>();
+		assert(_cr.storage<ChunkPickerUpdateTag>().empty());
+
 		for (const auto& c : cp_to_remove) {
-			c.remove<ChunkPicker>();
+			c.remove<ChunkPicker, ChunkPickerTimer>();
+		}
+		for (const auto& c : c_offline_to_remove) {
+			c.remove<ChunkPicker, ChunkPickerTimer>();
 
 			for (const auto& [_, o] : _info_to_content) {
 				removeParticipation(c, o);
@@ -557,11 +611,6 @@ bool SHA1_NGCFT1::onEvent(const Message::Events::MessageUpdated& e) {
 				cc.chunk_hash_to_index[info.chunks[i]].push_back(i);
 			}
 		}
-
-		if (!cc.have_all) {
-			// now, enque
-			_queue_content_want_chunk.push_back(ce);
-		}
 	}
 
 	ce.emplace<Message::Components::Transfer::File>(std::move(file_impl));
@@ -595,6 +644,16 @@ bool SHA1_NGCFT1::onEvent(const Message::Events::MessageUpdated& e) {
 	}
 
 	ce.remove<Message::Components::Transfer::TagPaused>();
+
+	// start requesting from all participants
+	if (ce.all_of<Components::SuspectedParticipants>()) {
+		std::cout << "accepted ft has " << ce.get<Components::SuspectedParticipants>().participants.size() << " sp\n";
+		for (const auto cv : ce.get<Components::SuspectedParticipants>().participants) {
+			_cr.emplace_or_replace<ChunkPickerUpdateTag>(cv);
+		}
+	} else {
+		std::cout << "accepted ft has NO sp!\n";
+	}
 
 	// should?
 	e.e.remove<Message::Components::Transfer::ActionAccept>();
@@ -663,7 +722,11 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCFT1_recv_request& e) {
 
 		{ // they advertise interest in the content
 			const auto c = _tcm.getContactGroupPeer(e.group_number, e.peer_number);
-			addParticipation(c, o);
+			if (addParticipation(c, o)) {
+				// something happend, update chunk picker
+				assert(static_cast<bool>(c));
+				c.emplace_or_replace<ChunkPickerUpdateTag>();
+			}
 		}
 
 		assert(o.all_of<Components::FT1ChunkSHA1Cache>());
@@ -729,7 +792,11 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCFT1_recv_init& e) {
 
 		{ // they have the content (probably, might be fake, should move this to done)
 			const auto c = _tcm.getContactGroupPeer(e.group_number, e.peer_number);
-			addParticipation(c, o);
+			if (addParticipation(c, o)) {
+				// something happend, update chunk picker
+				assert(static_cast<bool>(c));
+				c.emplace_or_replace<ChunkPickerUpdateTag>();
+			}
 		}
 
 		assert(o.all_of<Components::FT1InfoSHA1>());
@@ -1007,6 +1074,11 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCFT1_recv_done& e) {
 			} else {
 				std::cout << "SHA1_NGCFT1 warning: got chunk duplicate\n";
 			}
+
+			// something happend, update chunk picker
+			auto c = _tcm.getContactGroupPeer(e.group_number, e.peer_number);
+			assert(static_cast<bool>(c));
+			c.emplace_or_replace<ChunkPickerUpdateTag>();
 		} else {
 			// bad chunk
 			std::cout << "SHA1_NGCFT1: got BAD chunk from " << e.group_number << ":" << e.peer_number << " [" << info.chunks.at(chunk_index) << "] ; instead got [" << SHA1Digest{got_hash} << "]\n";
@@ -1014,6 +1086,7 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCFT1_recv_done& e) {
 
 		// remove from requested
 		// TODO: remove at init and track running transfers differently
+		// should be done, double check later
 		for (const auto it : transfer.getChunk().chunk_indices) {
 			o.get_or_emplace<Components::FT1ChunkSHA1Requested>().chunks.erase(it);
 		}
@@ -1132,7 +1205,11 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCFT1_recv_message& e) {
 	reg_ptr->emplace<Message::Components::Content>(new_msg_e, ce);
 
 	// HACK: assume the message sender is participating. usually a safe bet.
-	addParticipation(c, ce);
+	if (addParticipation(c, ce)) {
+		// something happend, update chunk picker
+		assert(static_cast<bool>(c));
+		c.emplace_or_replace<ChunkPickerUpdateTag>();
+	}
 
 	// HACK: assume the message sender has all
 	ce.get_or_emplace<Components::RemoteHave>().others[c] = {true, {}};
@@ -1322,15 +1399,7 @@ bool SHA1_NGCFT1::sendFilePath(const Contact3 c, std::string_view file_name, std
 					}
 
 					// TODO: we dont want chunks anymore
-
 					// TODO: make sure to abort every receiving transfer (sending info and chunk should be fine, info uses copy and chunk handle)
-					auto it = self->_queue_content_want_chunk.begin();
-					while (
-						it != self->_queue_content_want_chunk.end() &&
-						(it = std::find(it, self->_queue_content_want_chunk.end(), ce)) != self->_queue_content_want_chunk.end()
-					) {
-						it = self->_queue_content_want_chunk.erase(it);
-					}
 				} else {
 					// TODO: backend
 					ce = {self->_os.registry(), self->_os.registry().create()};
@@ -1366,6 +1435,15 @@ bool SHA1_NGCFT1::sendFilePath(const Contact3 c, std::string_view file_name, std
 					ce.emplace<Message::Components::Transfer::File>(std::move(file_impl));
 
 					ce.emplace<Message::Components::Transfer::BytesSent>(0u);
+				}
+
+				// something happend, update all chunk pickers
+				if (ce.all_of<Components::SuspectedParticipants>()) {
+					for (const auto& pcv : ce.get<Components::SuspectedParticipants>().participants) {
+						Contact3Handle pch{self->_cr, pcv};
+						assert(static_cast<bool>(pch));
+						pch.emplace_or_replace<ChunkPickerUpdateTag>();
+					}
 				}
 
 				const auto c_self = self->_cr.get<Contact::Components::Self>(c).self;
@@ -1450,7 +1528,7 @@ bool SHA1_NGCFT1::onToxEvent(const Tox_Event_Group_Peer_Exit* e) {
 			return false;
 		}
 
-		c.remove<ChunkPicker>();
+		c.remove<ChunkPicker, ChunkPickerUpdateTag, ChunkPickerTimer>();
 
 		for (const auto& [_, o] : _info_to_content) {
 			removeParticipation(c, o);
@@ -1503,7 +1581,11 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCEXT_ft1_have& e) {
 	const auto c = _tcm.getContactGroupPeer(e.group_number, e.peer_number);
 
 	// we might not know yet
-	addParticipation(c, o);
+	if (addParticipation(c, o)) {
+		// something happend, update chunk picker
+		assert(static_cast<bool>(c));
+		c.emplace_or_replace<ChunkPickerUpdateTag>();
+	}
 
 	auto& remote_have = o.get_or_emplace<Components::RemoteHave>().others;
 	if (!remote_have.contains(c)) {
@@ -1583,7 +1665,11 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCEXT_ft1_bitset& e) {
 	const auto c = _tcm.getContactGroupPeer(e.group_number, e.peer_number);
 
 	// we might not know yet
-	addParticipation(c, o);
+	if (addParticipation(c, o)) {
+		// something happend, update chunk picker
+		assert(static_cast<bool>(c));
+		c.emplace_or_replace<ChunkPickerUpdateTag>();
+	}
 
 	auto& remote_have = o.get_or_emplace<Components::RemoteHave>().others;
 	if (!remote_have.contains(c)) {
@@ -1646,11 +1732,14 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCEXT_pc1_announce& e) {
 		return false;
 	}
 
-	// add them to participants
+	// add to participants
 	const auto c = _tcm.getContactGroupPeer(e.group_number, e.peer_number);
 	auto o = itc_it->second;
-	const bool was_new = addParticipation(c, o);
-	if (was_new) {
+	if (addParticipation(c, o)) {
+		// something happend, update chunk picker
+		assert(static_cast<bool>(c));
+		c.emplace_or_replace<ChunkPickerUpdateTag>();
+
 		std::cout << "SHA1_NGCFT1: and we where interested!\n";
 		// we should probably send the bitset back here / add to queue (can be multiple packets)
 	}

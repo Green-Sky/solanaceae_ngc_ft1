@@ -1,9 +1,14 @@
 #include "./participation.hpp"
 
+#include "./contact_components.hpp"
 #include "./chunk_picker.hpp"
+
+#include <iostream>
 
 bool addParticipation(Contact3Handle c, ObjectHandle o) {
 	bool was_new {false};
+	assert(static_cast<bool>(o));
+	assert(static_cast<bool>(c));
 
 	if (static_cast<bool>(o)) {
 		const auto [_, inserted] = o.get_or_emplace<Components::SuspectedParticipants>().participants.emplace(c);
@@ -11,24 +16,33 @@ bool addParticipation(Contact3Handle c, ObjectHandle o) {
 	}
 
 	if (static_cast<bool>(c)) {
-		const auto [_, inserted] = c.get_or_emplace<ChunkPicker>().participating.emplace(o);
+		const auto [_, inserted] = c.get_or_emplace<Contact::Components::FT1Participation>().participating.emplace(o);
 		was_new = was_new || inserted;
-
-		// TODO: if not have_all
-		c.get_or_emplace<ChunkPicker>().participating_unfinished.emplace(o, ChunkPicker::ParticipationEntry{});
 	}
+
+	std::cout << "added " << (was_new?"new ":"") << "participant\n";
 
 	return was_new;
 }
 
 void removeParticipation(Contact3Handle c, ObjectHandle o) {
+	assert(static_cast<bool>(o));
+	assert(static_cast<bool>(c));
+
 	if (static_cast<bool>(o) && o.all_of<Components::SuspectedParticipants>()) {
 		o.get<Components::SuspectedParticipants>().participants.erase(c);
 	}
 
-	if (static_cast<bool>(c) && c.all_of<ChunkPicker>()) {
-		c.get<ChunkPicker>().participating.erase(o);
-		c.get<ChunkPicker>().participating_unfinished.erase(o);
+	if (static_cast<bool>(c)) {
+		if (c.all_of<Contact::Components::FT1Participation>()) {
+			c.get<Contact::Components::FT1Participation>().participating.erase(o);
+		}
+
+		if (c.all_of<ChunkPicker>()) {
+			c.get<ChunkPicker>().participating_unfinished.erase(o);
+		}
 	}
+
+	std::cout << "removed participant\n";
 }
 

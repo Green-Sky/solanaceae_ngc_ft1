@@ -73,7 +73,6 @@ class SHA1_NGCFT1 : public ToxEventI, public RegistryMessageModelEventI, public 
 
 	// makes request rotate around open content
 	std::deque<ObjectHandle> _queue_content_want_info;
-	std::deque<ObjectHandle> _queue_content_want_chunk;
 
 	std::atomic_bool _info_builder_dirty {false};
 	std::mutex _info_builder_queue_mutex;

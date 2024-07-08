@@ -3,6 +3,7 @@
 #include <solanaceae/tox_contacts/components.hpp>
 
 #include "./components.hpp"
+#include "./contact_components.hpp"
 
 #include <algorithm>
 
@@ -111,6 +112,64 @@ void ChunkPicker::updateParticipation(
 	Contact3Handle c,
 	ObjectRegistry& objreg
 ) {
+	if (!c.all_of<Contact::Components::FT1Participation>()) {
+		participating_unfinished.clear();
+		return;
+	}
+
+	entt::dense_set<Object> checked;
+	for (const Object ov : c.get<Contact::Components::FT1Participation>().participating) {
+		const ObjectHandle o {objreg, ov};
+
+		if (participating_unfinished.contains(o)) {
+			if (!o.all_of<Components::FT1ChunkSHA1Cache, Components::FT1InfoSHA1>()) {
+				participating_unfinished.erase(o);
+				continue;
+			}
+
+			if (o.all_of<Message::Components::Transfer::TagPaused>()) {
+				participating_unfinished.erase(o);
+				continue;
+			}
+
+			if (o.get<Components::FT1ChunkSHA1Cache>().have_all) {
+				participating_unfinished.erase(o);
+			}
+		} else {
+			if (!o.all_of<Components::FT1ChunkSHA1Cache, Components::FT1InfoSHA1>()) {
+				continue;
+			}
+
+			if (o.all_of<Message::Components::Transfer::TagPaused>()) {
+				continue;
+			}
+
+			if (!o.get<Components::FT1ChunkSHA1Cache>().have_all) {
+				participating_unfinished.emplace(o, ParticipationEntry{});
+			}
+		}
+		checked.emplace(o);
+	}
+
+	// now we still need to remove left over unfinished.
+	// TODO: how did they get left over
+	entt::dense_set<Object> to_remove;
+	for (const auto& [o, _] : participating_unfinished) {
+		if (!checked.contains(o)) {
+			std::cerr << "unfinished contained non participating\n";
+			to_remove.emplace(o);
+		}
+	}
+	for (const auto& o : to_remove) {
+		participating_unfinished.erase(o);
+	}
+}
+
+void ChunkPicker::validateParticipation(
+	Contact3Handle c,
+	ObjectRegistry& objreg
+) {
+#if 0
 	// replaces them in place
 	participating.clear();
 	participating_unfinished.clear();
@@ -128,6 +187,40 @@ void ChunkPicker::updateParticipation(
 			participating_unfinished.emplace(o, ParticipationEntry{});
 		}
 	}
+#endif
+	entt::dense_set<Object> val_p;
+	//entt::dense_set<Object> val_pu;
+	//participating_unfinished.clear(); // HACK: rn this update unfished o.o
+
+	for (const Object ov : objreg.view<Components::SuspectedParticipants>()) {
+		const ObjectHandle o {objreg, ov};
+
+		val_p.emplace(o);
+
+		//if (!o.all_of<Components::FT1ChunkSHA1Cache, Components::FT1InfoSHA1>()) {
+		//    continue;
+		//}
+
+		//if (!o.get<Components::FT1ChunkSHA1Cache>().have_all) {
+		//    //val_pu.emplace(o);
+		//    //participating_unfinished.emplace(o, ParticipationEntry{});
+		//}
+	}
+
+	// validate
+	if (c.all_of<Contact::Components::FT1Participation>()) {
+		const auto& participating = c.get<Contact::Components::FT1Participation>().participating;
+		assert(val_p.size() == participating.size());
+		//assert(val_pu.size() == participating_unfinished.size());
+
+		for (const auto& it : val_p) {
+			assert(participating.contains(it));
+		}
+	}
+
+	//for (const auto& it : val_pu) {
+	//    assert(participating_unfinished.contains(it));
+	//}
 }
 
 std::vector<ChunkPicker::ContentChunkR> ChunkPicker::updateChunkRequests(
@@ -145,6 +238,8 @@ std::vector<ChunkPicker::ContentChunkR> ChunkPicker::updateChunkRequests(
 		assert(false); return {};
 	}
 	const auto [group_number, peer_number] = c.get<Contact::Components::ToxGroupPeerEphemeral>();
+
+	updateParticipation(c, objreg);
 
 	if (participating_unfinished.empty()) {
 		participating_in_last = entt::null;

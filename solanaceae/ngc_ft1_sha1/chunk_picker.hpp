@@ -19,6 +19,13 @@
 // goal is to always keep 2 transfers running and X(6) requests queued up
 // per peer
 
+struct ChunkPickerUpdateTag {};
+
+struct ChunkPickerTimer {
+	// adds update tag on 0
+	float timer {0.f};
+};
+
 // contact component?
 struct ChunkPicker {
 	// max transfers
@@ -41,10 +48,17 @@ struct ChunkPicker {
 	};
 	// TODO: only unfinished?
 	entt::dense_map<Object, ParticipationEntry> participating_unfinished;
-	entt::dense_set<Object> participating;
 	Object participating_in_last {entt::null};
 
+	private:
+	// updates participating_unfinished
 	void updateParticipation(
+		Contact3Handle c,
+		ObjectRegistry& objreg
+	);
+	public:
+
+	void validateParticipation(
 		Contact3Handle c,
 		ObjectRegistry& objreg
 	);
