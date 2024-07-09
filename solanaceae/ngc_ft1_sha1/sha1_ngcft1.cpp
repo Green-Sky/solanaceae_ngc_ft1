@@ -398,8 +398,6 @@ float SHA1_NGCFT1::iterate(float delta) {
 
 	// ran regardless of _max_concurrent_in
 	{ // new chunk picker code
-		// HACK: work around missing contact events
-		std::vector<Contact3Handle> c_offline_to_remove;
 		std::vector<Contact3Handle> cp_to_remove;
 
 		// first, update timers
@@ -414,14 +412,14 @@ float SHA1_NGCFT1::iterate(float delta) {
 
 		// now check for potentially missing cp
 		auto cput_view = _cr.view<ChunkPickerUpdateTag>();
-		cput_view.each([this, &c_offline_to_remove](const Contact3 cv) {
+		cput_view.each([this, &cp_to_remove](const Contact3 cv) {
 			Contact3Handle c{_cr, cv};
 
 			//std::cout << "cput :)\n";
 
 			if (!c.any_of<Contact::Components::ToxGroupPeerEphemeral, Contact::Components::FT1Participation>()) {
 				std::cout << "cput uh nuh :(\n";
-				c_offline_to_remove.push_back(c);
+				cp_to_remove.push_back(c);
 				return;
 			}
 
@@ -433,12 +431,11 @@ float SHA1_NGCFT1::iterate(float delta) {
 		});
 
 		// now update all cp that are tagged
-		_cr.view<ChunkPicker, ChunkPickerUpdateTag>().each([this, &_peer_open_requests, &cp_to_remove, &c_offline_to_remove](const Contact3 cv, ChunkPicker& cp) {
+		_cr.view<ChunkPicker, ChunkPickerUpdateTag>().each([this, &_peer_open_requests, &cp_to_remove](const Contact3 cv, ChunkPicker& cp) {
 			Contact3Handle c{_cr, cv};
 
 			if (!c.all_of<Contact::Components::ToxGroupPeerEphemeral, Contact::Components::FT1Participation>()) {
-				//cp_to_remove.push_back(c);
-				c_offline_to_remove.push_back(c);
+				cp_to_remove.push_back(c);
 				return;
 			}
 
@@ -500,17 +497,6 @@ float SHA1_NGCFT1::iterate(float delta) {
 
 		for (const auto& c : cp_to_remove) {
 			c.remove<ChunkPicker, ChunkPickerTimer>();
-		}
-		for (const auto& c : c_offline_to_remove) {
-			c.remove<ChunkPicker, ChunkPickerTimer>();
-
-			for (const auto& [_, o] : _info_to_content) {
-				removeParticipation(c, o);
-
-				if (o.all_of<Components::RemoteHave>()) {
-					o.get<Components::RemoteHave>().others.erase(c);
-				}
-			}
 		}
 	}
 
