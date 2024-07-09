@@ -20,7 +20,7 @@ bool addParticipation(Contact3Handle c, ObjectHandle o) {
 		was_new = was_new || inserted;
 	}
 
-	std::cout << "added " << (was_new?"new ":"") << "participant\n";
+	//std::cout << "added " << (was_new?"new ":"") << "participant\n";
 
 	return was_new;
 }
@@ -43,6 +43,6 @@ void removeParticipation(Contact3Handle c, ObjectHandle o) {
 		}
 	}
 
-	std::cout << "removed participant\n";
+	//std::cout << "removed participant\n";
 }
 

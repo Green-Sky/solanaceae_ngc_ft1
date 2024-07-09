@@ -16,14 +16,14 @@
 // ps produce an index only once
 
 // simply scans from the beginning, requesting chunks in that order
-struct PickerStrategySimpleFirst {
+struct PickerStrategySequential {
 	const BitSet& chunk_candidates;
 	const size_t total_chunks;
 
-	// TODO: optimize simple and start at first chunk we dont have
+	// TODO: optimize sequential and start at first chunk we dont have
 	size_t i {0u};
 
-	PickerStrategySimpleFirst(
+	PickerStrategySequential(
 		const BitSet& chunk_candidates_,
 		const size_t total_chunks_
 	) :
@@ -83,14 +83,15 @@ struct PickerStrategyRandom {
 	}
 };
 
-// switches randomly between random and simple first
-struct PickerStrategyRandomFirst {
+// switches randomly between random and sequential
+struct PickerStrategyRandomSequential {
 	PickerStrategyRandom psr;
-	PickerStrategySimpleFirst pssf;
+	PickerStrategySequential pssf;
 
+	// TODO: configurable
 	std::bernoulli_distribution d{0.5f};
 
-	PickerStrategyRandomFirst(
+	PickerStrategyRandomSequential(
 		const BitSet& chunk_candidates_,
 		const size_t total_chunks_,
 		std::default_random_engine& rng_
@@ -319,18 +320,19 @@ std::vector<ChunkPicker::ContentChunkR> ChunkPicker::updateChunkRequests(
 		// TODO: trim off round up to 8, since they are now always set
 
 		// now select (globaly) unrequested other have
-		// TODO: how do we prioratize within a file?
-		//  - first (walk from start (or readhead?))
+		// TODO: how do we prioritize within a file?
+		//  - sequential (walk from start (or readhead?))
 		//  - random (choose random start pos and walk)
+		//  - random/sequential (randomly choose between the 2)
 		//  - rarest (keep track of rarity and sort by that)
-		//  - steaming (use read head to determain time critical chunks, potentially over requesting, first (relative to stream head) otherwise
+		//  - steaming (use readhead to determain time critical chunks, potentially over requesting, first (relative to stream head) otherwise
 		//    maybe look into libtorrens deadline stuff
 		//  - arbitrary priority maps/functions (and combine with above in rations)
 
+		// TODO: configurable
 		//PickerStrategySimpleFirst ps(chunk_candidates, total_chunks);
 		//PickerStrategyRandom ps(chunk_candidates, total_chunks, _rng);
-		// TODO: configurable
-		PickerStrategyRandomFirst ps(chunk_candidates, total_chunks, _rng);
+		PickerStrategyRandomSequential ps(chunk_candidates, total_chunks, _rng);
 		size_t out_chunk_idx {0};
 		while (ps.gen(out_chunk_idx) && req_ret.size() < num_requests) {
 			// out_chunk_idx is a potential candidate we can request form peer
@@ -340,7 +342,7 @@ std::vector<ChunkPicker::ContentChunkR> ChunkPicker::updateChunkRequests(
 				return x.object == o && x.chunk_index == out_chunk_idx;
 			}) != req_ret.cend()) {
 				// already in return array
-				// how did we get here? should we fast exit? if simple-first strat, we would want to
+				// how did we get here? should we fast exit? if sequential strat, we would want to
 				continue; // skip
 			}
 
