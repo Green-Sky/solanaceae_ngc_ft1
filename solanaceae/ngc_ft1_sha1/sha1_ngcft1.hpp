@@ -74,6 +74,10 @@ class SHA1_NGCFT1 : public ToxEventI, public RegistryMessageModelEventI, public 
 	// makes request rotate around open content
 	std::deque<ObjectHandle> _queue_content_want_info;
 
+	// workaround missing contact events
+	// only used to remove participation on peer exit
+	entt::dense_map<uint64_t, Contact3Handle> _tox_peer_to_contact;
+
 	std::atomic_bool _info_builder_dirty {false};
 	std::mutex _info_builder_queue_mutex;
 	using InfoBuilderEntry = std::function<void(void)>;
@@ -86,7 +90,7 @@ class SHA1_NGCFT1 : public ToxEventI, public RegistryMessageModelEventI, public 
 	public: // TODO: config
 		bool _udp_only {false};
 
-		size_t _max_concurrent_in {4};
+		size_t _max_concurrent_in {4}; // info only
 		size_t _max_concurrent_out {3*4}; // HACK: allow ideal number for 4 peers
 
 	public:

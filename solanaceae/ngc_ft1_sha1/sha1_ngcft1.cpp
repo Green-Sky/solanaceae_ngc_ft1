@@ -243,6 +243,7 @@ float SHA1_NGCFT1::iterate(float delta) {
 				// TODO: do we really need this if we get events?
 				if (it->second.time_since_activity >= 120.f) {
 					std::cerr << "SHA1_NGCFT1 warning: sending tansfer timed out " << "." << int(it->first) << "\n";
+					assert(false);
 					it = peer_it->second.erase(it);
 				} else {
 					it++;
@@ -295,8 +296,8 @@ float SHA1_NGCFT1::iterate(float delta) {
 				for (auto it = ftchunk_requested.chunks.begin(); it != ftchunk_requested.chunks.end();) {
 					it->second.timer += delta;
 
-					// 15sec, TODO: config
-					if (it->second.timer >= 15.f) {
+					// TODO: config
+					if (it->second.timer >= 60.f) {
 						it = ftchunk_requested.chunks.erase(it);
 					} else {
 						_peer_open_requests[it->second.c] += 1;
@@ -705,6 +706,9 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCFT1_recv_request& e) {
 			[combine_ids(e.group_number, e.peer_number)]
 			[transfer_id]
 				.v = SendingTransfer::Info{content.get<Components::FT1InfoSHA1Data>().data};
+
+		const auto c = _tcm.getContactGroupPeer(e.group_number, e.peer_number);
+		_tox_peer_to_contact[combine_ids(e.group_number, e.peer_number)] = c; // workaround
 	} else if (e.file_kind == NGCFT1_file_kind::HASH_SHA1_CHUNK) {
 		if (e.file_id_size != 20) {
 			// error
@@ -722,6 +726,7 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCFT1_recv_request& e) {
 
 		{ // they advertise interest in the content
 			const auto c = _tcm.getContactGroupPeer(e.group_number, e.peer_number);
+			_tox_peer_to_contact[combine_ids(e.group_number, e.peer_number)] = c; // workaround
 			if (addParticipation(c, o)) {
 				// something happend, update chunk picker
 				assert(static_cast<bool>(c));
@@ -780,6 +785,9 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCFT1_recv_init& e) {
 		);
 
 		e.accept = true;
+
+		const auto c = _tcm.getContactGroupPeer(e.group_number, e.peer_number);
+		_tox_peer_to_contact[combine_ids(e.group_number, e.peer_number)] = c; // workaround
 	} else if (e.file_kind == NGCFT1_file_kind::HASH_SHA1_CHUNK) {
 		SHA1Digest sha1_chunk_hash {e.file_id, e.file_id_size};
 
@@ -792,6 +800,7 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCFT1_recv_init& e) {
 
 		{ // they have the content (probably, might be fake, should move this to done)
 			const auto c = _tcm.getContactGroupPeer(e.group_number, e.peer_number);
+			_tox_peer_to_contact[combine_ids(e.group_number, e.peer_number)] = c; // workaround
 			if (addParticipation(c, o)) {
 				// something happend, update chunk picker
 				assert(static_cast<bool>(c));
@@ -1126,6 +1135,7 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCFT1_recv_message& e) {
 	uint64_t ts = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
 
 	const auto c = _tcm.getContactGroupPeer(e.group_number, e.peer_number);
+	_tox_peer_to_contact[combine_ids(e.group_number, e.peer_number)] = c; // workaround
 	const auto self_c = c.get<Contact::Components::Self>().self;
 
 	auto* reg_ptr = _rmm.get(c);
@@ -1523,7 +1533,13 @@ bool SHA1_NGCFT1::onToxEvent(const Tox_Event_Group_Peer_Exit* e) {
 
 	{
 		// FIXME: this does not work, tcm just delteded the relation ship
-		auto c = _tcm.getContactGroupPeer(group_number, peer_number);
+		//auto c = _tcm.getContactGroupPeer(group_number, peer_number);
+
+		const auto c_it = _tox_peer_to_contact.find(combine_ids(group_number, peer_number));
+		if (c_it == _tox_peer_to_contact.end()) {
+			return false;
+		}
+		auto c = c_it->second;
 		if (!static_cast<bool>(c)) {
 			return false;
 		}
@@ -1579,6 +1595,7 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCEXT_ft1_have& e) {
 	const size_t num_total_chunks = o.get<Components::FT1InfoSHA1>().chunks.size();
 
 	const auto c = _tcm.getContactGroupPeer(e.group_number, e.peer_number);
+	_tox_peer_to_contact[combine_ids(e.group_number, e.peer_number)] = c; // workaround
 
 	// we might not know yet
 	if (addParticipation(c, o)) {
@@ -1663,6 +1680,7 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCEXT_ft1_bitset& e) {
 	}
 
 	const auto c = _tcm.getContactGroupPeer(e.group_number, e.peer_number);
+	_tox_peer_to_contact[combine_ids(e.group_number, e.peer_number)] = c; // workaround
 
 	// we might not know yet
 	if (addParticipation(c, o)) {
@@ -1721,6 +1739,7 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCEXT_pc1_announce& e) {
 		return false;
 	}
 
+
 	SHA1Digest hash{e.id.data()+sizeof(file_kind), 20};
 
 	// if have use hash(-info) for file, add to participants
@@ -1734,6 +1753,7 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCEXT_pc1_announce& e) {
 
 	// add to participants
 	const auto c = _tcm.getContactGroupPeer(e.group_number, e.peer_number);
+	_tox_peer_to_contact[combine_ids(e.group_number, e.peer_number)] = c; // workaround
 	auto o = itc_it->second;
 	if (addParticipation(c, o)) {
 		// something happend, update chunk picker

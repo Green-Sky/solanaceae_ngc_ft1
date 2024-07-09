@@ -60,8 +60,14 @@ void NGCFT1::updateSendTransfer(float time_delta, uint32_t group_number, uint32_
 			});
 			if (tf.time_since_activity >= sending_give_up_after) {
 				// no ack after 30sec, close ft
-				// TODO: notify app
 				std::cerr << "NGCFT1 warning: sending ft finishing timed out, deleting\n";
+				dispatch(
+					NGCFT1_Event::send_done,
+					Events::NGCFT1_send_done{
+						group_number, peer_number,
+						static_cast<uint8_t>(idx),
+					}
+				);
 
 				// clean up cca
 				tf.ssb.for_each(time_delta, [&](uint16_t id, const std::vector<uint8_t>& data, float& time_since_activity) {
@@ -155,8 +161,8 @@ void NGCFT1::updateSendTransfer(float time_delta, uint32_t group_number, uint32_
 			break;
 		default: // invalid state, delete
 			std::cerr << "NGCFT1 error: ft in invalid state, deleting\n";
+			assert(false && "ft in invalid state");
 			tf_opt.reset();
-			//continue;
 			return;
 	}
 }
@@ -333,7 +339,7 @@ bool NGCFT1::NGC_FT1_send_message_public(
 
 bool NGCFT1::onEvent(const Events::NGCEXT_ft1_request& e) {
 //#if !NDEBUG
-	std::cout << "NGCFT1: FT1_REQUEST fk:" << e.file_kind << " [" << bin2hex(e.file_id) << "]\n";
+	std::cout << "NGCFT1: got FT1_REQUEST fk:" << e.file_kind << " [" << bin2hex(e.file_id) << "]\n";
 //#endif
 
 	// .... just rethrow??
@@ -350,7 +356,7 @@ bool NGCFT1::onEvent(const Events::NGCEXT_ft1_request& e) {
 
 bool NGCFT1::onEvent(const Events::NGCEXT_ft1_init& e) {
 //#if !NDEBUG
-	std::cout << "NGCFT1: FT1_INIT fk:" << e.file_kind << " fs:" << e.file_size << " tid:" << int(e.transfer_id) << " [" << bin2hex(e.file_id) << "]\n";
+	std::cout << "NGCFT1: got FT1_INIT fk:" << e.file_kind << " fs:" << e.file_size << " tid:" << int(e.transfer_id) << " [" << bin2hex(e.file_id) << "]\n";
 //#endif
 
 	bool accept = false;
@@ -394,7 +400,7 @@ bool NGCFT1::onEvent(const Events::NGCEXT_ft1_init& e) {
 
 bool NGCFT1::onEvent(const Events::NGCEXT_ft1_init_ack& e) {
 //#if !NDEBUG
-	std::cout << "NGCFT1: FT1_INIT_ACK mds:" << e.max_lossy_data_size << "\n";
+	std::cout << "NGCFT1: got FT1_INIT_ACK mds:" << e.max_lossy_data_size << "\n";
 //#endif
 
 	// we now should start sending data
@@ -445,7 +451,7 @@ bool NGCFT1::onEvent(const Events::NGCEXT_ft1_init_ack& e) {
 
 bool NGCFT1::onEvent(const Events::NGCEXT_ft1_data& e) {
 #if !NDEBUG
-	//std::cout << "NGCFT1: FT1_DATA\n";
+	//std::cout << "NGCFT1: got FT1_DATA\n";
 #endif
 
 	if (e.data.empty()) {
@@ -519,7 +525,7 @@ bool NGCFT1::onEvent(const Events::NGCEXT_ft1_data& e) {
 
 bool NGCFT1::onEvent(const Events::NGCEXT_ft1_data_ack& e) {
 #if !NDEBUG
-	//std::cout << "NGCFT1: FT1_DATA_ACK\n";
+	//std::cout << "NGCFT1: got FT1_DATA_ACK\n";
 #endif
 
 	if (!groups.count(e.group_number)) {
@@ -572,7 +578,7 @@ bool NGCFT1::onEvent(const Events::NGCEXT_ft1_data_ack& e) {
 }
 
 bool NGCFT1::onEvent(const Events::NGCEXT_ft1_message& e) {
-	std::cout << "NGCFT1: FT1_MESSAGE mid:" << e.message_id << " fk:" << e.file_kind << " [" << bin2hex(e.file_id) << "]\n";
+	std::cout << "NGCFT1: got FT1_MESSAGE mid:" << e.message_id << " fk:" << e.file_kind << " [" << bin2hex(e.file_id) << "]\n";
 
 	// .... just rethrow??
 	// TODO: dont
