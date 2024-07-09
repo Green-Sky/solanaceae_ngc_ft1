@@ -464,7 +464,9 @@ float SHA1_NGCFT1::iterate(float delta) {
 					std::cout << "destorying empty useless cp\n";
 					cp_to_remove.push_back(c);
 				} else {
-					c.get_or_emplace<ChunkPickerTimer>().timer = 60.f;
+					// most likely will have something soon
+					// TODO: mark dirty on have instead?
+					c.get_or_emplace<ChunkPickerTimer>().timer = 10.f;
 				}
 
 				return;
@@ -1581,12 +1583,12 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCEXT_ft1_have& e) {
 	const size_t num_total_chunks = o.get<Components::FT1InfoSHA1>().chunks.size();
 
 	const auto c = _tcm.getContactGroupPeer(e.group_number, e.peer_number);
+	assert(static_cast<bool>(c));
 	_tox_peer_to_contact[combine_ids(e.group_number, e.peer_number)] = c; // workaround
 
 	// we might not know yet
 	if (addParticipation(c, o)) {
 		// something happend, update chunk picker
-		assert(static_cast<bool>(c));
 		c.emplace_or_replace<ChunkPickerUpdateTag>();
 	}
 
@@ -1594,6 +1596,10 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCEXT_ft1_have& e) {
 	if (!remote_have.contains(c)) {
 		// init
 		remote_have.emplace(c, Components::RemoteHave::Entry{false, num_total_chunks});
+
+		// new have? nice
+		// (always update on biset, not always on have)
+		c.emplace_or_replace<ChunkPickerUpdateTag>();
 	}
 
 	auto& remote_have_peer = remote_have.at(c);
@@ -1666,14 +1672,11 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCEXT_ft1_bitset& e) {
 	}
 
 	const auto c = _tcm.getContactGroupPeer(e.group_number, e.peer_number);
+	assert(static_cast<bool>(c));
 	_tox_peer_to_contact[combine_ids(e.group_number, e.peer_number)] = c; // workaround
 
 	// we might not know yet
-	if (addParticipation(c, o)) {
-		// something happend, update chunk picker
-		assert(static_cast<bool>(c));
-		c.emplace_or_replace<ChunkPickerUpdateTag>();
-	}
+	addParticipation(c, o);
 
 	auto& remote_have = o.get_or_emplace<Components::RemoteHave>().others;
 	if (!remote_have.contains(c)) {
@@ -1702,6 +1705,10 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCEXT_ft1_bitset& e) {
 			remote_have_peer.have = BitSet{};
 		}
 	}
+
+	// new have? nice
+	// (always update on biset, not always on have)
+	c.emplace_or_replace<ChunkPickerUpdateTag>();
 
 	return true;
 }
