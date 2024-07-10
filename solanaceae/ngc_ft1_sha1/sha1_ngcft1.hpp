@@ -78,9 +78,6 @@ class SHA1_NGCFT1 : public ToxEventI, public RegistryMessageModelEventI, public 
 	struct QBitsetEntry {
 		Contact3Handle c;
 		ObjectHandle o;
-		size_t start_index;
-		//size_t size;
-		BitSet have;
 	};
 	std::deque<QBitsetEntry> _queue_send_bitset;
 
@@ -136,6 +133,7 @@ class SHA1_NGCFT1 : public ToxEventI, public RegistryMessageModelEventI, public 
 
 		bool onEvent(const Events::NGCEXT_ft1_have&) override;
 		bool onEvent(const Events::NGCEXT_ft1_bitset&) override;
+		bool onEvent(const Events::NGCEXT_ft1_have_all&) override;
 
 		bool onEvent(const Events::NGCEXT_pc1_announce&) override;
 };

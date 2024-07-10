@@ -189,30 +189,7 @@ void SHA1_NGCFT1::queueBitsetSendFull(Contact3Handle c, ObjectHandle o) {
 		return;
 	}
 
-	const auto& cc = o.get<Components::FT1ChunkSHA1Cache>();
-	const auto& info = o.get<Components::FT1InfoSHA1>();
-	const auto total_chunks = info.chunks.size();
-
-	static constexpr size_t bits_per_packet {8u*512u};
-
-	for (size_t i = 0; i < total_chunks; i += bits_per_packet) {
-		size_t bits_this_packet = std::min<size_t>(bits_per_packet, total_chunks-i);
-
-		BitSet have(bits_this_packet); // default init to zero
-		if (cc.have_all) {
-			// TODO: send have all packet instead
-			have.invert(); // we "have_all"
-		} else {
-			// TODO: optimize selective copy bitset
-			for (size_t j = i; j < i+bits_this_packet; j++) {
-				if (cc.have_chunk[j]) {
-					have.set(j-i);
-				}
-			}
-		}
-
-		_queue_send_bitset.push_back(QBitsetEntry{c, o, i, have});
-	}
+	_queue_send_bitset.push_back(QBitsetEntry{c, o});
 }
 
 SHA1_NGCFT1::SHA1_NGCFT1(
@@ -251,9 +228,10 @@ SHA1_NGCFT1::SHA1_NGCFT1(
 
 	_tep.subscribe(this, Tox_Event_Type::TOX_EVENT_GROUP_PEER_EXIT);
 
-	_neep.subscribe(this, NGCEXT_Event::PC1_ANNOUNCE);
 	_neep.subscribe(this, NGCEXT_Event::FT1_HAVE);
 	_neep.subscribe(this, NGCEXT_Event::FT1_BITSET);
+	_neep.subscribe(this, NGCEXT_Event::FT1_HAVE_ALL);
+	_neep.subscribe(this, NGCEXT_Event::PC1_ANNOUNCE);
 }
 
 float SHA1_NGCFT1::iterate(float delta) {
@@ -352,19 +330,45 @@ float SHA1_NGCFT1::iterate(float delta) {
 		if (!_queue_send_bitset.empty()) {
 			const auto& qe = _queue_send_bitset.front();
 
-			// TODO: build bitset inplace instead, to not miss any chunks arrived this tick
-			if (qe.c.all_of<Contact::Components::ToxGroupPeerEphemeral>() && qe.o.all_of<Components::FT1InfoSHA1Hash>()) {
+			if (static_cast<bool>(qe.o) && static_cast<bool>(qe.c) && qe.c.all_of<Contact::Components::ToxGroupPeerEphemeral>() && qe.o.all_of<Components::FT1InfoSHA1, Components::FT1InfoSHA1Hash, Components::FT1ChunkSHA1Cache>()) {
 				const auto [group_number, peer_number] = qe.c.get<Contact::Components::ToxGroupPeerEphemeral>();
 				const auto& info_hash = qe.o.get<Components::FT1InfoSHA1Hash>().hash;
+				const auto& cc = qe.o.get<Components::FT1ChunkSHA1Cache>();
+				const auto& info = qe.o.get<Components::FT1InfoSHA1>();
+				const auto total_chunks = info.chunks.size();
 
-				// TODO: only pop if sent?
-				_neep.send_ft1_bitset(
-					group_number, peer_number,
-					static_cast<uint32_t>(NGCFT1_file_kind::HASH_SHA1_INFO),
-					info_hash.data(), info_hash.size(),
-					qe.start_index,
-					qe.have._bytes.data(), qe.have.size_bytes()
-				);
+				static constexpr size_t bits_per_packet {8u*512u};
+
+				if (cc.have_all) {
+					// send have all
+					_neep.send_ft1_have_all(
+						group_number, peer_number,
+						static_cast<uint32_t>(NGCFT1_file_kind::HASH_SHA1_INFO),
+						info_hash.data(), info_hash.size()
+					);
+				} else {
+					for (size_t i = 0; i < total_chunks; i += bits_per_packet) {
+						size_t bits_this_packet = std::min<size_t>(bits_per_packet, total_chunks-i);
+
+						BitSet have(bits_this_packet); // default init to zero
+
+						// TODO: optimize selective copy bitset
+						for (size_t j = i; j < i+bits_this_packet; j++) {
+							if (cc.have_chunk[j]) {
+								have.set(j-i);
+							}
+						}
+
+						// TODO: this bursts, dont
+						_neep.send_ft1_bitset(
+							group_number, peer_number,
+							static_cast<uint32_t>(NGCFT1_file_kind::HASH_SHA1_INFO),
+							info_hash.data(), info_hash.size(),
+							i,
+							have._bytes.data(), have.size_bytes()
+						);
+					}
+				}
 			}
 
 			_queue_send_bitset.pop_front();
@@ -1606,7 +1610,7 @@ bool SHA1_NGCFT1::onToxEvent(const Tox_Event_Group_Peer_Exit* e) {
 }
 
 bool SHA1_NGCFT1::onEvent(const Events::NGCEXT_ft1_have& e) {
-	std::cerr << "SHA1_NGCFT1: FT1_HAVE s:" << e.chunks.size() << "\n";
+	std::cerr << "SHA1_NGCFT1: got FT1_HAVE s:" << e.chunks.size() << "\n";
 
 	if (e.file_kind != static_cast<uint32_t>(NGCFT1_file_kind::HASH_SHA1_INFO)) {
 		return false;
@@ -1755,14 +1759,53 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCEXT_ft1_bitset& e) {
 	}
 
 	// new have? nice
-	// (always update on biset, not always on have)
+	// (always update on bitset, not always on have)
+	c.emplace_or_replace<ChunkPickerUpdateTag>();
+
+	return true;
+}
+
+bool SHA1_NGCFT1::onEvent(const Events::NGCEXT_ft1_have_all& e) {
+	std::cerr << "SHA1_NGCFT1: got FT1_HAVE_ALL s:" << e.file_id.size() << "\n";
+
+	if (e.file_kind != static_cast<uint32_t>(NGCFT1_file_kind::HASH_SHA1_INFO)) {
+		return false;
+	}
+
+	SHA1Digest info_hash{e.file_id};
+
+	auto itc_it = _info_to_content.find(info_hash);
+	if (itc_it == _info_to_content.end()) {
+		// we are not interested and dont track this
+		return false;
+	}
+
+	auto o = itc_it->second;
+
+	if (!static_cast<bool>(o)) {
+		std::cerr << "SHA1_NGCFT1 error: tracking info has null object\n";
+		return false;
+	}
+
+	const auto c = _tcm.getContactGroupPeer(e.group_number, e.peer_number);
+	assert(static_cast<bool>(c));
+	_tox_peer_to_contact[combine_ids(e.group_number, e.peer_number)] = c; // workaround
+
+	// we might not know yet
+	addParticipation(c, o);
+
+	auto& remote_have = o.get_or_emplace<Components::RemoteHave>().others;
+	remote_have[c] = Components::RemoteHave::Entry{true, {}};
+
+	// new have? nice
+	// (always update on have_all, not always on have)
 	c.emplace_or_replace<ChunkPickerUpdateTag>();
 
 	return true;
 }
 
 bool SHA1_NGCFT1::onEvent(const Events::NGCEXT_pc1_announce& e) {
-	std::cerr << "SHA1_NGCFT1: PC1_ANNOUNCE s:" << e.id.size() << "\n";
+	std::cerr << "SHA1_NGCFT1: got PC1_ANNOUNCE s:" << e.id.size() << "\n";
 	// id is file_kind + id
 	uint32_t file_kind = 0u;
 
