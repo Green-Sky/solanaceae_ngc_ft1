@@ -176,6 +176,45 @@ std::optional<std::pair<uint32_t, uint32_t>> SHA1_NGCFT1::selectPeerForRequest(O
 	return std::nullopt;
 }
 
+void SHA1_NGCFT1::queueBitsetSendFull(Contact3Handle c, ObjectHandle o) {
+	if (!static_cast<bool>(c) || !static_cast<bool>(o)) {
+		assert(false);
+		return;
+	}
+
+	// TODO: only queue if not already sent??
+
+
+	if (!o.all_of<Components::FT1ChunkSHA1Cache, Components::FT1InfoSHA1>()) {
+		return;
+	}
+
+	const auto& cc = o.get<Components::FT1ChunkSHA1Cache>();
+	const auto& info = o.get<Components::FT1InfoSHA1>();
+	const auto total_chunks = info.chunks.size();
+
+	static constexpr size_t bits_per_packet {8u*512u};
+
+	for (size_t i = 0; i < total_chunks; i += bits_per_packet) {
+		size_t bits_this_packet = std::min<size_t>(bits_per_packet, total_chunks-i);
+
+		BitSet have(bits_this_packet); // default init to zero
+		if (cc.have_all) {
+			// TODO: send have all packet instead
+			have.invert(); // we "have_all"
+		} else {
+			// TODO: optimize selective copy bitset
+			for (size_t j = i; j < i+bits_this_packet; j++) {
+				if (cc.have_chunk[j]) {
+					have.set(j-i);
+				}
+			}
+		}
+
+		_queue_send_bitset.push_back(QBitsetEntry{c, o, i, have});
+	}
+}
+
 SHA1_NGCFT1::SHA1_NGCFT1(
 	ObjectStore2& os,
 	Contact3Registry& cr,
@@ -305,6 +344,30 @@ float SHA1_NGCFT1::iterate(float delta) {
 					}
 				}
 			});
+		}
+	}
+
+	{ // send out bitsets
+		// currently 1 per tick
+		if (!_queue_send_bitset.empty()) {
+			const auto& qe = _queue_send_bitset.front();
+
+			// TODO: build bitset inplace instead, to not miss any chunks arrived this tick
+			if (qe.c.all_of<Contact::Components::ToxGroupPeerEphemeral>() && qe.o.all_of<Components::FT1InfoSHA1Hash>()) {
+				const auto [group_number, peer_number] = qe.c.get<Contact::Components::ToxGroupPeerEphemeral>();
+				const auto& info_hash = qe.o.get<Components::FT1InfoSHA1Hash>().hash;
+
+				// TODO: only pop if sent?
+				_neep.send_ft1_bitset(
+					group_number, peer_number,
+					static_cast<uint32_t>(NGCFT1_file_kind::HASH_SHA1_INFO),
+					info_hash.data(), info_hash.size(),
+					qe.start_index,
+					qe.have._bytes.data(), qe.have.size_bytes()
+				);
+			}
+
+			_queue_send_bitset.pop_front();
 		}
 	}
 
@@ -1182,22 +1245,6 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCFT1_recv_message& e) {
 		//ce.emplace<Components::FT1InfoSHA1>(sha1_info);
 		//ce.emplace<Components::FT1InfoSHA1Data>(sha1_info_data); // keep around? or file?
 		ce.emplace<Components::FT1InfoSHA1Hash>(sha1_info_hash);
-		//{ // lookup tables and have
-			//auto& cc = ce.emplace<Components::FT1ChunkSHA1Cache>();
-			//cc.have_all = true;
-			//// skip have vec, since all
-			////cc.have_chunk
-			//cc.have_count = sha1_info.chunks.size(); // need?
-
-			//_info_to_content[sha1_info_hash] = ce;
-			//for (size_t i = 0; i < sha1_info.chunks.size(); i++) {
-				//_chunks[sha1_info.chunks[i]] = ce;
-				//cc.chunk_hash_to_index[sha1_info.chunks[i]] = i;
-			//}
-		//}
-
-		// TODO: ft1 specific comp
-		//ce.emplace<Message::Components::Transfer::File>(std::move(file_impl));
 	}
 	ce.get_or_emplace<Components::Messages>().messages.push_back({reg, new_msg_e});
 	reg_ptr->emplace<Message::Components::Content>(new_msg_e, ce);
@@ -1638,7 +1685,7 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCEXT_ft1_have& e) {
 }
 
 bool SHA1_NGCFT1::onEvent(const Events::NGCEXT_ft1_bitset& e) {
-	std::cerr << "SHA1_NGCFT1: FT1_BITSET o:" << e.start_chunk << " s:" << e.chunk_bitset.size() << "\n";
+	std::cerr << "SHA1_NGCFT1: got FT1_BITSET o:" << e.start_chunk << " s:" << e.chunk_bitset.size()*8 << "\n";
 
 	if (e.file_kind != static_cast<uint32_t>(NGCFT1_file_kind::HASH_SHA1_INFO)) {
 		return false;
@@ -1665,9 +1712,10 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCEXT_ft1_bitset& e) {
 	}
 
 	const size_t num_total_chunks = o.get<Components::FT1InfoSHA1>().chunks.size();
-	// +1 for byte rounding
-	if (num_total_chunks+1 < e.start_chunk + (e.chunk_bitset.size()*8)) {
+	// +7 for byte rounding
+	if (num_total_chunks+7 < e.start_chunk + (e.chunk_bitset.size()*8)) {
 		std::cerr << "SHA1_NGCFT1 error: got bitset.size+start that is larger then number of chunks!!\n";
+		std::cerr << "total:" << num_total_chunks << " start:" << e.start_chunk << " size:" << e.chunk_bitset.size()*8 << "\n";
 		return false;
 	}
 
@@ -1750,11 +1798,15 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCEXT_pc1_announce& e) {
 	auto o = itc_it->second;
 	if (addParticipation(c, o)) {
 		// something happend, update chunk picker
+		// !!! this is probably too much
 		assert(static_cast<bool>(c));
 		c.emplace_or_replace<ChunkPickerUpdateTag>();
 
 		std::cout << "SHA1_NGCFT1: and we where interested!\n";
 		// we should probably send the bitset back here / add to queue (can be multiple packets)
+		if (o.all_of<Components::FT1ChunkSHA1Cache>() && o.get<Components::FT1ChunkSHA1Cache>().have_count > 0) {
+			queueBitsetSendFull(c, o);
+		}
 	}
 
 	return false;

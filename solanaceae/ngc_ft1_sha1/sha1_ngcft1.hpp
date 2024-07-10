@@ -6,6 +6,7 @@
 #include <solanaceae/contact/contact_model3.hpp>
 #include <solanaceae/message3/registry_message_model.hpp>
 #include <solanaceae/tox_contacts/tox_contact_model2.hpp>
+#include <solanaceae/util/bitset.hpp>
 
 #include <solanaceae/ngc_ft1/ngcft1.hpp>
 
@@ -74,6 +75,15 @@ class SHA1_NGCFT1 : public ToxEventI, public RegistryMessageModelEventI, public 
 	// makes request rotate around open content
 	std::deque<ObjectHandle> _queue_content_want_info;
 
+	struct QBitsetEntry {
+		Contact3Handle c;
+		ObjectHandle o;
+		size_t start_index;
+		//size_t size;
+		BitSet have;
+	};
+	std::deque<QBitsetEntry> _queue_send_bitset;
+
 	// workaround missing contact events
 	// only used to remove participation on peer exit
 	entt::dense_map<uint64_t, Contact3Handle> _tox_peer_to_contact;
@@ -86,6 +96,8 @@ class SHA1_NGCFT1 : public ToxEventI, public RegistryMessageModelEventI, public 
 	void updateMessages(ObjectHandle ce);
 
 	std::optional<std::pair<uint32_t, uint32_t>> selectPeerForRequest(ObjectHandle ce);
+
+	void queueBitsetSendFull(Contact3Handle c, ObjectHandle o);
 
 	public: // TODO: config
 		bool _udp_only {false};
