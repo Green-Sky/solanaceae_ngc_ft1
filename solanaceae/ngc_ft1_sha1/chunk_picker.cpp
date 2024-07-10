@@ -49,7 +49,7 @@ struct PickerStrategySequential {
 struct PickerStrategyRandom {
 	const BitSet& chunk_candidates;
 	const size_t total_chunks;
-	std::default_random_engine& rng;
+	std::minstd_rand& rng;
 
 	size_t count {0u};
 	size_t i {rng()%total_chunks};
@@ -57,7 +57,7 @@ struct PickerStrategyRandom {
 	PickerStrategyRandom(
 		const BitSet& chunk_candidates_,
 		const size_t total_chunks_,
-		std::default_random_engine& rng_
+		std::minstd_rand& rng_
 	) :
 		chunk_candidates(chunk_candidates_),
 		total_chunks(total_chunks_),
@@ -94,7 +94,7 @@ struct PickerStrategyRandomSequential {
 	PickerStrategyRandomSequential(
 		const BitSet& chunk_candidates_,
 		const size_t total_chunks_,
-		std::default_random_engine& rng_
+		std::minstd_rand& rng_
 	) :
 		psr(chunk_candidates_, total_chunks_, rng_),
 		pssf(chunk_candidates_, total_chunks_)
@@ -146,6 +146,7 @@ void ChunkPicker::updateParticipation(
 			}
 
 			if (!o.get<Components::FT1ChunkSHA1Cache>().have_all) {
+				// TODO: set priority
 				participating_unfinished.emplace(o, ParticipationEntry{});
 			}
 		}
@@ -164,64 +165,6 @@ void ChunkPicker::updateParticipation(
 	for (const auto& o : to_remove) {
 		participating_unfinished.erase(o);
 	}
-}
-
-void ChunkPicker::validateParticipation(
-	Contact3Handle c,
-	ObjectRegistry& objreg
-) {
-#if 0
-	// replaces them in place
-	participating.clear();
-	participating_unfinished.clear();
-
-	for (const Object ov : objreg.view<Components::SuspectedParticipants>()) {
-		const ObjectHandle o {objreg, ov};
-
-		participating.emplace(o);
-
-		if (!o.all_of<Components::FT1ChunkSHA1Cache, Components::FT1InfoSHA1>()) {
-			continue;
-		}
-
-		if (!o.get<Components::FT1ChunkSHA1Cache>().have_all) {
-			participating_unfinished.emplace(o, ParticipationEntry{});
-		}
-	}
-#endif
-	entt::dense_set<Object> val_p;
-	//entt::dense_set<Object> val_pu;
-	//participating_unfinished.clear(); // HACK: rn this update unfished o.o
-
-	for (const Object ov : objreg.view<Components::SuspectedParticipants>()) {
-		const ObjectHandle o {objreg, ov};
-
-		val_p.emplace(o);
-
-		//if (!o.all_of<Components::FT1ChunkSHA1Cache, Components::FT1InfoSHA1>()) {
-		//    continue;
-		//}
-
-		//if (!o.get<Components::FT1ChunkSHA1Cache>().have_all) {
-		//    //val_pu.emplace(o);
-		//    //participating_unfinished.emplace(o, ParticipationEntry{});
-		//}
-	}
-
-	// validate
-	if (c.all_of<Contact::Components::FT1Participation>()) {
-		const auto& participating = c.get<Contact::Components::FT1Participation>().participating;
-		assert(val_p.size() == participating.size());
-		//assert(val_pu.size() == participating_unfinished.size());
-
-		for (const auto& it : val_p) {
-			assert(participating.contains(it));
-		}
-	}
-
-	//for (const auto& it : val_pu) {
-	//    assert(participating_unfinished.contains(it));
-	//}
 }
 
 std::vector<ChunkPicker::ContentChunkR> ChunkPicker::updateChunkRequests(

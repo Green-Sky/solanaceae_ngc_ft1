@@ -461,7 +461,7 @@ float SHA1_NGCFT1::iterate(float delta) {
 				// updateChunkRequests updates the unfinished
 				// TODO: pull out and check there?
 				if (cp.participating_unfinished.empty()) {
-					std::cout << "destorying empty useless cp\n";
+					std::cout << "destroying empty useless cp\n";
 					cp_to_remove.push_back(c);
 				} else {
 					// most likely will have something soon

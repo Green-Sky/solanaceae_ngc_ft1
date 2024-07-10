@@ -30,27 +30,23 @@ struct ChunkPickerTimer {
 struct ChunkPicker {
 	// max transfers
 	static constexpr size_t max_tf_info_requests {1};
-	static constexpr size_t max_tf_chunk_requests {3};
+	static constexpr size_t max_tf_chunk_requests {3}; // TODO: dynamic, function/factor of (window(delay*speed)/chunksize)
 
-	std::default_random_engine _rng{std::random_device{}()};
-
-	//// max outstanding requests
-	//// TODO: should this include transfers?
-	//static constexpr size_t max_open_info_requests {1};
-	//const size_t max_open_chunk_requests {6};
+	// TODO: cheaper init? tls rng for deep seeding?
+	std::minstd_rand _rng{std::random_device{}()};
 
 	// TODO: handle with hash utils?
 	struct ParticipationEntry {
 		ParticipationEntry(void) {}
 		// skips in round robin -> lower should_skip => higher priority
+		// TODO: replace with enum value
 		uint16_t should_skip {2}; // 0 high, 8 low (double each time? 0,1,2,4,8)
 		uint16_t skips {2};
 	};
-	// TODO: only unfinished?
 	entt::dense_map<Object, ParticipationEntry> participating_unfinished;
 	Object participating_in_last {entt::null};
 
-	private:
+	private: // TODO: properly sort
 	// updates participating_unfinished
 	void updateParticipation(
 		Contact3Handle c,
@@ -58,19 +54,11 @@ struct ChunkPicker {
 	);
 	public:
 
-	void validateParticipation(
-		Contact3Handle c,
-		ObjectRegistry& objreg
-	);
+	// ---------- tick ----------
 
-	// tick
 	//void sendInfoRequests();
+
 	// is this like a system?
-	// TODO: only update on:
-	//   - transfer start?
-	//   - transfer done
-	//   - request timed out
-	//   - reset on disconnect?
 	struct ContentChunkR {
 		ObjectHandle object;
 		size_t chunk_index;
@@ -82,11 +70,6 @@ struct ChunkPicker {
 		ReceivingTransfers& rt,
 		const size_t open_requests
 		//NGCFT1& nft
-	);
-
-	//   - reset on disconnect?
-	void resetPeer(
-		Contact3Handle c
 	);
 };
 
