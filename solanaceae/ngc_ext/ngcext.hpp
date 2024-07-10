@@ -162,6 +162,17 @@ namespace Events {
 		std::vector<uint8_t> chunk_bitset;
 	};
 
+	struct NGCEXT_ft1_have_all {
+		uint32_t group_number;
+		uint32_t peer_number;
+
+		// - 4 byte (file_kind)
+		uint32_t file_kind;
+
+		// - X bytes (file_kind dependent id, differnt sizes)
+		std::vector<uint8_t> file_id;
+	};
+
 	struct NGCEXT_pc1_announce {
 		uint32_t group_number;
 		uint32_t peer_number;
@@ -257,6 +268,12 @@ enum class NGCEXT_Event : uint8_t {
 	// - ] (filled up with zero)
 	FT1_BITSET,
 
+	// announce you have all chunks, for given info
+	// prefer over have and bitset
+	// - 4 bytes (file_kind)
+	// - X bytes (file_kind dependent id, differnt sizes)
+	FT1_HAVE_ALL,
+
 	// TODO: FT1_IDONTHAVE, tell a peer you no longer have said chunk
 	// TODO: FT1_REJECT, tell a peer you wont fulfil the request
 
@@ -282,6 +299,7 @@ struct NGCEXTEventI {
 	virtual bool onEvent(const Events::NGCEXT_ft1_message&) { return false; }
 	virtual bool onEvent(const Events::NGCEXT_ft1_have&) { return false; }
 	virtual bool onEvent(const Events::NGCEXT_ft1_bitset&) { return false; }
+	virtual bool onEvent(const Events::NGCEXT_ft1_have_all&) { return false; }
 	virtual bool onEvent(const Events::NGCEXT_pc1_announce&) { return false; }
 };
 
@@ -361,6 +379,12 @@ class NGCEXTEventProvider : public ToxEventI, public NGCEXTEventProviderI {
 			bool _private
 		);
 
+		bool parse_ft1_have_all(
+			uint32_t group_number, uint32_t peer_number,
+			const uint8_t* data, size_t data_size,
+			bool _private
+		);
+
 		bool parse_pc1_announce(
 			uint32_t group_number, uint32_t peer_number,
 			const uint8_t* data, size_t data_size,
@@ -429,6 +453,12 @@ class NGCEXTEventProvider : public ToxEventI, public NGCEXTEventProviderI {
 			const uint8_t* file_id, size_t file_id_size,
 			uint32_t start_chunk,
 			const uint8_t* bitset_data, size_t bitset_size // size is bytes
+		);
+
+		bool send_ft1_have_all(
+			uint32_t group_number, uint32_t peer_number,
+			uint32_t file_kind,
+			const uint8_t* file_id, size_t file_id_size
 		);
 
 		bool send_pc1_announce(
