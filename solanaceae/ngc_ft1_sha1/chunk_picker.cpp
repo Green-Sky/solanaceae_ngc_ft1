@@ -20,15 +20,16 @@ struct PickerStrategySequential {
 	const BitSet& chunk_candidates;
 	const size_t total_chunks;
 
-	// TODO: optimize sequential and start at first chunk we dont have
 	size_t i {0u};
 
 	PickerStrategySequential(
 		const BitSet& chunk_candidates_,
-		const size_t total_chunks_
+		const size_t total_chunks_,
+		const size_t start_offset_ = 0u
 	) :
 		chunk_candidates(chunk_candidates_),
-		total_chunks(total_chunks_)
+		total_chunks(total_chunks_),
+		i(start_offset_)
 	{}
 
 
@@ -94,10 +95,11 @@ struct PickerStrategyRandomSequential {
 	PickerStrategyRandomSequential(
 		const BitSet& chunk_candidates_,
 		const size_t total_chunks_,
-		std::minstd_rand& rng_
+		std::minstd_rand& rng_,
+		const size_t start_offset_ = 0u
 	) :
 		psr(chunk_candidates_, total_chunks_, rng_),
-		pssf(chunk_candidates_, total_chunks_)
+		pssf(chunk_candidates_, total_chunks_, start_offset_)
 	{}
 
 	bool gen(size_t& out_chunk_idx) {
@@ -271,7 +273,8 @@ std::vector<ChunkPicker::ContentChunkR> ChunkPicker::updateChunkRequests(
 		} else {
 			chunk_candidates.invert();
 		}
-		const auto total_chunks = o.get<Components::FT1InfoSHA1>().chunks.size();
+		const auto& info = o.get<Components::FT1InfoSHA1>();
+		const auto total_chunks = info.chunks.size();
 		auto& requested_chunks = o.get_or_emplace<Components::FT1ChunkSHA1Requested>().chunks;
 
 		// TODO: trim off round up to 8, since they are now always set
@@ -287,9 +290,18 @@ std::vector<ChunkPicker::ContentChunkR> ChunkPicker::updateChunkRequests(
 		//  - arbitrary priority maps/functions (and combine with above in rations)
 
 		// TODO: configurable
-		//PickerStrategySimpleFirst ps(chunk_candidates, total_chunks);
+		size_t start_offset {0u};
+		if (o.all_of<Components::ReadHeadHint>()) {
+			const auto byte_offset = o.get<Components::ReadHeadHint>().offset_into_file;
+			if (byte_offset <= info.file_size) {
+				start_offset = o.get<Components::ReadHeadHint>().offset_into_file/info.chunk_size;
+			} else {
+				// error?
+			}
+		}
+		//PickerStrategySequential ps(chunk_candidates, total_chunks, start_offset);
 		//PickerStrategyRandom ps(chunk_candidates, total_chunks, _rng);
-		PickerStrategyRandomSequential ps(chunk_candidates, total_chunks, _rng);
+		PickerStrategyRandomSequential ps(chunk_candidates, total_chunks, _rng, start_offset);
 		size_t out_chunk_idx {0};
 		while (ps.gen(out_chunk_idx) && req_ret.size() < num_requests) {
 			// out_chunk_idx is a potential candidate we can request form peer
