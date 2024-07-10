@@ -73,11 +73,24 @@ namespace Components {
 		float timer {0.f};
 	};
 
+	struct DownloadPriority {
+		// download/retreival priority in comparison to other objects
+		// not all backends implement this
+		// priority can be weak, meaning low priority dls will still get transfer activity, just less often
+		enum class Priority {
+			HIGHER,
+			HIGH,
+			NORMAL,
+			LOW,
+			LOWER,
+		} p = Priority::NORMAL;
+	};
+
 	struct ReadHeadHint {
 		// points to the first byte we want
 		// this is just a hint, that can be set from outside
 		// to guide the sequential "piece picker" strategy
-		// the strategy *should* set this to the first byte we dont yet have
+		// ? the strategy *should* set this to the first byte we dont yet have
 		uint64_t offset_into_file {0u};
 	};
 

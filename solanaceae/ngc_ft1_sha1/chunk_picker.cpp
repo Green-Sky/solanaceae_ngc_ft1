@@ -146,8 +146,22 @@ void ChunkPicker::updateParticipation(
 			}
 
 			if (!o.get<Components::FT1ChunkSHA1Cache>().have_all) {
-				// TODO: set priority
-				participating_unfinished.emplace(o, ParticipationEntry{});
+				using Priority = Components::DownloadPriority::Priority;
+				Priority prio = Priority::NORMAL;
+
+				if (o.all_of<Components::DownloadPriority>()) {
+					prio = o.get<Components::DownloadPriority>().p;
+				}
+
+				uint16_t pskips =
+					prio == Priority::HIGHER ? 0u :
+					prio == Priority::HIGH ? 1u :
+					prio == Priority::NORMAL ? 2u :
+					prio == Priority::LOW ? 4u :
+					8u
+				;
+
+				participating_unfinished.emplace(o, ParticipationEntry{pskips});
 			}
 		}
 		checked.emplace(o);

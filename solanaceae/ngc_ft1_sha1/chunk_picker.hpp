@@ -38,10 +38,11 @@ struct ChunkPicker {
 	// TODO: handle with hash utils?
 	struct ParticipationEntry {
 		ParticipationEntry(void) {}
+		ParticipationEntry(uint16_t s) : should_skip(s) {}
 		// skips in round robin -> lower should_skip => higher priority
 		// TODO: replace with enum value
 		uint16_t should_skip {2}; // 0 high, 8 low (double each time? 0,1,2,4,8)
-		uint16_t skips {2};
+		uint16_t skips {0};
 	};
 	entt::dense_map<Object, ParticipationEntry> participating_unfinished;
 	Object participating_in_last {entt::null};
