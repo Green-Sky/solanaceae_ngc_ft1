@@ -70,6 +70,7 @@ struct ChunkPicker {
 		ObjectRegistry& objreg,
 		ReceivingTransfers& rt,
 		const size_t open_requests
+		//const size_t flow_window
 		//NGCFT1& nft
 	);
 };

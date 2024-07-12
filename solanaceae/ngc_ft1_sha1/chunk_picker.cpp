@@ -111,6 +111,16 @@ struct PickerStrategyRandomSequential {
 	}
 };
 
+// TODO: return bytes instead, so it can be done chunk size independent
+static constexpr size_t flowWindowToRequestCount(size_t flow_window) {
+	// based on 500KiB/s with ~0.05s delay looks fine
+	// increase to 4 at wnd >= 25*1024
+	if (flow_window >= 25*1024) {
+		return 4u;
+	}
+	return 3u;
+}
+
 void ChunkPicker::updateParticipation(
 	Contact3Handle c,
 	ObjectRegistry& objreg
@@ -188,6 +198,7 @@ std::vector<ChunkPicker::ContentChunkR> ChunkPicker::updateChunkRequests(
 	ObjectRegistry& objreg,
 	ReceivingTransfers& rt,
 	const size_t open_requests
+	//const size_t flow_window
 	//NGCFT1& nft
 ) {
 	if (!static_cast<bool>(c)) {
@@ -212,8 +223,12 @@ std::vector<ChunkPicker::ContentChunkR> ChunkPicker::updateChunkRequests(
 	const size_t num_ongoing_transfers = rt.sizePeer(group_number, peer_number);
 	// TODO: account for open requests
 	const int64_t num_total = num_ongoing_transfers + open_requests;
+
 	// TODO: base max on rate(chunks per sec), gonna be ass with variable chunk size
-	const size_t num_requests = std::max<int64_t>(0, int64_t(max_tf_chunk_requests)-num_total);
+	//const size_t num_max = std::max(max_tf_chunk_requests, flowWindowToRequestCount(flow_window));
+	const size_t num_max = max_tf_chunk_requests;
+
+	const size_t num_requests = std::max<int64_t>(0, int64_t(num_max)-num_total);
 	std::cerr << "CP: want " << num_requests << "(rt:" << num_ongoing_transfers << " or:" << open_requests << ") from " << group_number << ":" << peer_number << "\n";
 
 	// while n < X
