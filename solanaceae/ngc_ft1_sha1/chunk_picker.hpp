@@ -30,7 +30,7 @@ struct ChunkPickerTimer {
 struct ChunkPicker {
 	// max transfers
 	static constexpr size_t max_tf_info_requests {1};
-	static constexpr size_t max_tf_chunk_requests {3}; // TODO: dynamic, function/factor of (window(delay*speed)/chunksize)
+	static constexpr size_t max_tf_chunk_requests {4}; // TODO: dynamic, function/factor of (window(delay*speed)/chunksize)
 
 	// TODO: cheaper init? tls rng for deep seeding?
 	std::minstd_rand _rng{std::random_device{}()};

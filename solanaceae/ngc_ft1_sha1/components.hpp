@@ -7,11 +7,13 @@
 #include <solanaceae/util/bitset.hpp>
 
 #include <entt/container/dense_set.hpp>
+#include <entt/container/dense_map.hpp>
 
 #include "./ft1_sha1_info.hpp"
 #include "./hash_utils.hpp"
 
 #include <vector>
+#include <deque>
 
 
 // TODO: rename to object components
@@ -92,6 +94,35 @@ namespace Components {
 		// to guide the sequential "piece picker" strategy
 		// ? the strategy *should* set this to the first byte we dont yet have
 		uint64_t offset_into_file {0u};
+	};
+
+	// this is per object/content
+	// more aplicable than "separated", so should be supported by most backends
+	struct TransferStats {
+		// in bytes per second
+		float rate_up {0.f};
+		float rate_down {0.f};
+
+		// bytes
+		uint64_t total_up {0u};
+		uint64_t total_down {0u};
+	};
+
+	struct TransferStatsSeparated {
+		entt::dense_map<Contact3, TransferStats> stats;
+	};
+
+	// used to populate stats
+	struct TransferStatsTally {
+		struct Peer {
+			struct Entry {
+				float time_since {0.f};
+				size_t bytes {0u};
+			};
+			std::deque<Entry> recently_sent;
+			std::deque<Entry> recently_received;
+		};
+		entt::dense_map<Contact3, Peer> tally;
 	};
 
 } // Components
