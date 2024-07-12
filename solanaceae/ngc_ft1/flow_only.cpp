@@ -30,6 +30,7 @@ void FlowOnly::updateWindow(void) {
 }
 
 void FlowOnly::updateCongestion(void) {
+	updateWindow();
 	const auto tmp_window = getWindow();
 	// packet window * 0.3
 	// but atleast 4
@@ -57,8 +58,7 @@ void FlowOnly::updateCongestion(void) {
 	}
 }
 
-float FlowOnly::getWindow(void) {
-	updateWindow();
+float FlowOnly::getWindow(void) const {
 	return _fwnd;
 }
 
@@ -102,11 +102,18 @@ int64_t FlowOnly::inFlightCount(void) const {
 	return _in_flight.size();
 }
 
+int64_t FlowOnly::inFlightBytes(void) const {
+	return _in_flight_bytes;
+}
+
 void FlowOnly::onSent(SeqIDType seq, size_t data_size) {
 	if constexpr (true) {
+		size_t sum {0u};
 		for (const auto& it : _in_flight) {
 			assert(it.id != seq);
+			sum += it.bytes;
 		}
+		assert(_in_flight_bytes == sum);
 	}
 
 	const auto& new_entry = _in_flight.emplace_back(

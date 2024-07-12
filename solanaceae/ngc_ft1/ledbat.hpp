@@ -53,7 +53,7 @@ struct LEDBAT : public CCAI {
 
 		// return the current believed window in bytes of how much data can be inflight,
 		// without overstepping the delay requirement
-		float getWindow(void) override {
+		float getWindow(void) const override {
 			return _cwnd;
 		}
 

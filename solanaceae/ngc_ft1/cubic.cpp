@@ -76,7 +76,7 @@ void CUBIC::onCongestion(void) {
 	}
 }
 
-float CUBIC::getWindow(void) {
+float CUBIC::getWindow(void) const {
 	return std::min<float>(getCWnD(), FlowOnly::getWindow());
 }
 

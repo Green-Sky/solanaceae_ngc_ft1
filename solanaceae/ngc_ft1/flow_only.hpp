@@ -4,7 +4,6 @@
 
 #include <chrono>
 #include <vector>
-#include <tuple>
 
 struct FlowOnly : public CCAI {
 	protected:
@@ -52,7 +51,8 @@ struct FlowOnly : public CCAI {
 		// VERY sensitive to bundling acks
 		float getCurrentDelay(void) const override;
 
-		float getWindow(void) override;
+		// call updateWindow() to update this value
+		float getWindow(void) const override;
 
 		void addRTT(float new_delay);
 
@@ -76,6 +76,7 @@ struct FlowOnly : public CCAI {
 		std::vector<SeqIDType> getTimeouts(void) const override;
 
 		int64_t inFlightCount(void) const override;
+		int64_t inFlightBytes(void) const override;
 
 	public: // callbacks
 		// data size is without overhead

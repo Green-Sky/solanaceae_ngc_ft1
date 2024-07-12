@@ -205,6 +205,8 @@ class NGCFT1 : public ToxEventI, public NGCEXTEventI, public NGCFT1EventProvider
 		void updateSendTransfer(float time_delta, uint32_t group_number, uint32_t peer_number, Group::Peer& peer, size_t idx, std::set<CCAI::SeqIDType>& timeouts_set, int64_t& can_packet_size);
 		void iteratePeer(float time_delta, uint32_t group_number, uint32_t peer_number, Group::Peer& peer);
 
+		const CCAI* getPeerCCA(uint32_t group_number, uint32_t peer_number) const;
+
 	public:
 		NGCFT1(
 			ToxI& t,
@@ -215,7 +217,6 @@ class NGCFT1 : public ToxEventI, public NGCEXTEventI, public NGCFT1EventProvider
 		float iterate(float delta);
 
 	public: // ft1 api
-		// TODO: public variant?
 		void NGC_FT1_send_request_private(
 			uint32_t group_number, uint32_t peer_number,
 			uint32_t file_kind,
@@ -238,6 +239,23 @@ class NGCFT1 : public ToxEventI, public NGCEXTEventI, public NGCFT1EventProvider
 			uint32_t file_kind,
 			const uint8_t* file_id, size_t file_id_size
 		);
+
+	public: // cca stuff
+		// rtt/delay
+		// negative on error or no cca
+		float getPeerDelay(uint32_t group_number, uint32_t peer_number) const;
+
+		// belived possible current window
+		// negative on error or no cca
+		float getPeerWindow(uint32_t group_number, uint32_t peer_number) const;
+
+		// packets in flight
+		// returns -1 if error or no cca
+		int64_t getPeerInFlightPackets(uint32_t group_number, uint32_t peer_number) const;
+
+		// actual bytes in flight (aka window)
+		// returns -1 if error or no cca
+		int64_t getPeerInFlightBytes(uint32_t group_number, uint32_t peer_number) const;
 
 	protected:
 		bool onEvent(const Events::NGCEXT_ft1_request&) override;

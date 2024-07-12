@@ -211,6 +211,8 @@ SHA1_NGCFT1::SHA1_NGCFT1(
 {
 	// TODO: also create and destroy
 	_rmm.subscribe(this, RegistryMessageModel_Event::message_updated);
+	//_rmm.subscribe(this, RegistryMessageModel_Event::message_construct);
+	//_rmm.subscribe(this, RegistryMessageModel_Event::message_destroy);
 
 	_nft.subscribe(this, NGCFT1_Event::recv_request);
 	_nft.subscribe(this, NGCFT1_Event::recv_init);
@@ -219,10 +221,6 @@ SHA1_NGCFT1::SHA1_NGCFT1(
 	_nft.subscribe(this, NGCFT1_Event::recv_done);
 	_nft.subscribe(this, NGCFT1_Event::send_done);
 	_nft.subscribe(this, NGCFT1_Event::recv_message);
-
-	//_rmm.subscribe(this, RegistryMessageModel_Event::message_construct);
-	//_rmm.subscribe(this, RegistryMessageModel_Event::message_updated);
-	//_rmm.subscribe(this, RegistryMessageModel_Event::message_destroy);
 
 	_rmm.subscribe(this, RegistryMessageModel_Event::send_file_path);
 

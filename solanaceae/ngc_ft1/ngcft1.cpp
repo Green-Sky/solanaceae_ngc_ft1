@@ -201,6 +201,29 @@ void NGCFT1::iteratePeer(float time_delta, uint32_t group_number, uint32_t peer_
 	// TODO: receiving tranfers?
 }
 
+const CCAI* NGCFT1::getPeerCCA(
+	uint32_t group_number,
+	uint32_t peer_number
+) const {
+	auto group_it = groups.find(group_number);
+	if (group_it == groups.end()) {
+		return nullptr;;
+	}
+
+	auto peer_it = group_it->second.peers.find(peer_number);
+	if (peer_it == group_it->second.peers.end()) {
+		return nullptr;;
+	}
+
+	const auto& cca_ptr = peer_it->second.cca;
+
+	if (!cca_ptr) {
+		return nullptr;;
+	}
+
+	return cca_ptr.get();
+}
+
 NGCFT1::NGCFT1(
 	ToxI& t,
 	ToxEventProviderI& tep,
@@ -335,6 +358,52 @@ bool NGCFT1::NGC_FT1_send_message_public(
 
 	// TODO: check return value
 	return _neep.send_all_ft1_message(group_number, message_id, file_kind, file_id, file_id_size);
+}
+
+float NGCFT1::getPeerDelay(uint32_t group_number, uint32_t peer_number) const {
+	auto* cca_ptr = getPeerCCA(group_number, peer_number);
+
+	if (cca_ptr == nullptr) {
+		return -1.f;
+	}
+
+	return cca_ptr->getCurrentDelay();
+}
+
+float NGCFT1::getPeerWindow(uint32_t group_number, uint32_t peer_number) const {
+	auto* cca_ptr = getPeerCCA(group_number, peer_number);
+
+	if (cca_ptr == nullptr) {
+		return -1.f;
+	}
+
+	return cca_ptr->getWindow();
+}
+
+int64_t NGCFT1::getPeerInFlightPackets(
+	uint32_t group_number,
+	uint32_t peer_number
+) const {
+	auto* cca_ptr = getPeerCCA(group_number, peer_number);
+
+	if (cca_ptr == nullptr) {
+		return -1;
+	}
+
+	return cca_ptr->inFlightCount();
+}
+
+int64_t NGCFT1::getPeerInFlightBytes(
+	uint32_t group_number,
+	uint32_t peer_number
+) const {
+	auto* cca_ptr = getPeerCCA(group_number, peer_number);
+
+	if (cca_ptr == nullptr) {
+		return -1;
+	}
+
+	return cca_ptr->inFlightCount();
 }
 
 bool NGCFT1::onEvent(const Events::NGCEXT_ft1_request& e) {
