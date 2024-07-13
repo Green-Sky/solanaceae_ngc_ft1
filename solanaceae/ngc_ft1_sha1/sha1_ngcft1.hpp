@@ -11,6 +11,7 @@
 #include <solanaceae/ngc_ft1/ngcft1.hpp>
 
 #include "./ft1_sha1_info.hpp"
+#include "./sending_transfers.hpp"
 #include "./receiving_transfers.hpp"
 
 #include <entt/entity/registry.hpp>
@@ -54,28 +55,7 @@ class SHA1_NGCFT1 : public ToxEventI, public RegistryMessageModelEventI, public 
 	//void queueUpRequestInfo(uint32_t group_number, uint32_t peer_number, const SHA1Digest& hash);
 	void queueUpRequestChunk(uint32_t group_number, uint32_t peer_number, ObjectHandle content, const SHA1Digest& hash);
 
-	struct SendingTransfer {
-		struct Info {
-			// copy of info data
-			// too large?
-			std::vector<uint8_t> info_data;
-		};
-
-		struct Chunk {
-			ObjectHandle content;
-			size_t chunk_index; // <.< remove offset_into_file
-			//uint64_t offset_into_file;
-			// or data?
-			// if memmapped, this would be just a pointer
-		};
-
-		std::variant<Info, Chunk> v;
-
-		float time_since_activity {0.f};
-	};
-	// key is groupid + peerid
-	entt::dense_map<uint64_t, entt::dense_map<uint8_t, SendingTransfer>> _sending_transfers;
-
+	SendingTransfers _sending_transfers;
 	ReceivingTransfers _receiving_transfers;
 
 	// makes request rotate around open content
@@ -87,7 +67,7 @@ class SHA1_NGCFT1 : public ToxEventI, public RegistryMessageModelEventI, public 
 	};
 	std::deque<QBitsetEntry> _queue_send_bitset;
 
-	// workaround missing contact events
+	// FIXME: workaround missing contact events
 	// only used to remove participation on peer exit
 	entt::dense_map<uint64_t, Contact3Handle> _tox_peer_to_contact;
 

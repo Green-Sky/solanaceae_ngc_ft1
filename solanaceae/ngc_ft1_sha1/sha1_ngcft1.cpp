@@ -48,7 +48,7 @@ static size_t chunkSize(const FT1InfoSHA1& sha1_info, size_t chunk_index) {
 	}
 }
 
-void SHA1_NGCFT1::queueUpRequestChunk(uint32_t group_number, uint32_t peer_number, ObjectHandle content, const SHA1Digest& hash) {
+void SHA1_NGCFT1::queueUpRequestChunk(uint32_t group_number, uint32_t peer_number, ObjectHandle obj, const SHA1Digest& hash) {
 	for (auto& [i_g, i_p, i_o, i_h, i_t] : _queue_requested_chunk) {
 		// if already in queue
 		if (i_g == group_number && i_p == peer_number && i_h == hash) {
@@ -59,33 +59,17 @@ void SHA1_NGCFT1::queueUpRequestChunk(uint32_t group_number, uint32_t peer_numbe
 	}
 
 	// check for running transfer
-	if (_sending_transfers.count(combine_ids(group_number, peer_number))) {
-		for (const auto& [_, transfer] : _sending_transfers.at(combine_ids(group_number, peer_number))) {
-			if (std::holds_alternative<SendingTransfer::Info>(transfer.v)) {
-				// ignore info
-				continue;
-			}
-
-			const auto& t_c = std::get<SendingTransfer::Chunk>(transfer.v);
-
-			if (content != t_c.content) {
-				// ignore different content
-				continue;
-			}
-
-			auto chunk_idx_vec = content.get<Components::FT1ChunkSHA1Cache>().chunkIndices(hash);
-
-			for (size_t idx : chunk_idx_vec) {
-				if (idx == t_c.chunk_index) {
-					// already sending
-					return; // skip
-				}
-			}
+	auto chunk_idx_vec = obj.get<Components::FT1ChunkSHA1Cache>().chunkIndices(hash);
+	// list is 1 entry in 99% of cases
+	for (const size_t chunk_idx : chunk_idx_vec) {
+		if (_sending_transfers.containsPeerChunk(group_number, peer_number, obj, chunk_idx)) {
+			// already sending
+			return; // skip
 		}
 	}
 
 	// not in queue yet
-	_queue_requested_chunk.push_back(std::make_tuple(group_number, peer_number, content, hash, 0.f));
+	_queue_requested_chunk.push_back(std::make_tuple(group_number, peer_number, obj, hash, 0.f));
 }
 
 void SHA1_NGCFT1::updateMessages(ObjectHandle ce) {
@@ -253,28 +237,7 @@ float SHA1_NGCFT1::iterate(float delta) {
 
 	{ // timers
 		// sending transfers
-		for (auto peer_it = _sending_transfers.begin(); peer_it != _sending_transfers.end();) {
-			for (auto it = peer_it->second.begin(); it != peer_it->second.end();) {
-				it->second.time_since_activity += delta;
-
-				// if we have not heard for 2min, timeout (lower level event on real timeout)
-				// TODO: do we really need this if we get events?
-				if (it->second.time_since_activity >= 120.f) {
-					std::cerr << "SHA1_NGCFT1 warning: sending tansfer timed out " << "." << int(it->first) << "\n";
-					assert(false);
-					it = peer_it->second.erase(it);
-				} else {
-					it++;
-				}
-			}
-
-			if (peer_it->second.empty()) {
-				// cleanup unused peers too agressive?
-				peer_it = _sending_transfers.erase(peer_it);
-			} else {
-				peer_it++;
-			}
-		}
+		_sending_transfers.tick(delta);
 
 		// receiving transfers
 		_receiving_transfers.tick(delta);
@@ -378,10 +341,7 @@ float SHA1_NGCFT1::iterate(float delta) {
 
 	// if we have not reached the total cap for transfers
 	// count running transfers
-	size_t running_sending_transfer_count {0};
-	for (const auto& [_, transfers] : _sending_transfers) {
-		running_sending_transfer_count += transfers.size();
-	}
+	size_t running_sending_transfer_count {_sending_transfers.size()};
 	size_t running_receiving_transfer_count {_receiving_transfers.size()};
 
 	if (running_sending_transfer_count < _max_concurrent_out) {
@@ -394,21 +354,7 @@ float SHA1_NGCFT1::iterate(float delta) {
 			if (!chunk_idx_vec.empty()) {
 
 				// check if already sending
-				bool already_sending_to_this_peer = false;
-				if (_sending_transfers.count(combine_ids(group_number, peer_number))) {
-					for (const auto& [_2, t] : _sending_transfers.at(combine_ids(group_number, peer_number))) {
-						if (std::holds_alternative<SendingTransfer::Chunk>(t.v)) {
-							const auto& v = std::get<SendingTransfer::Chunk>(t.v);
-							if (v.content == ce && v.chunk_index == chunk_idx_vec.front()) {
-								// already sending
-								already_sending_to_this_peer = true;
-								break;
-							}
-						}
-					}
-				}
-
-				if (!already_sending_to_this_peer) {
+				if (!_sending_transfers.containsPeerChunk(group_number, peer_number, ce, chunk_idx_vec.front())) {
 					const auto& info = ce.get<Components::FT1InfoSHA1>();
 
 					uint8_t transfer_id {0};
@@ -419,10 +365,14 @@ float SHA1_NGCFT1::iterate(float delta) {
 						chunkSize(info, chunk_idx_vec.front()),
 						&transfer_id
 					)) {
-						_sending_transfers
-							[combine_ids(group_number, peer_number)]
-							[transfer_id] // TODO: also save index?
-								.v = SendingTransfer::Chunk{ce, chunk_idx_vec.front()};
+						_sending_transfers.emplaceChunk(
+							group_number, peer_number,
+							transfer_id,
+							SendingTransfers::Entry::Chunk{
+								ce,
+								chunk_idx_vec.front()
+							}
+						);
 					}
 				} // else just remove from queue
 			}
@@ -649,9 +599,9 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCFT1_recv_request& e) {
 			return false;
 		}
 
-		auto content = _info_to_content.at(info_hash);
+		auto o = _info_to_content.at(info_hash);
 
-		if (!content.all_of<Components::FT1InfoSHA1Data>()) {
+		if (!o.all_of<Components::FT1InfoSHA1Data>()) {
 			// we dont have the info for that infohash (yet?)
 			return false;
 		}
@@ -663,14 +613,17 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCFT1_recv_request& e) {
 			e.group_number, e.peer_number,
 			static_cast<uint32_t>(e.file_kind),
 			e.file_id, e.file_id_size,
-			content.get<Components::FT1InfoSHA1Data>().data.size(),
+			o.get<Components::FT1InfoSHA1Data>().data.size(),
 			&transfer_id
 		);
 
-		_sending_transfers
-			[combine_ids(e.group_number, e.peer_number)]
-			[transfer_id]
-				.v = SendingTransfer::Info{content.get<Components::FT1InfoSHA1Data>().data};
+		_sending_transfers.emplaceInfo(
+			e.group_number, e.peer_number,
+			transfer_id,
+			SendingTransfers::Entry::Info{
+				o.get<Components::FT1InfoSHA1Data>().data
+			}
+		);
 
 		const auto c = _tcm.getContactGroupPeer(e.group_number, e.peer_number);
 		_tox_peer_to_contact[combine_ids(e.group_number, e.peer_number)] = c; // workaround
@@ -872,30 +825,20 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCFT1_recv_data& e) {
 }
 
 bool SHA1_NGCFT1::onEvent(const Events::NGCFT1_send_data& e) {
-	if (!_sending_transfers.count(combine_ids(e.group_number, e.peer_number))) {
+	if (!_sending_transfers.containsPeerTransfer(e.group_number, e.peer_number, e.transfer_id)) {
 		return false;
 	}
 
-	auto& peer = _sending_transfers.at(combine_ids(e.group_number, e.peer_number));
-
-	if (!peer.count(e.transfer_id)) {
-		return false;
-	}
-
-	auto& transfer = peer.at(e.transfer_id);
+	auto& transfer = _sending_transfers.getTransfer(e.group_number, e.peer_number, e.transfer_id);
 	transfer.time_since_activity = 0.f;
-	if (std::holds_alternative<SendingTransfer::Info>(transfer.v)) {
-		auto& info_transfer = std::get<SendingTransfer::Info>(transfer.v);
+
+	if (transfer.isInfo()) {
+		auto& info_transfer = transfer.getInfo();
 		for (size_t i = 0; i < e.data_size && (i + e.data_offset) < info_transfer.info_data.size(); i++) {
 			e.data[i] = info_transfer.info_data[i + e.data_offset];
 		}
-
-		if (e.data_offset + e.data_size >= info_transfer.info_data.size()) {
-			// was last read (probably TODO: add transfer destruction event)
-			peer.erase(e.transfer_id);
-		}
-	} else if (std::holds_alternative<SendingTransfer::Chunk>(transfer.v)) {
-		auto& chunk_transfer = std::get<SendingTransfer::Chunk>(transfer.v);
+	} else if (transfer.isChunk()) {
+		auto& chunk_transfer = transfer.getChunk();
 		const auto& info = chunk_transfer.content.get<Components::FT1InfoSHA1>();
 		// TODO: should we really use file?
 		const auto data = chunk_transfer.content.get<Message::Components::Transfer::File>()->read(
@@ -911,11 +854,6 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCFT1_send_data& e) {
 		chunk_transfer.content.get_or_emplace<Message::Components::Transfer::BytesSent>().total += data.size;
 		// TODO: add event to propergate to messages
 		//_rmm.throwEventUpdate(transfer); // should we?
-
-		//if (e.data_offset + e.data_size >= *insert chunk size here*) {
-			//// was last read (probably TODO: add transfer destruction event)
-			//peer.erase(e.transfer_id);
-		//}
 
 		auto c = _tcm.getContactGroupPeer(e.group_number, e.peer_number);
 		if (static_cast<bool>(c)) {
@@ -1102,20 +1040,17 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCFT1_recv_done& e) {
 }
 
 bool SHA1_NGCFT1::onEvent(const Events::NGCFT1_send_done& e) {
-	if (!_sending_transfers.count(combine_ids(e.group_number, e.peer_number))) {
+	if (!_sending_transfers.containsPeerTransfer(e.group_number, e.peer_number, e.transfer_id)) {
 		return false;
 	}
 
-	auto& peer_transfers = _sending_transfers.at(combine_ids(e.group_number, e.peer_number));
-	if (!peer_transfers.count(e.transfer_id)) {
-		return false;
+	auto& transfer = _sending_transfers.getTransfer(e.group_number, e.peer_number, e.transfer_id);
+
+	if (transfer.isChunk()) {
+		updateMessages(transfer.getChunk().content); // mostly for sent bytes
 	}
 
-	const auto& tv = peer_transfers[e.transfer_id].v;
-	if (std::holds_alternative<SendingTransfer::Chunk>(tv)) {
-		updateMessages(std::get<SendingTransfer::Chunk>(tv).content); // mostly for sent bytes
-	}
-	peer_transfers.erase(e.transfer_id);
+	_sending_transfers.removePeerTransfer(e.group_number, e.peer_number, e.transfer_id);
 
 	return true;
 }
