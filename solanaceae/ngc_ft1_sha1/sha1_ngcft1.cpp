@@ -23,6 +23,8 @@
 #include "./chunk_picker.hpp"
 #include "./participation.hpp"
 
+#include "./transfer_stats_systems.hpp"
+
 #include <iostream>
 #include <variant>
 #include <filesystem>
@@ -567,6 +569,9 @@ float SHA1_NGCFT1::iterate(float delta) {
 		}
 	}
 
+	// transfer statistics systems
+	Systems::transfer_tally_update(_os.registry(), getTimeNow());
+
 	if (_peer_open_requests.empty()) {
 		return 2.f;
 	} else {
@@ -938,6 +943,20 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCFT1_recv_data& e) {
 				std::cerr << "SHA1_NGCFT1 error: writing file failed o:" << offset_into_file + e.data_offset << "\n";
 			}
 		}
+
+		auto c = _tcm.getContactGroupPeer(e.group_number, e.peer_number);
+		if (static_cast<bool>(c)) {
+			o.get_or_emplace<Components::TransferStatsTally>()
+				.tally[c]
+				.recently_received
+				.push_back(
+					Components::TransferStatsTally::Peer::Entry{
+						float(getTimeNow()),
+						e.data_size
+					}
+				)
+			;
+		}
 	} else {
 		assert(false && "unhandled case");
 	}
@@ -990,6 +1009,20 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCFT1_send_data& e) {
 			//// was last read (probably TODO: add transfer destruction event)
 			//peer.erase(e.transfer_id);
 		//}
+
+		auto c = _tcm.getContactGroupPeer(e.group_number, e.peer_number);
+		if (static_cast<bool>(c)) {
+			chunk_transfer.content.get_or_emplace<Components::TransferStatsTally>()
+				.tally[c]
+				.recently_sent
+				.push_back(
+					Components::TransferStatsTally::Peer::Entry{
+						float(getTimeNow()),
+						data.size
+					}
+				)
+			;
+		}
 	} else {
 		assert(false && "not implemented?");
 	}

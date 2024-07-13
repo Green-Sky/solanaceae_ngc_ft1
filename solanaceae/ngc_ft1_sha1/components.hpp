@@ -116,11 +116,17 @@ namespace Components {
 	struct TransferStatsTally {
 		struct Peer {
 			struct Entry {
-				float time_since {0.f};
+				float time_point {0.f};
 				size_t bytes {0u};
+				bool accounted {false};
 			};
 			std::deque<Entry> recently_sent;
 			std::deque<Entry> recently_received;
+
+			// keep atleast 4 or 1sec
+			// trim too old front
+			void trimSent(const float time_now);
+			void trimReceived(const float time_now);
 		};
 		entt::dense_map<Contact3, Peer> tally;
 	};

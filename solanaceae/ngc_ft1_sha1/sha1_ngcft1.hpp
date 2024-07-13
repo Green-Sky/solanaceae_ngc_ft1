@@ -35,6 +35,12 @@ class SHA1_NGCFT1 : public ToxEventI, public RegistryMessageModelEventI, public 
 
 	std::minstd_rand _rng {1337*11};
 
+	using clock = std::chrono::steady_clock;
+	clock::time_point _time_start_offset {clock::now()};
+	float getTimeNow(void) const {
+		return std::chrono::duration<float>{clock::now() - _time_start_offset}.count();
+	}
+
 	// limit this to each group?
 	entt::dense_map<SHA1Digest, ObjectHandle> _info_to_content;
 
