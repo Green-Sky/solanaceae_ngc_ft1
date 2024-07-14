@@ -23,6 +23,7 @@
 #include "./chunk_picker.hpp"
 #include "./participation.hpp"
 
+#include "./re_announce_systems.hpp"
 #include "./chunk_picker_systems.hpp"
 #include "./transfer_stats_systems.hpp"
 
@@ -289,6 +290,8 @@ float SHA1_NGCFT1::iterate(float delta) {
 		}
 	}
 
+	Systems::re_announce(_os.registry(), _cr, _neep, delta);
+
 	{ // send out bitsets
 		// currently 1 per tick
 		if (!_queue_send_bitset.empty()) {
@@ -531,33 +534,21 @@ bool SHA1_NGCFT1::onEvent(const Message::Events::MessageUpdated& e) {
 
 	ce.emplace<Message::Components::Transfer::File>(std::move(file_impl));
 
-	// announce we are participating
+	// queue announce we are participating
 	// since this is the first time, we publicly announce to all
 	if (e.e.all_of<Message::Components::ContactFrom, Message::Components::ContactTo>()) {
 		const auto c_f = e.e.get<Message::Components::ContactFrom>().c;
 		const auto c_t = e.e.get<Message::Components::ContactTo>().c;
 
-		std::vector<uint8_t> announce_id;
-		const uint32_t file_kind = static_cast<uint32_t>(NGCFT1_file_kind::HASH_SHA1_INFO);
-		for (size_t i = 0; i < sizeof(file_kind); i++) {
-			announce_id.push_back((file_kind>>(i*8)) & 0xff);
-		}
-		assert(ce.all_of<Components::FT1InfoSHA1Hash>());
-		const auto& info_hash = ce.get<Components::FT1InfoSHA1Hash>().hash;
-		announce_id.insert(announce_id.cend(), info_hash.cbegin(), info_hash.cend());
-
 		if (_cr.all_of<Contact::Components::ToxGroupEphemeral>(c_t)) {
 			// public
-			const auto group_number = _cr.get<Contact::Components::ToxGroupEphemeral>(c_t).group_number;
-
-			_neep.send_all_pc1_announce(group_number, announce_id.data(), announce_id.size());
+			ce.get_or_emplace<Components::AnnounceTargets>().targets.emplace(c_t);
 		} else if (_cr.all_of<Contact::Components::ToxGroupPeerEphemeral>(c_f)) {
 			// private ?
-			const auto [group_number, peer_number] = _cr.get<Contact::Components::ToxGroupPeerEphemeral>(c_f);
-
-			_neep.send_pc1_announce(group_number, peer_number, announce_id.data(), announce_id.size());
+			ce.get_or_emplace<Components::AnnounceTargets>().targets.emplace(c_f);
 		}
 	}
+	ce.get_or_emplace<Components::ReAnnounceTimer>(0.1f, 60.f*(_rng()%5120) / 1024.f).timer = (_rng()%512) / 1024.f;
 
 	ce.remove<Message::Components::Transfer::TagPaused>();
 

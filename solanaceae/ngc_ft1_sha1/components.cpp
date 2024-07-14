@@ -25,6 +25,25 @@ bool FT1ChunkSHA1Cache::haveChunk(const SHA1Digest& hash) const {
 	return false;
 }
 
+void ReAnnounceTimer::set(const float new_timer) {
+	timer = new_timer;
+	last_max = new_timer;
+}
+
+void ReAnnounceTimer::reset(void) {
+	if (last_max <= 0.01f) {
+		last_max = 1.f;
+	}
+
+	last_max *= 2.f;
+	timer = last_max;
+}
+
+void ReAnnounceTimer::lower(void) {
+	timer *= 0.1f;
+	last_max *= 0.1f;
+}
+
 void TransferStatsTally::Peer::trimSent(const float time_now) {
 	while (recently_sent.size() > 4 && time_now - recently_sent.front().time_point > 1.f) {
 		recently_sent.pop_front();

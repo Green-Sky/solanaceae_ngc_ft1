@@ -75,6 +75,23 @@ namespace Components {
 		float timer {0.f};
 	};
 
+	struct AnnounceTargets {
+		entt::dense_set<Contact3> targets;
+	};
+
+	struct ReAnnounceTimer {
+		float timer {0.f};
+		float last_max {0.f};
+
+		void set(const float new_timer);
+
+		// exponential back-off
+		void reset(void);
+
+		// on peer join to group
+		void lower(void);
+	};
+
 	struct DownloadPriority {
 		// download/retreival priority in comparison to other objects
 		// not all backends implement this
