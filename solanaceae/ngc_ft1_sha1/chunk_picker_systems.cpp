@@ -38,7 +38,7 @@ void chunk_picker_updates(
 
 		//std::cout << "cput :)\n";
 
-		if (!c.any_of<Contact::Components::ToxGroupPeerEphemeral, Contact::Components::FT1Participation>()) {
+		if (!c.all_of<Contact::Components::ToxGroupPeerEphemeral, Contact::Components::FT1Participation>()) {
 			std::cout << "cput uh nuh :(\n";
 			cp_to_remove.push_back(c);
 			return;

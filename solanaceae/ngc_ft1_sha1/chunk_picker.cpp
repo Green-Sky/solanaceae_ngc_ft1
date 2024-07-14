@@ -256,7 +256,7 @@ std::vector<ChunkPicker::ContentChunkR> ChunkPicker::updateChunkRequests(
 
 		// intersect self have with other have
 		if (!o.all_of<Components::RemoteHave, Components::FT1ChunkSHA1Cache, Components::FT1InfoSHA1>()) {
-			// rare case where no one other has anything
+			// rare case where no one else has anything
 			continue;
 		}
 
@@ -309,7 +309,7 @@ std::vector<ChunkPicker::ContentChunkR> ChunkPicker::updateChunkRequests(
 		if (o.all_of<Components::ReadHeadHint>()) {
 			const auto byte_offset = o.get<Components::ReadHeadHint>().offset_into_file;
 			if (byte_offset <= info.file_size) {
-				start_offset = o.get<Components::ReadHeadHint>().offset_into_file/info.chunk_size;
+				start_offset = byte_offset/info.chunk_size;
 			} else {
 				// error?
 			}
