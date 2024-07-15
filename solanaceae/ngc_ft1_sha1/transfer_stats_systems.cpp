@@ -18,58 +18,62 @@ void transfer_tally_update(ObjectRegistry& os_reg, const float time_now) {
 			// if newest older than 2sec
 			//   discard
 
-			if (!peer.recently_sent.empty() && time_now - peer.recently_sent.back().time_point >= 2.f) {
-				// clean up stale
-				auto peer_in_stats_it = tss.find(peer_c);
-				if (peer_in_stats_it != tss.end()) {
-					peer_in_stats_it->second.rate_up = 0.f;
-				}
-
-				peer.recently_sent.clear();
-				if (peer.recently_received.empty()) {
-					to_remove.push_back(peer_c);
-				}
-			} else {
-				// else trim too old front
-				peer.trimSent(time_now);
-
-				size_t tally_bytes {0u};
-				for (auto& [time, bytes, accounted] : peer.recently_sent) {
-					if (!accounted) {
-						tss[peer_c].total_up += bytes;
-						accounted = true;
+			if (!peer.recently_sent.empty()) {
+				if (time_now - peer.recently_sent.back().time_point >= 2.f) {
+					// clean up stale
+					auto peer_in_stats_it = tss.find(peer_c);
+					if (peer_in_stats_it != tss.end()) {
+						peer_in_stats_it->second.rate_up = 0.f;
 					}
-					tally_bytes += bytes;
-				}
 
-				tss[peer_c].rate_up = tally_bytes / (time_now - peer.recently_sent.front().time_point + 0.00001f);
+					peer.recently_sent.clear();
+					if (peer.recently_received.empty()) {
+						to_remove.push_back(peer_c);
+					}
+				} else {
+					// else trim too old front
+					peer.trimSent(time_now);
+
+					size_t tally_bytes {0u};
+					for (auto& [time, bytes, accounted] : peer.recently_sent) {
+						if (!accounted) {
+							tss[peer_c].total_up += bytes;
+							accounted = true;
+						}
+						tally_bytes += bytes;
+					}
+
+					tss[peer_c].rate_up = tally_bytes / (time_now - peer.recently_sent.front().time_point + 0.00001f);
+				}
 			}
 
-			if (!peer.recently_received.empty() && time_now - peer.recently_received.back().time_point >= 2.f) {
-				// clean up stale
-				auto peer_in_stats_it = tss.find(peer_c);
-				if (peer_in_stats_it != tss.end()) {
-					peer_in_stats_it->second.rate_down = 0.f;
-				}
-
-				peer.recently_received.clear();
-				if (peer.recently_sent.empty()) {
-					to_remove.push_back(peer_c);
-				}
-			} else {
-				// else trim too old front
-				peer.trimReceived(time_now);
-
-				size_t tally_bytes {0u};
-				for (auto& [time, bytes, accounted] : peer.recently_received) {
-					if (!accounted) {
-						tss[peer_c].total_down += bytes;
-						accounted = true;
+			if (!peer.recently_received.empty()) {
+				if (time_now - peer.recently_received.back().time_point >= 2.f) {
+					// clean up stale
+					auto peer_in_stats_it = tss.find(peer_c);
+					if (peer_in_stats_it != tss.end()) {
+						peer_in_stats_it->second.rate_down = 0.f;
 					}
-					tally_bytes += bytes;
-				}
 
-				tss[peer_c].rate_down = tally_bytes / (time_now - peer.recently_received.front().time_point + 0.00001f);
+					peer.recently_received.clear();
+					if (peer.recently_sent.empty()) {
+						to_remove.push_back(peer_c);
+					}
+				} else {
+					// else trim too old front
+					peer.trimReceived(time_now);
+
+					size_t tally_bytes {0u};
+					for (auto& [time, bytes, accounted] : peer.recently_received) {
+						if (!accounted) {
+							tss[peer_c].total_down += bytes;
+							accounted = true;
+						}
+						tally_bytes += bytes;
+					}
+
+					tss[peer_c].rate_down = tally_bytes / (time_now - peer.recently_received.front().time_point + 0.00001f);
+				}
 			}
 		}
 

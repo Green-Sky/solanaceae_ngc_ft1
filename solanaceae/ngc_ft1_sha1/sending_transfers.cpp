@@ -8,9 +8,10 @@ void SendingTransfers::tick(float delta) {
 		for (auto it = peer_it->second.begin(); it != peer_it->second.end();) {
 			it->second.time_since_activity += delta;
 
-			// if we have not heard for 2min, timeout (lower level event on real timeout)
+			// if we have not heard for 10min, timeout (lower level event on real timeout)
+			// (2min was too little, so it seems)
 			// TODO: do we really need this if we get events?
-			if (it->second.time_since_activity >= 120.f) {
+			if (it->second.time_since_activity >= 60.f*10.f) {
 				std::cerr << "SHA1_NGCFT1 warning: sending tansfer timed out " << "." << int(it->first) << "\n";
 				assert(false);
 				it = peer_it->second.erase(it);
