@@ -212,6 +212,7 @@ SHA1_NGCFT1::SHA1_NGCFT1(
 
 	_rmm.subscribe(this, RegistryMessageModel_Event::send_file_path);
 
+	_tep.subscribe(this, Tox_Event_Type::TOX_EVENT_GROUP_PEER_JOIN);
 	_tep.subscribe(this, Tox_Event_Type::TOX_EVENT_GROUP_PEER_EXIT);
 
 	_neep.subscribe(this, NGCEXT_Event::FT1_HAVE);
@@ -1425,6 +1426,23 @@ bool SHA1_NGCFT1::sendFilePath(const Contact3 c, std::string_view file_name, std
 	})).detach();
 
 	return true;
+}
+
+bool SHA1_NGCFT1::onToxEvent(const Tox_Event_Group_Peer_Join* e) {
+	const auto group_number = tox_event_group_peer_join_get_group_number(e);
+	const auto peer_number = tox_event_group_peer_join_get_peer_id(e);
+
+	auto c_peer = _tcm.getContactGroupPeer(group_number, peer_number);
+	auto c_group = _tcm.getContactGroup(group_number);
+
+	// search for group and/or peer in announce targets
+	_os.registry().view<Components::AnnounceTargets, Components::ReAnnounceTimer>().each([this, c_peer, c_group](const auto ov, const Components::AnnounceTargets& at, Components::ReAnnounceTimer& rat) {
+		if (at.targets.contains(c_group) || at.targets.contains(c_peer)) {
+			rat.lower();
+		}
+	});
+
+	return false;
 }
 
 bool SHA1_NGCFT1::onToxEvent(const Tox_Event_Group_Peer_Exit* e) {

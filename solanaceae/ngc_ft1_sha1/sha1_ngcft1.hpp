@@ -115,6 +115,7 @@ class SHA1_NGCFT1 : public ToxEventI, public RegistryMessageModelEventI, public 
 
 		bool sendFilePath(const Contact3 c, std::string_view file_name, std::string_view file_path) override;
 
+		bool onToxEvent(const Tox_Event_Group_Peer_Join* e) override;
 		bool onToxEvent(const Tox_Event_Group_Peer_Exit* e) override;
 
 		bool onEvent(const Events::NGCEXT_ft1_have&) override;
