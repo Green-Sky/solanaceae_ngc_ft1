@@ -198,7 +198,30 @@ void NGCFT1::iteratePeer(float time_delta, uint32_t group_number, uint32_t peer_
 		}
 	}
 
-	// TODO: receiving tranfers?
+	//for (auto& transfer_opt : peer.recv_transfers) {
+	for (size_t idx = 0; idx < peer.recv_transfers.size(); idx++) {
+		if (!peer.recv_transfers.at(idx).has_value()) {
+			continue;
+		}
+
+		auto& transfer = peer.recv_transfers.at(idx).value();
+
+		// proper switch case?
+		if (transfer.state == Group::Peer::RecvTransfer::State::FINISHING) {
+			transfer.finishing_timer -= time_delta;
+			if (transfer.finishing_timer <= 0.f) {
+				dispatch(
+					NGCFT1_Event::recv_done,
+					Events::NGCFT1_recv_done{
+						group_number, peer_number,
+						uint8_t(idx)
+					}
+				);
+
+				peer.recv_transfers.at(idx).reset();
+			}
+		}
+	}
 }
 
 const CCAI* NGCFT1::getPeerCCA(
@@ -573,20 +596,12 @@ bool NGCFT1::onEvent(const Events::NGCEXT_ft1_data& e) {
 
 
 	if (transfer.file_size_current == transfer.file_size) {
-		// TODO: set all data received, and clean up
-		//transfer.state = Group::Peer::RecvTransfer::State::RECV;
-		dispatch(
-			NGCFT1_Event::recv_done,
-			Events::NGCFT1_recv_done{
-				e.group_number, e.peer_number,
-				e.transfer_id
-			}
-		);
+		// all data received
+		transfer.state = Group::Peer::RecvTransfer::State::FINISHING;
 
-		// delete transfer
 		// TODO: keep around for remote timeout + delay + offset, so we can be sure all acks where received
 		// or implement a dedicated finished that needs to be acked
-		peer.recv_transfers[e.transfer_id].reset();
+		transfer.finishing_timer = 0.5f; // TODO: we are receiving, we dont know delay
 	}
 
 	return true;

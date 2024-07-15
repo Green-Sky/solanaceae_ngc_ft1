@@ -155,11 +155,14 @@ class NGCFT1 : public ToxEventI, public NGCEXTEventI, public NGCFT1EventProvider
 				enum class State {
 					INITED, //init acked, but no data received yet (might be dropped)
 					RECV, // receiving data
+					FINISHING, // got all the data, but we wait for 2*delay, since its likely there is data still arriving
 				} state;
 
-				// float time_since_last_activity ?
 				size_t file_size {0};
 				size_t file_size_current {0};
+
+				// if state FINISHING and it reaches 0, delete
+				float finishing_timer {0.f};
 
 				// sequence id based reassembly
 				RecvSequenceBuffer rsb;
