@@ -6,7 +6,6 @@
 #include <solanaceae/contact/contact_model3.hpp>
 #include <solanaceae/message3/registry_message_model.hpp>
 #include <solanaceae/tox_contacts/tox_contact_model2.hpp>
-#include <solanaceae/util/bitset.hpp>
 
 #include <solanaceae/ngc_ft1/ngcft1.hpp>
 
@@ -14,11 +13,8 @@
 #include "./sending_transfers.hpp"
 #include "./receiving_transfers.hpp"
 
-#include <entt/entity/registry.hpp>
-#include <entt/entity/handle.hpp>
 #include <entt/container/dense_map.hpp>
 
-#include <variant>
 #include <random>
 #include <atomic>
 #include <mutex>

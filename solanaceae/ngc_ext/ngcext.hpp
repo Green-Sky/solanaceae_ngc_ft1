@@ -8,7 +8,6 @@
 
 #include <solanaceae/toxcore/tox_key.hpp>
 
-#include <array>
 #include <vector>
 
 namespace Events {

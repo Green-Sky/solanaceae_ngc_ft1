@@ -6,6 +6,7 @@
 #include <solanaceae/toxcore/tox_interface.hpp>
 
 #include <solanaceae/ngc_ext/ngcext.hpp>
+
 #include "./cca.hpp"
 
 #include "./rcv_buf.hpp"

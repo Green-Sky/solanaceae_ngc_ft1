@@ -14,6 +14,15 @@
 
 // https://youtu.be/0HRwNSA-JYM
 
+static bool isSkipSeqID(const std::pair<uint8_t, uint16_t>& a, const std::pair<uint8_t, uint16_t>& b) {
+	// this is not perfect, would need more ft id based history
+	if (a.first != b.first) {
+		return false; // we dont know
+	} else {
+		return a.second+1 != b.second;
+	}
+}
+
 inline constexpr bool PLOTTING = false;
 
 LEDBAT::LEDBAT(size_t maximum_segment_data_size) : CCAI(maximum_segment_data_size) {

@@ -5,15 +5,6 @@
 #include <cstddef>
 
 // TODO: refactor, more state tracking in ccai and seperate into flow and congestion algos
-inline bool isSkipSeqID(const std::pair<uint8_t, uint16_t>& a, const std::pair<uint8_t, uint16_t>& b) {
-	// this is not perfect, would need more ft id based history
-	if (a.first != b.first) {
-		return false; // we dont know
-	} else {
-		return a.second+1 != b.second;
-	}
-}
-
 struct CCAI {
 	public: // config
 		using SeqIDType = std::pair<uint8_t, uint16_t>; // tf_id, seq_id
