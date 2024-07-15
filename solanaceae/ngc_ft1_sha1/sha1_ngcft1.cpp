@@ -16,7 +16,7 @@
 
 #include <entt/container/dense_set.hpp>
 
-#include "./file_rw_mapped.hpp"
+#include "./file_constructor.hpp"
 
 #include "./components.hpp"
 #include "./contact_components.hpp"
@@ -473,7 +473,7 @@ bool SHA1_NGCFT1::onEvent(const Message::Events::MessageUpdated& e) {
 	ce.emplace<Message::Components::Transfer::FileInfoLocal>(std::vector{full_file_path});
 
 	const bool file_exists = std::filesystem::exists(full_file_path);
-	std::unique_ptr<File2I> file_impl = std::make_unique<File2RWMapped>(full_file_path, info.file_size);
+	std::unique_ptr<File2I> file_impl = construct_file2_rw_mapped(full_file_path, info.file_size);
 
 	if (!file_impl->isGood()) {
 		std::cerr << "SHA1_NGCFT1 error: failed opening file '" << full_file_path << "'!\n";
@@ -953,7 +953,7 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCFT1_recv_done& e) {
 							// HACK: remap file, to clear ram
 
 							// TODO: error checking
-							o.get<Message::Components::Transfer::File>() = std::make_unique<File2RWMapped>(
+							o.get<Message::Components::Transfer::File>() = construct_file2_rw_mapped(
 								o.get<Message::Components::Transfer::FileInfoLocal>().file_list.front(),
 								info.file_size
 							);
@@ -1185,7 +1185,7 @@ bool SHA1_NGCFT1::sendFilePath(const Contact3 c, std::string_view file_name, std
 		file_name_ = std::string(file_name),
 		file_path_ = std::string(file_path)
 	]() mutable {
-		auto file_impl = std::make_unique<File2RWMapped>(file_path_, -1);
+		std::unique_ptr<File2I> file_impl = construct_file2_rw_mapped(file_path_, -1);
 		if (!file_impl->isGood()) {
 			{
 				std::lock_guard l{self->_info_builder_queue_mutex};
@@ -1235,7 +1235,7 @@ bool SHA1_NGCFT1::sendFilePath(const Contact3 c, std::string_view file_name, std
 			]() mutable { //
 				// back on iterate thread
 
-				auto file_impl = std::make_unique<File2RWMapped>(file_path_, sha1_info.file_size);
+				std::unique_ptr<File2I> file_impl = construct_file2_rw_mapped(file_path_, sha1_info.file_size);
 				if (!file_impl->isGood()) {
 					std::cerr << "SHA1_NGCFT1 error: failed opening file '" << file_path_ << "'!\n";
 					return;
