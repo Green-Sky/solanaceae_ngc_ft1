@@ -13,12 +13,12 @@
 #include "./sending_transfers.hpp"
 #include "./receiving_transfers.hpp"
 
+#include "./backends/sha1_mapped_filesystem.hpp"
+
 #include <entt/container/dense_map.hpp>
 
 #include <random>
-#include <atomic>
-#include <mutex>
-#include <list>
+#include <chrono>
 
 class SHA1_NGCFT1 : public ToxEventI, public RegistryMessageModelEventI, public NGCFT1EventI, public NGCEXTEventI {
 	ObjectStore2& _os;
@@ -29,6 +29,8 @@ class SHA1_NGCFT1 : public ToxEventI, public RegistryMessageModelEventI, public 
 	ToxContactModel2& _tcm;
 	ToxEventProviderI& _tep;
 	NGCEXTEventProvider& _neep;
+
+	Backends::SHA1MappedFilesystem _mfb;
 
 	std::minstd_rand _rng {1337*11};
 
@@ -67,11 +69,6 @@ class SHA1_NGCFT1 : public ToxEventI, public RegistryMessageModelEventI, public 
 	// only used to remove participation on peer exit
 	entt::dense_map<uint64_t, Contact3Handle> _tox_peer_to_contact;
 
-	std::atomic_bool _info_builder_dirty {false};
-	std::mutex _info_builder_queue_mutex;
-	using InfoBuilderEntry = std::function<void(void)>;
-	std::list<InfoBuilderEntry> _info_builder_queue;
-
 	void updateMessages(ObjectHandle ce);
 
 	std::optional<std::pair<uint32_t, uint32_t>> selectPeerForRequest(ObjectHandle ce);
@@ -96,6 +93,8 @@ class SHA1_NGCFT1 : public ToxEventI, public RegistryMessageModelEventI, public 
 		);
 
 		float iterate(float delta);
+
+		void onSendFileHashFinished(ObjectHandle o, Message3Registry* reg_ptr, Contact3 c, uint64_t ts);
 
 	protected: // rmm events (actions)
 		bool onEvent(const Message::Events::MessageUpdated&) override;
