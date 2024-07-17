@@ -50,6 +50,9 @@ add_library(solanaceae_sha1_ngcft1
 	./solanaceae/ngc_ft1_sha1/file_constructor.hpp
 	./solanaceae/ngc_ft1_sha1/file_constructor.cpp
 
+	./solanaceae/ngc_ft1_sha1/backends/sha1_mapped_filesystem.hpp
+	./solanaceae/ngc_ft1_sha1/backends/sha1_mapped_filesystem.cpp
+
 	./solanaceae/ngc_ft1_sha1/hash_utils.hpp
 	./solanaceae/ngc_ft1_sha1/hash_utils.cpp
 
