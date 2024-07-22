@@ -8,6 +8,7 @@
 #include <fstream>
 #include <iostream>
 #include <cstring>
+#include <cassert>
 
 struct File2RWMapped : public File2I {
 	mio::ummap_sink _file_map;
@@ -64,8 +65,14 @@ struct File2RWMapped : public File2I {
 	}
 
 	ByteSpanWithOwnership read(uint64_t size, int64_t pos = -1) override {
+		// TODO: support streaming read
+		if (pos < 0) {
+			assert(false && "streaming not implemented");
+			return ByteSpan{};
+		}
+
 		if (pos+size > _file_size) {
-			//assert(false && "read past end");
+			assert(false && "read past end");
 			return ByteSpan{};
 		}
 
