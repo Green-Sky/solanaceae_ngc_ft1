@@ -1,7 +1,7 @@
 #include "./re_announce_systems.hpp"
 
 #include "./components.hpp"
-#include <solanaceae/message3/components.hpp>
+#include <solanaceae/object_store/meta_components_file.hpp>
 #include <solanaceae/tox_contacts/components.hpp>
 #include <solanaceae/ngc_ft1/ngcft1_file_kind.hpp>
 #include <vector>
@@ -18,11 +18,12 @@ void re_announce(
 	std::vector<Object> to_remove;
 	os_reg.view<Components::ReAnnounceTimer>().each([&os_reg, &cr, &neep, &to_remove, delta](Object ov, Components::ReAnnounceTimer& rat) {
 		ObjectHandle o{os_reg, ov};
-		// if paused -> remove
-		if (o.all_of<Message::Components::Transfer::TagPaused>()) {
-			to_remove.push_back(ov);
-			return;
-		}
+		// TODO: pause
+		//// if paused -> remove
+		//if (o.all_of<Message::Components::Transfer::TagPaused>()) {
+		//    to_remove.push_back(ov);
+		//    return;
+		//}
 
 		// if not downloading or info incomplete -> remove
 		if (!o.all_of<Components::FT1ChunkSHA1Cache, Components::FT1InfoSHA1Hash, Components::AnnounceTargets>()) {
@@ -31,7 +32,7 @@ void re_announce(
 			return;
 		}
 
-		if (o.get<Components::FT1ChunkSHA1Cache>().have_all) {
+		if (o.all_of<ObjComp::F::TagLocalHaveAll>()) {
 			// transfer done, we stop announcing
 			to_remove.push_back(ov);
 			return;

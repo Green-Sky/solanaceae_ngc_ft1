@@ -1,5 +1,7 @@
 #include "./components.hpp"
 
+#include <solanaceae/object_store/meta_components_file.hpp>
+
 namespace Components {
 
 std::vector<size_t> FT1ChunkSHA1Cache::chunkIndices(const SHA1Digest& hash) const {
@@ -11,14 +13,20 @@ std::vector<size_t> FT1ChunkSHA1Cache::chunkIndices(const SHA1Digest& hash) cons
 	}
 }
 
-bool FT1ChunkSHA1Cache::haveChunk(const SHA1Digest& hash) const {
-	if (have_all) { // short cut
+bool FT1ChunkSHA1Cache::haveChunk(ObjectHandle o, const SHA1Digest& hash) const {
+	if (o.all_of<ObjComp::F::TagLocalHaveAll>()) {
 		return true;
+	}
+
+	const auto* lhb = o.try_get<ObjComp::F::LocalHaveBitset>();
+	if (lhb == nullptr) {
+		return false; // we dont have anything yet
 	}
 
 	if (auto i_vec = chunkIndices(hash); !i_vec.empty()) {
 		// TODO: should i test all?
-		return have_chunk[i_vec.front()];
+		//return have_chunk[i_vec.front()];
+		return lhb->have[i_vec.front()];
 	}
 
 	// not part of this file

@@ -3,6 +3,7 @@
 #include <solanaceae/contact/components.hpp>
 #include <solanaceae/message3/components.hpp>
 #include <solanaceae/message3/registry_message_model.hpp>
+#include <solanaceae/object_store/meta_components_file.hpp>
 
 #include <solanaceae/util/bitset.hpp>
 
@@ -35,18 +36,24 @@ namespace Components {
 	};
 
 	struct FT1ChunkSHA1Cache {
-		// TODO: extract have_chunk, have_all and have_count to generic comp
+		// TODO: extract have_count to generic comp
 
 		// have_chunk is the size of info.chunks.size(), or empty if have_all
 		// keep in mind bitset rounds up to 8s
-		BitSet have_chunk{0};
+		//BitSet have_chunk{0};
 
-		bool have_all {false};
-		size_t have_count {0};
+		//bool have_all {false};
+		size_t have_count {0}; // move?
 		entt::dense_map<SHA1Digest, std::vector<size_t>> chunk_hash_to_index;
 
 		std::vector<size_t> chunkIndices(const SHA1Digest& hash) const;
-		bool haveChunk(const SHA1Digest& hash) const;
+		bool haveChunk(ObjectHandle o, const SHA1Digest& hash) const;
+	};
+
+	struct FT1File2 {
+		// the cached file2 for faster access
+		// should be destroyed when no activity and recreated on demand
+		std::unique_ptr<File2I> file;
 	};
 
 	struct FT1ChunkSHA1Requested {
@@ -63,7 +70,7 @@ namespace Components {
 		entt::dense_set<Contact3> participants;
 	};
 
-	struct RemoteHave {
+	struct RemoteHaveBitset {
 		struct Entry {
 			bool have_all {false};
 			BitSet have;
@@ -92,41 +99,8 @@ namespace Components {
 		void lower(void);
 	};
 
-	struct DownloadPriority {
-		// download/retreival priority in comparison to other objects
-		// not all backends implement this
-		// priority can be weak, meaning low priority dls will still get transfer activity, just less often
-		enum class Priority {
-			HIGHER,
-			HIGH,
-			NORMAL,
-			LOW,
-			LOWER,
-		} p = Priority::NORMAL;
-	};
-
-	struct ReadHeadHint {
-		// points to the first byte we want
-		// this is just a hint, that can be set from outside
-		// to guide the sequential "piece picker" strategy
-		// ? the strategy *should* set this to the first byte we dont yet have
-		uint64_t offset_into_file {0u};
-	};
-
-	// this is per object/content
-	// more aplicable than "separated", so should be supported by most backends
-	struct TransferStats {
-		// in bytes per second
-		float rate_up {0.f};
-		float rate_down {0.f};
-
-		// bytes
-		uint64_t total_up {0u};
-		uint64_t total_down {0u};
-	};
-
 	struct TransferStatsSeparated {
-		entt::dense_map<Contact3, TransferStats> stats;
+		entt::dense_map<Contact3, ObjComp::Ephemeral::File::TransferStats> stats;
 	};
 
 	// used to populate stats

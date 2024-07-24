@@ -1,9 +1,10 @@
 #include "./chunk_picker.hpp"
 
 #include <solanaceae/tox_contacts/components.hpp>
-
-#include "./components.hpp"
 #include "./contact_components.hpp"
+
+#include <solanaceae/object_store/meta_components_file.hpp>
+#include "./components.hpp"
 
 #include <algorithm>
 
@@ -140,37 +141,39 @@ void ChunkPicker::updateParticipation(
 				continue;
 			}
 
-			if (o.all_of<Message::Components::Transfer::TagPaused>()) {
+			if (o.all_of<ObjComp::Ephemeral::File::TagTransferPaused>()) {
 				participating_unfinished.erase(o);
 				continue;
 			}
 
-			if (o.get<Components::FT1ChunkSHA1Cache>().have_all) {
+			if (o.all_of<ObjComp::F::TagLocalHaveAll>()) {
 				participating_unfinished.erase(o);
+				continue;
 			}
 		} else {
 			if (!o.all_of<Components::FT1ChunkSHA1Cache, Components::FT1InfoSHA1>()) {
 				continue;
 			}
 
-			if (o.all_of<Message::Components::Transfer::TagPaused>()) {
+			if (o.all_of<ObjComp::Ephemeral::File::TagTransferPaused>()) {
 				continue;
 			}
 
-			if (!o.get<Components::FT1ChunkSHA1Cache>().have_all) {
-				using Priority = Components::DownloadPriority::Priority;
+			if (!o.all_of<ObjComp::F::TagLocalHaveAll>()) {
+				//using Priority = Components::DownloadPriority::Priority;
+				using Priority = ObjComp::Ephemeral::File::DownloadPriority::Priority;
 				Priority prio = Priority::NORMAL;
 
-				if (o.all_of<Components::DownloadPriority>()) {
-					prio = o.get<Components::DownloadPriority>().p;
+				if (o.all_of<ObjComp::Ephemeral::File::DownloadPriority>()) {
+					prio = o.get<ObjComp::Ephemeral::File::DownloadPriority>().p;
 				}
 
 				uint16_t pskips =
-					prio == Priority::HIGHER ? 0u :
+					prio == Priority::HIGHEST ? 0u :
 					prio == Priority::HIGH ? 1u :
 					prio == Priority::NORMAL ? 2u :
 					prio == Priority::LOW ? 4u :
-					8u
+					8u // LOWEST
 				;
 
 				participating_unfinished.emplace(o, ParticipationEntry{pskips});
@@ -255,18 +258,19 @@ std::vector<ChunkPicker::ContentChunkR> ChunkPicker::updateChunkRequests(
 		ObjectHandle o {objreg, it->first};
 
 		// intersect self have with other have
-		if (!o.all_of<Components::RemoteHave, Components::FT1ChunkSHA1Cache, Components::FT1InfoSHA1>()) {
+		if (!o.all_of<Components::RemoteHaveBitset, Components::FT1ChunkSHA1Cache, Components::FT1InfoSHA1>()) {
 			// rare case where no one else has anything
 			continue;
 		}
 
-		const auto& cc = o.get<Components::FT1ChunkSHA1Cache>();
-		if (cc.have_all) {
+		if (o.all_of<ObjComp::F::TagLocalHaveAll>()) {
 			std::cerr << "ChunkPicker error: completed content still in participating_unfinished!\n";
 			continue;
 		}
 
-		const auto& others_have = o.get<Components::RemoteHave>().others;
+		//const auto& cc = o.get<Components::FT1ChunkSHA1Cache>();
+
+		const auto& others_have = o.get<Components::RemoteHaveBitset>().others;
 		auto other_it = others_have.find(c);
 		if (other_it == others_have.end()) {
 			// rare case where the other is participating but has nothing
@@ -275,7 +279,14 @@ std::vector<ChunkPicker::ContentChunkR> ChunkPicker::updateChunkRequests(
 
 		const auto& other_have = other_it->second;
 
-		BitSet chunk_candidates = cc.have_chunk;
+		const auto& info = o.get<Components::FT1InfoSHA1>();
+		const auto total_chunks = info.chunks.size();
+
+		const auto* lhb = o.try_get<ObjComp::F::LocalHaveBitset>();
+
+		// if we dont have anything, this might not exist yet
+		BitSet chunk_candidates = lhb == nullptr ? BitSet{total_chunks} : lhb->have;
+
 		if (!other_have.have_all) {
 			// AND is the same as ~(~A | ~B)
 			// that means we leave chunk_candidates as (have is inverted want)
@@ -288,8 +299,6 @@ std::vector<ChunkPicker::ContentChunkR> ChunkPicker::updateChunkRequests(
 		} else {
 			chunk_candidates.invert();
 		}
-		const auto& info = o.get<Components::FT1InfoSHA1>();
-		const auto total_chunks = info.chunks.size();
 		auto& requested_chunks = o.get_or_emplace<Components::FT1ChunkSHA1Requested>().chunks;
 
 		// TODO: trim off round up to 8, since they are now always set
@@ -306,8 +315,8 @@ std::vector<ChunkPicker::ContentChunkR> ChunkPicker::updateChunkRequests(
 
 		// TODO: configurable
 		size_t start_offset {0u};
-		if (o.all_of<Components::ReadHeadHint>()) {
-			const auto byte_offset = o.get<Components::ReadHeadHint>().offset_into_file;
+		if (o.all_of<ObjComp::Ephemeral::File::ReadHeadHint>()) {
+			const auto byte_offset = o.get<ObjComp::Ephemeral::File::ReadHeadHint>().offset_into_file;
 			if (byte_offset <= info.file_size) {
 				start_offset = byte_offset/info.chunk_size;
 			} else {

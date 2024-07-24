@@ -6,6 +6,7 @@
 #include <solanaceae/tox_contacts/components.hpp>
 #include <solanaceae/message3/components.hpp>
 #include <solanaceae/tox_messages/components.hpp>
+#include <solanaceae/object_store/meta_components_file.hpp>
 
 #include "./util.hpp"
 
@@ -30,12 +31,6 @@
 #include <iostream>
 #include <filesystem>
 #include <vector>
-
-namespace Message::Components {
-
-	using Content = ObjectHandle;
-
-} // Message::Components
 
 static size_t chunkSize(const FT1InfoSHA1& sha1_info, size_t chunk_index) {
 	if (chunk_index+1 == sha1_info.chunks.size()) {
@@ -70,30 +65,15 @@ void SHA1_NGCFT1::queueUpRequestChunk(uint32_t group_number, uint32_t peer_numbe
 	_queue_requested_chunk.push_back(std::make_tuple(group_number, peer_number, obj, hash, 0.f));
 }
 
-void SHA1_NGCFT1::updateMessages(ObjectHandle ce) {
-	assert(ce.all_of<Components::Messages>());
+void SHA1_NGCFT1::updateMessages(ObjectHandle o) {
+	assert(o.all_of<Components::Messages>());
 
-	for (auto msg : ce.get<Components::Messages>().messages) {
-		if (ce.all_of<Message::Components::Transfer::FileInfo>() && !msg.all_of<Message::Components::Transfer::FileInfo>()) {
-			msg.emplace<Message::Components::Transfer::FileInfo>(ce.get<Message::Components::Transfer::FileInfo>());
-		}
-		if (ce.all_of<Message::Components::Transfer::FileInfoLocal>()) {
-			msg.emplace_or_replace<Message::Components::Transfer::FileInfoLocal>(ce.get<Message::Components::Transfer::FileInfoLocal>());
-		}
-		if (ce.all_of<Message::Components::Transfer::BytesSent>()) {
-			msg.emplace_or_replace<Message::Components::Transfer::BytesSent>(ce.get<Message::Components::Transfer::BytesSent>());
-		}
-		if (ce.all_of<Message::Components::Transfer::BytesReceived>()) {
-			msg.emplace_or_replace<Message::Components::Transfer::BytesReceived>(ce.get<Message::Components::Transfer::BytesReceived>());
-		}
-		if (ce.all_of<Message::Components::Transfer::TagPaused>()) {
-			msg.emplace_or_replace<Message::Components::Transfer::TagPaused>();
-		} else {
-			msg.remove<Message::Components::Transfer::TagPaused>();
-		}
-		if (auto* cc = ce.try_get<Components::FT1ChunkSHA1Cache>(); cc != nullptr && cc->have_all) {
-			msg.emplace_or_replace<Message::Components::Transfer::TagHaveAll>();
-		}
+	for (auto msg : o.get<Components::Messages>().messages) {
+		msg.emplace_or_replace<Message::Components::MessageFileObject>(o);
+
+		// messages no long hold this info
+		// this should not update messages anymore but simply just update the object
+		// and receivers should listen for object updates (?)
 
 		_rmm.throwEventUpdate(msg);
 	}
@@ -177,6 +157,40 @@ void SHA1_NGCFT1::queueBitsetSendFull(Contact3Handle c, ObjectHandle o) {
 	_queue_send_bitset.push_back(QBitsetEntry{c, o});
 }
 
+File2I* SHA1_NGCFT1::objGetFile2Write(ObjectHandle o) {
+	auto* file2_comp_ptr = o.try_get<Components::FT1File2>();
+	if (file2_comp_ptr == nullptr || !file2_comp_ptr->file || !file2_comp_ptr->file->can_write || !file2_comp_ptr->file->isGood()) {
+		// (re)request file2 from backend
+		auto new_file = _mfb.file2(o, StorageBackendI::FILE2_WRITE);
+		if (!new_file || !new_file->can_write || !new_file->isGood()) {
+			std::cerr << "SHA1_NGCFT1 error: failed to open object for writing\n";
+			return nullptr; // early out
+		}
+		file2_comp_ptr = &o.emplace_or_replace<Components::FT1File2>(std::move(new_file));
+	}
+	assert(file2_comp_ptr != nullptr);
+	assert(static_cast<bool>(file2_comp_ptr->file));
+
+	return file2_comp_ptr->file.get();
+}
+
+File2I* SHA1_NGCFT1::objGetFile2Read(ObjectHandle o) {
+	auto* file2_comp_ptr = o.try_get<Components::FT1File2>();
+	if (file2_comp_ptr == nullptr || !file2_comp_ptr->file || !file2_comp_ptr->file->can_read || !file2_comp_ptr->file->isGood()) {
+		// (re)request file2 from backend
+		auto new_file = _mfb.file2(o, StorageBackendI::FILE2_READ);
+		if (!new_file || !new_file->can_read || !new_file->isGood()) {
+			std::cerr << "SHA1_NGCFT1 error: failed to open object for reading\n";
+			return nullptr; // early out
+		}
+		file2_comp_ptr = &o.emplace_or_replace<Components::FT1File2>(std::move(new_file));
+	}
+	assert(file2_comp_ptr != nullptr);
+	assert(static_cast<bool>(file2_comp_ptr->file));
+
+	return file2_comp_ptr->file.get();
+}
+
 SHA1_NGCFT1::SHA1_NGCFT1(
 	ObjectStore2& os,
 	Contact3Registry& cr,
@@ -196,9 +210,9 @@ SHA1_NGCFT1::SHA1_NGCFT1(
 	_mfb(os)
 {
 	// TODO: also create and destroy
-	_rmm.subscribe(this, RegistryMessageModel_Event::message_updated);
-	//_rmm.subscribe(this, RegistryMessageModel_Event::message_construct);
-	//_rmm.subscribe(this, RegistryMessageModel_Event::message_destroy);
+	//_os.subscribe(this, ObjectStore_Event::object_construct);
+	_os.subscribe(this, ObjectStore_Event::object_update);
+	//_os.subscribe(this, ObjectStore_Event::object_destroy);
 
 	_nft.subscribe(this, NGCFT1_Event::recv_request);
 	_nft.subscribe(this, NGCFT1_Event::recv_init);
@@ -289,20 +303,19 @@ float SHA1_NGCFT1::iterate(float delta) {
 			if (static_cast<bool>(qe.o) && static_cast<bool>(qe.c) && qe.c.all_of<Contact::Components::ToxGroupPeerEphemeral>() && qe.o.all_of<Components::FT1InfoSHA1, Components::FT1InfoSHA1Hash, Components::FT1ChunkSHA1Cache>()) {
 				const auto [group_number, peer_number] = qe.c.get<Contact::Components::ToxGroupPeerEphemeral>();
 				const auto& info_hash = qe.o.get<Components::FT1InfoSHA1Hash>().hash;
-				const auto& cc = qe.o.get<Components::FT1ChunkSHA1Cache>();
 				const auto& info = qe.o.get<Components::FT1InfoSHA1>();
 				const auto total_chunks = info.chunks.size();
 
 				static constexpr size_t bits_per_packet {8u*512u};
 
-				if (cc.have_all) {
+				if (qe.o.all_of<ObjComp::F::TagLocalHaveAll>()) {
 					// send have all
 					_neep.send_ft1_have_all(
 						group_number, peer_number,
 						static_cast<uint32_t>(NGCFT1_file_kind::HASH_SHA1_INFO),
 						info_hash.data(), info_hash.size()
 					);
-				} else {
+				} else if (const auto* lhb = qe.o.try_get<ObjComp::F::LocalHaveBitset>(); lhb != nullptr) {
 					for (size_t i = 0; i < total_chunks; i += bits_per_packet) {
 						size_t bits_this_packet = std::min<size_t>(bits_per_packet, total_chunks-i);
 
@@ -310,7 +323,7 @@ float SHA1_NGCFT1::iterate(float delta) {
 
 						// TODO: optimize selective copy bitset
 						for (size_t j = i; j < i+bits_this_packet; j++) {
-							if (cc.have_chunk[j]) {
+							if (lhb->have[j]) {
 								have.set(j-i);
 							}
 						}
@@ -324,7 +337,7 @@ float SHA1_NGCFT1::iterate(float delta) {
 							have._bytes.data(), have.size_bytes()
 						);
 					}
-				}
+				} // else, we have nothing *shrug*
 			}
 
 			_queue_send_bitset.pop_front();
@@ -466,6 +479,9 @@ void SHA1_NGCFT1::onSendFileHashFinished(ObjectHandle o, Message3Registry* reg_p
 		}
 	}
 
+	// in both cases, private and public, c (contact to) is the target
+	o.get_or_emplace<Components::AnnounceTargets>().targets.emplace(c);
+
 	// create message
 	const auto c_self = _cr.get<Contact::Components::Self>(c).self;
 	if (!_cr.valid(c_self)) {
@@ -479,8 +495,9 @@ void SHA1_NGCFT1::onSendFileHashFinished(ObjectHandle o, Message3Registry* reg_p
 	reg_ptr->emplace<Message::Components::Timestamp>(msg_e, ts); // reactive?
 	reg_ptr->emplace<Message::Components::Read>(msg_e, ts);
 
-	reg_ptr->emplace<Message::Components::Transfer::TagHaveAll>(msg_e);
-	reg_ptr->emplace<Message::Components::Transfer::TagSending>(msg_e);
+	reg_ptr->emplace<Message::Components::MessageFileObject>(msg_e, o);
+
+	//reg_ptr->emplace<Message::Components::Transfer::TagSending>(msg_e);
 
 	o.get_or_emplace<Components::Messages>().messages.push_back({*reg_ptr, msg_e});
 
@@ -510,29 +527,27 @@ void SHA1_NGCFT1::onSendFileHashFinished(ObjectHandle o, Message3Registry* reg_p
 	_rmm.throwEventConstruct(*reg_ptr, msg_e);
 
 	// TODO: place in iterate?
-	updateMessages(o);
+	updateMessages(o); // nop // TODO: remove
 }
 
-bool SHA1_NGCFT1::onEvent(const Message::Events::MessageUpdated& e) {
-	// see tox_transfer_manager.cpp for reference
-	if (!e.e.all_of<Message::Components::Transfer::ActionAccept, Message::Components::Content>()) {
+bool SHA1_NGCFT1::onEvent(const ObjectStore::Events::ObjectUpdate& e) {
+	if (!e.e.all_of<ObjComp::Ephemeral::File::ActionTransferAccept>()) {
 		return false;
 	}
 
-	//accept(e.e, e.e.get<Message::Components::Transfer::ActionAccept>().save_to_path);
-	auto ce = e.e.get<Message::Components::Content>();
-
-	//if (!ce.all_of<Components::FT1InfoSHA1, Components::FT1ChunkSHA1Cache>()) {
-	if (!ce.all_of<Components::FT1InfoSHA1>()) {
+	if (!e.e.all_of<Components::FT1InfoSHA1>()) {
 		// not ready to load yet, skip
 		return false;
 	}
-	assert(!ce.all_of<Components::FT1ChunkSHA1Cache>());
-	assert(!ce.all_of<Message::Components::Transfer::File>());
+	assert(!e.e.all_of<ObjComp::F::TagLocalHaveAll>());
+	assert(!e.e.all_of<Components::FT1ChunkSHA1Cache>());
+	assert(!e.e.all_of<Components::FT1File2>());
+	//accept(e.e, e.e.get<Message::Components::Transfer::ActionAccept>().save_to_path);
 
 	// first, open file for write(+readback)
-	std::string full_file_path{e.e.get<Message::Components::Transfer::ActionAccept>().save_to_path};
+	std::string full_file_path{e.e.get<ObjComp::Ephemeral::File::ActionTransferAccept>().save_to_path};
 	// TODO: replace with filesystem or something
+	// TODO: use bool in action !!!
 	if (full_file_path.back() != '/') {
 		full_file_path += "/";
 	}
@@ -540,10 +555,10 @@ bool SHA1_NGCFT1::onEvent(const Message::Events::MessageUpdated& e) {
 	// ensure dir exists
 	std::filesystem::create_directories(full_file_path);
 
-	const auto& info = ce.get<Components::FT1InfoSHA1>();
+	const auto& info = e.e.get<Components::FT1InfoSHA1>();
 	full_file_path += info.file_name;
 
-	ce.emplace<Message::Components::Transfer::FileInfoLocal>(std::vector{full_file_path});
+	e.e.emplace<ObjComp::F::SingleInfoLocal>(full_file_path);
 
 	const bool file_exists = std::filesystem::exists(full_file_path);
 	std::unique_ptr<File2I> file_impl = construct_file2_rw_mapped(full_file_path, info.file_size);
@@ -551,15 +566,17 @@ bool SHA1_NGCFT1::onEvent(const Message::Events::MessageUpdated& e) {
 	if (!file_impl->isGood()) {
 		std::cerr << "SHA1_NGCFT1 error: failed opening file '" << full_file_path << "'!\n";
 		// we failed opening that filepath, so we should offer the user the oportunity to save it differently
-		e.e.remove<Message::Components::Transfer::ActionAccept>(); // stop
+		e.e.remove<ObjComp::Ephemeral::File::ActionTransferAccept>(); // stop
 		return false;
 	}
 
 	{ // next, create chuck cache and check for existing data
-		auto& cc = ce.emplace<Components::FT1ChunkSHA1Cache>();
-		auto& bytes_received = ce.get_or_emplace<Message::Components::Transfer::BytesReceived>().total;
-		cc.have_chunk = BitSet(info.chunks.size());
-		cc.have_all = false;
+		auto& transfer_stats = e.e.get_or_emplace<ObjComp::Ephemeral::File::TransferStats>();
+		auto& lhb = e.e.get_or_emplace<ObjComp::F::LocalHaveBitset>();
+		if (lhb.have.size_bytes() < info.chunks.size()/8) {
+			lhb.have = BitSet{info.chunks.size()};
+		}
+		auto& cc = e.e.emplace<Components::FT1ChunkSHA1Cache>();
 		cc.have_count = 0;
 
 		cc.chunk_hash_to_index.clear(); // if copy pasta
@@ -576,9 +593,12 @@ bool SHA1_NGCFT1::onEvent(const Message::Events::MessageUpdated& e) {
 					const bool data_equal = data_hash == info.chunks.at(i);
 
 					if (data_equal) {
-						cc.have_chunk.set(i);
+						lhb.have.set(i);
 						cc.have_count += 1;
-						bytes_received += chunk_size;
+
+						// TODO: replace with some progress counter?
+						// or move have_count/want_count or something?
+						transfer_stats.total_down += chunk_size;
 						//std::cout << "existing i[" << info.chunks.at(i) << "] == d[" << data_hash << "]\n";
 					} else {
 						//std::cout << "unk i[" << info.chunks.at(i) << "] != d[" << data_hash << "]\n";
@@ -587,59 +607,45 @@ bool SHA1_NGCFT1::onEvent(const Message::Events::MessageUpdated& e) {
 					// error reading?
 				}
 
-				_chunks[info.chunks[i]] = ce;
+				_chunks[info.chunks[i]] = e.e;
 				cc.chunk_hash_to_index[info.chunks[i]].push_back(i);
 			}
 			std::cout << "preexisting " << cc.have_count << "/" << info.chunks.size() << "\n";
 
 			if (cc.have_count >= info.chunks.size()) {
-				cc.have_all = true;
-				//ce.remove<Message::Components::Transfer::BytesReceived>();
+				e.e.emplace_or_replace<ObjComp::F::TagLocalHaveAll>();
+				e.e.remove<ObjComp::F::LocalHaveBitset>();
 			}
 		} else {
 			for (size_t i = 0; i < info.chunks.size(); i++) {
-				_chunks[info.chunks[i]] = ce;
+				_chunks[info.chunks[i]] = e.e;
 				cc.chunk_hash_to_index[info.chunks[i]].push_back(i);
 			}
 		}
 	}
 
-	ce.emplace<Message::Components::Transfer::File>(std::move(file_impl));
+	e.e.emplace_or_replace<Components::FT1File2>(std::move(file_impl));
 
-	// queue announce we are participating
-	// since this is the first time, we publicly announce to all
-	if (e.e.all_of<Message::Components::ContactFrom, Message::Components::ContactTo>()) {
-		const auto c_f = e.e.get<Message::Components::ContactFrom>().c;
-		const auto c_t = e.e.get<Message::Components::ContactTo>().c;
+	// queue announce that we are participating
+	e.e.get_or_emplace<Components::ReAnnounceTimer>(0.1f, 60.f*(_rng()%5120) / 1024.f).timer = (_rng()%512) / 1024.f;
 
-		if (_cr.all_of<Contact::Components::ToxGroupEphemeral>(c_t)) {
-			// public
-			ce.get_or_emplace<Components::AnnounceTargets>().targets.emplace(c_t);
-		} else if (_cr.all_of<Contact::Components::ToxGroupPeerEphemeral>(c_f)) {
-			// private ?
-			ce.get_or_emplace<Components::AnnounceTargets>().targets.emplace(c_f);
-		}
-	}
-	ce.get_or_emplace<Components::ReAnnounceTimer>(0.1f, 60.f*(_rng()%5120) / 1024.f).timer = (_rng()%512) / 1024.f;
-
-	ce.remove<Message::Components::Transfer::TagPaused>();
+	e.e.remove<ObjComp::Ephemeral::File::TagTransferPaused>();
 
 	// start requesting from all participants
-	if (ce.all_of<Components::SuspectedParticipants>()) {
-		std::cout << "accepted ft has " << ce.get<Components::SuspectedParticipants>().participants.size() << " sp\n";
-		for (const auto cv : ce.get<Components::SuspectedParticipants>().participants) {
+	if (e.e.all_of<Components::SuspectedParticipants>()) {
+		std::cout << "accepted ft has " << e.e.get<Components::SuspectedParticipants>().participants.size() << " sp\n";
+		for (const auto cv : e.e.get<Components::SuspectedParticipants>().participants) {
 			_cr.emplace_or_replace<ChunkPickerUpdateTag>(cv);
 		}
 	} else {
 		std::cout << "accepted ft has NO sp!\n";
 	}
 
-	// should?
-	e.e.remove<Message::Components::Transfer::ActionAccept>();
+	e.e.remove<ObjComp::Ephemeral::File::ActionTransferAccept>();
 
-	updateMessages(ce);
+	updateMessages(e.e);
 
-	return false;
+	return false; // ?
 }
 
 bool SHA1_NGCFT1::onEvent(const Events::NGCFT1_recv_request& e) {
@@ -717,7 +723,7 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCFT1_recv_request& e) {
 
 		assert(o.all_of<Components::FT1ChunkSHA1Cache>());
 
-		if (!o.get<Components::FT1ChunkSHA1Cache>().haveChunk(chunk_hash)) {
+		if (!o.get<Components::FT1ChunkSHA1Cache>().haveChunk(o, chunk_hash)) {
 			// we dont have the chunk
 			return false;
 		}
@@ -793,7 +799,7 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCFT1_recv_init& e) {
 		assert(o.all_of<Components::FT1ChunkSHA1Cache>());
 
 		const auto& cc = o.get<Components::FT1ChunkSHA1Cache>();
-		if (cc.haveChunk(sha1_chunk_hash)) {
+		if (cc.haveChunk(o, sha1_chunk_hash)) {
 			std::cout << "SHA1_NGCFT1: chunk rejected, already have [" << SHA1Digest{sha1_chunk_hash} << "]\n";
 			// we have the chunk
 			return false;
@@ -854,16 +860,16 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCFT1_recv_data& e) {
 	} else if (transfer.isChunk()) {
 		auto o = transfer.getChunk().content;
 
-		assert(o.all_of<Message::Components::Transfer::File>());
-		auto* file = o.get<Message::Components::Transfer::File>().get();
-		assert(file != nullptr);
-
 		const auto chunk_size = o.get<Components::FT1InfoSHA1>().chunk_size;
 		for (const auto chunk_index : transfer.getChunk().chunk_indices) {
 			const auto offset_into_file = chunk_index * chunk_size;
 
-			if (!file->write({e.data, e.data_size}, offset_into_file + e.data_offset)) {
-				std::cerr << "SHA1_NGCFT1 error: writing file failed o:" << offset_into_file + e.data_offset << "\n";
+			auto* file2 = objGetFile2Write(o);
+			if (file2 == nullptr) {
+				return false; // early out
+			}
+			if (!file2->write({e.data, e.data_size}, offset_into_file + e.data_offset)) {
+				std::cerr << "SHA1_NGCFT1 error: writing file failed o:" << entt::to_integral(o.entity()) << "@" << offset_into_file + e.data_offset << "\n";
 			}
 		}
 
@@ -903,8 +909,14 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCFT1_send_data& e) {
 	} else if (transfer.isChunk()) {
 		auto& chunk_transfer = transfer.getChunk();
 		const auto& info = chunk_transfer.content.get<Components::FT1InfoSHA1>();
-		// TODO: should we really use file?
-		const auto data = chunk_transfer.content.get<Message::Components::Transfer::File>()->read(
+
+		auto* file2 = objGetFile2Read(chunk_transfer.content);
+		if (file2 == nullptr) {
+			// return true?
+			return false; // early out
+		}
+
+		const auto data = file2->read(
 			e.data_size,
 			(chunk_transfer.chunk_index * uint64_t(info.chunk_size)) + e.data_offset
 		);
@@ -914,7 +926,6 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCFT1_send_data& e) {
 			e.data[i] = data[i];
 		}
 
-		chunk_transfer.content.get_or_emplace<Message::Components::Transfer::BytesSent>().total += data.size;
 		// TODO: add event to propergate to messages
 		//_rmm.throwEventUpdate(transfer); // should we?
 
@@ -972,9 +983,10 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCFT1_recv_done& e) {
 
 		{ // file info
 			// TODO: not overwrite fi? since same?
-			auto& file_info = o.emplace_or_replace<Message::Components::Transfer::FileInfo>();
-			file_info.file_list.emplace_back() = {ft_info.file_name, ft_info.file_size};
-			file_info.total_size = ft_info.file_size;
+			auto& file_info = o.emplace_or_replace<ObjComp::F::SingleInfo>(ft_info.file_name, ft_info.file_size);
+			//auto& file_info = o.emplace_or_replace<Message::Components::Transfer::FileInfo>();
+			//file_info.file_list.emplace_back() = {ft_info.file_name, ft_info.file_size};
+			//file_info.total_size = ft_info.file_size;
 		}
 
 		std::cout << "SHA1_NGCFT1: got info for [" << SHA1Digest{hash} << "]\n" << ft_info << "\n";
@@ -984,7 +996,7 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCFT1_recv_done& e) {
 			_queue_content_want_info.erase(it);
 		}
 
-		o.emplace_or_replace<Message::Components::Transfer::TagPaused>();
+		o.emplace_or_replace<ObjComp::Ephemeral::File::TagTransferPaused>();
 
 		updateMessages(o);
 	} else if (transfer.isChunk()) {
@@ -1000,7 +1012,12 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCFT1_recv_done& e) {
 		const auto chunk_size = info.chunkSize(chunk_index);
 		assert(offset_into_file+chunk_size <= info.file_size);
 
-		const auto chunk_data = o.get<Message::Components::Transfer::File>()->read(chunk_size, offset_into_file);
+		auto* file2 = objGetFile2Read(o);
+		if (file2 == nullptr) {
+			// rip
+			return false;
+		}
+		auto chunk_data = std::move(file2->read(chunk_size, offset_into_file));
 		assert(!chunk_data.empty());
 
 		// check hash of chunk
@@ -1008,34 +1025,42 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCFT1_recv_done& e) {
 		if (info.chunks.at(chunk_index) == got_hash) {
 			std::cout << "SHA1_NGCFT1: got chunk [" << SHA1Digest{got_hash} << "]\n";
 
-			if (!cc.have_all) {
-				for (const auto inner_chunk_index : transfer.getChunk().chunk_indices) {
-					if (!cc.have_all && !cc.have_chunk[inner_chunk_index]) {
-						cc.have_chunk.set(inner_chunk_index);
+			if (!o.all_of<ObjComp::F::TagLocalHaveAll>()) {
+				{
+					auto& lhb = o.get_or_emplace<ObjComp::F::LocalHaveBitset>(info.chunks.size());
+					for (const auto inner_chunk_index : transfer.getChunk().chunk_indices) {
+						if (lhb.have[inner_chunk_index]) {
+							continue;
+						}
+
+						// new good chunk
+
+						lhb.have.set(inner_chunk_index);
 						cc.have_count += 1;
+
+						// TODO: have wasted + metadata
+						//o.get_or_emplace<Message::Components::Transfer::BytesReceived>().total += chunk_data.size;
+						// we already tallied all of them but maybe we want to set some other progress indicator here?
+
 						if (cc.have_count == info.chunks.size()) {
 							// debug check
 							for ([[maybe_unused]] size_t i = 0; i < info.chunks.size(); i++) {
-								assert(cc.have_chunk[i]);
+								assert(lhb.have[i]);
 							}
 
-							cc.have_all = true;
-							cc.have_chunk = BitSet(0); // not wasting memory
+							o.emplace_or_replace<ObjComp::F::TagLocalHaveAll>();
 							std::cout << "SHA1_NGCFT1: got all chunks for \n" << info << "\n";
 
-							// HACK: remap file, to clear ram
-
-							// TODO: error checking
-							o.get<Message::Components::Transfer::File>() = construct_file2_rw_mapped(
-								o.get<Message::Components::Transfer::FileInfoLocal>().file_list.front(),
-								info.file_size
-							);
+							// HACK: close file2, to clear ram
+							// TODO: just add a lastActivity comp and close files every x minutes based on that
+							file2 = nullptr; // making sure we dont have a stale ptr
+							o.remove<Components::FT1File2>(); // will be recreated on demand
+							break;
 						}
-
-						// good chunk
-						// TODO: have wasted + metadata
-						o.get_or_emplace<Message::Components::Transfer::BytesReceived>().total += chunk_data.size;
 					}
+				}
+				if (o.all_of<ObjComp::F::TagLocalHaveAll>()) {
+					o.remove<ObjComp::F::LocalHaveBitset>(); // save space
 				}
 
 				// queue chunk have for all participants
@@ -1062,20 +1087,6 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCFT1_recv_done& e) {
 						chunk_indices.data(), chunk_indices.size()
 					);
 				}
-
-#if 0
-				if (!cc.have_all) { // debug print self have set
-					std::cout << "DEBUG print have bitset: s:" << cc.have_chunk.size_bits();
-					for (size_t i = 0; i < cc.have_chunk.size_bytes(); i++) {
-						if (i % 32 == 0) {
-							printf("\n");
-						}
-						// f cout
-						printf("%.2x", (uint16_t)cc.have_chunk.data()[i]);
-					}
-					printf("\n");
-				}
-#endif
 			} else {
 				std::cout << "SHA1_NGCFT1 warning: got chunk duplicate\n";
 			}
@@ -1125,7 +1136,7 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCFT1_recv_message& e) {
 		return false;
 	}
 
-	uint64_t ts = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+	uint64_t ts = Message::getTimeMS();
 
 	const auto c = _tcm.getContactGroupPeer(e.group_number, e.peer_number);
 	_tox_peer_to_contact[combine_ids(e.group_number, e.peer_number)] = c; // workaround
@@ -1152,7 +1163,7 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCFT1_recv_message& e) {
 
 	reg.emplace<Message::Components::ToxGroupMessageID>(new_msg_e, e.message_id);
 
-	reg.emplace<Message::Components::Transfer::TagReceiving>(new_msg_e); // add sending?
+	//reg.emplace<Message::Components::Transfer::TagReceiving>(new_msg_e); // add sending?
 
 	reg.emplace<Message::Components::TimestampProcessed>(new_msg_e, ts);
 	//reg.emplace<Components::TimestampWritten>(new_msg_e, 0);
@@ -1174,58 +1185,39 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCFT1_recv_message& e) {
 
 	// check if content exists
 	const auto sha1_info_hash = std::vector<uint8_t>{e.file_id, e.file_id+e.file_id_size};
-	ObjectHandle ce;
+	ObjectHandle o;
 	if (_info_to_content.count(sha1_info_hash)) {
-		ce = _info_to_content.at(sha1_info_hash);
+		o = _info_to_content.at(sha1_info_hash);
 		std::cout << "SHA1_NGCFT1: new message has existing content\n";
 	} else {
 		// TODO: backend
-		ce = {_os.registry(), _os.registry().create()};
-		_info_to_content[sha1_info_hash] = ce;
+		o = _mfb.newObject(ByteSpan{sha1_info_hash});
+		_info_to_content[sha1_info_hash] = o;
+		o.emplace<Components::FT1InfoSHA1Hash>(sha1_info_hash);
 		std::cout << "SHA1_NGCFT1: new message has new content\n";
-
-		//ce.emplace<Components::FT1InfoSHA1>(sha1_info);
-		//ce.emplace<Components::FT1InfoSHA1Data>(sha1_info_data); // keep around? or file?
-		ce.emplace<Components::FT1InfoSHA1Hash>(sha1_info_hash);
 	}
-	ce.get_or_emplace<Components::Messages>().messages.push_back({reg, new_msg_e});
-	reg_ptr->emplace<Message::Components::Content>(new_msg_e, ce);
+	o.get_or_emplace<Components::Messages>().messages.push_back({reg, new_msg_e});
+	reg_ptr->emplace<Message::Components::MessageFileObject>(new_msg_e, o);
 
 	// HACK: assume the message sender is participating. usually a safe bet.
-	if (addParticipation(c, ce)) {
+	if (addParticipation(c, o)) {
 		// something happend, update chunk picker
 		assert(static_cast<bool>(c));
 		c.emplace_or_replace<ChunkPickerUpdateTag>();
 	}
 
 	// HACK: assume the message sender has all
-	ce.get_or_emplace<Components::RemoteHave>().others[c] = {true, {}};
+	o.get_or_emplace<Components::RemoteHaveBitset>().others[c] = {true, {}};
 
-	if (!ce.all_of<Components::ReRequestInfoTimer>() && !ce.all_of<Components::FT1InfoSHA1>()) {
+	if (!o.all_of<Components::ReRequestInfoTimer>() && !o.all_of<Components::FT1InfoSHA1>()) {
 		// TODO: check if already receiving
-		_queue_content_want_info.push_back(ce);
+		_queue_content_want_info.push_back(o);
 	}
+
+	// since public
+	o.get_or_emplace<Components::AnnounceTargets>().targets.emplace(c.get<Contact::Components::Parent>().parent);
 
 	// TODO: queue info dl
-
-	//reg_ptr->emplace<Components::FT1InfoSHA1>(e, sha1_info);
-	//reg_ptr->emplace<Components::FT1InfoSHA1Data>(e, sha1_info_data); // keep around? or file?
-	//reg.emplace<Components::FT1InfoSHA1Hash>(new_msg_e, std::vector<uint8_t>{e.file_id, e.file_id+e.file_id_size});
-
-	if (auto* cc = ce.try_get<Components::FT1ChunkSHA1Cache>(); cc != nullptr && cc->have_all) {
-		reg_ptr->emplace<Message::Components::Transfer::TagHaveAll>(new_msg_e);
-	}
-
-	if (ce.all_of<Message::Components::Transfer::FileInfo>()) {
-		reg_ptr->emplace<Message::Components::Transfer::FileInfo>(new_msg_e, ce.get<Message::Components::Transfer::FileInfo>());
-	}
-	if (ce.all_of<Message::Components::Transfer::FileInfoLocal>()) {
-		reg_ptr->emplace<Message::Components::Transfer::FileInfoLocal>(new_msg_e, ce.get<Message::Components::Transfer::FileInfoLocal>());
-	}
-	if (ce.all_of<Message::Components::Transfer::BytesSent>()) {
-		reg_ptr->emplace<Message::Components::Transfer::BytesSent>(new_msg_e, ce.get<Message::Components::Transfer::BytesSent>());
-	}
-
 	// TODO: queue info/check if we already have info
 
 	_rmm.throwEventConstruct(reg, new_msg_e);
@@ -1249,7 +1241,7 @@ bool SHA1_NGCFT1::sendFilePath(const Contact3 c, std::string_view file_name, std
 	}
 
 	// get current time unix epoch utc
-	uint64_t ts = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+	uint64_t ts = Message::getTimeMS();
 
 	_mfb.newFromFile(
 		file_name, file_path,
@@ -1301,8 +1293,8 @@ bool SHA1_NGCFT1::onToxEvent(const Tox_Event_Group_Peer_Exit* e) {
 		for (const auto& [_, o] : _info_to_content) {
 			removeParticipation(c, o);
 
-			if (o.all_of<Components::RemoteHave>()) {
-				o.get<Components::RemoteHave>().others.erase(c);
+			if (o.all_of<Components::RemoteHaveBitset>()) {
+				o.get<Components::RemoteHaveBitset>().others.erase(c);
 			}
 		}
 	}
@@ -1356,10 +1348,10 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCEXT_ft1_have& e) {
 		c.emplace_or_replace<ChunkPickerUpdateTag>();
 	}
 
-	auto& remote_have = o.get_or_emplace<Components::RemoteHave>().others;
+	auto& remote_have = o.get_or_emplace<Components::RemoteHaveBitset>().others;
 	if (!remote_have.contains(c)) {
 		// init
-		remote_have.emplace(c, Components::RemoteHave::Entry{false, num_total_chunks});
+		remote_have.emplace(c, Components::RemoteHaveBitset::Entry{false, num_total_chunks});
 
 		// new have? nice
 		// (always update on biset, not always on have)
@@ -1443,10 +1435,10 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCEXT_ft1_bitset& e) {
 	// we might not know yet
 	addParticipation(c, o);
 
-	auto& remote_have = o.get_or_emplace<Components::RemoteHave>().others;
+	auto& remote_have = o.get_or_emplace<Components::RemoteHaveBitset>().others;
 	if (!remote_have.contains(c)) {
 		// init
-		remote_have.emplace(c, Components::RemoteHave::Entry{false, num_total_chunks});
+		remote_have.emplace(c, Components::RemoteHaveBitset::Entry{false, num_total_chunks});
 	}
 
 	auto& remote_have_peer = remote_have.at(c);
@@ -1507,8 +1499,8 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCEXT_ft1_have_all& e) {
 	// we might not know yet
 	addParticipation(c, o);
 
-	auto& remote_have = o.get_or_emplace<Components::RemoteHave>().others;
-	remote_have[c] = Components::RemoteHave::Entry{true, {}};
+	auto& remote_have = o.get_or_emplace<Components::RemoteHaveBitset>().others;
+	remote_have[c] = Components::RemoteHaveBitset::Entry{true, {}};
 
 	// new have? nice
 	// (always update on have_all, not always on have)

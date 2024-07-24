@@ -1,6 +1,8 @@
 #include "./transfer_stats_systems.hpp"
 
 #include "./components.hpp"
+#include <solanaceae/object_store/meta_components_file.hpp>
+
 #include <iostream>
 
 namespace Systems {
@@ -88,7 +90,7 @@ void transfer_tally_update(ObjectRegistry& os_reg, const float time_now) {
 
 	// for each stats separated -> stats (total)
 	os_reg.view<Components::TransferStatsSeparated, Components::TransferStatsTally>().each([&os_reg](const auto ov, Components::TransferStatsSeparated& tss_comp, const auto&) {
-		Components::TransferStats& stats = os_reg.get_or_emplace<Components::TransferStats>(ov);
+		auto& stats = os_reg.get_or_emplace<ObjComp::Ephemeral::File::TransferStats>(ov);
 		stats = {}; // reset
 
 		for (const auto& [_, peer_stats] : tss_comp.stats) {

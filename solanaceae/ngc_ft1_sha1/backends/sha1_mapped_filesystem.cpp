@@ -1,6 +1,7 @@
 #include "./sha1_mapped_filesystem.hpp"
 
 #include <solanaceae/object_store/meta_components.hpp>
+#include <solanaceae/object_store/meta_components_file.hpp>
 
 #include "../file_constructor.hpp"
 #include "../ft1_sha1_info.hpp"
@@ -138,10 +139,7 @@ void SHA1MappedFilesystem::newFromFile(std::string_view file_name, std::string_v
 					o = {_os.registry(), it_ov};
 				}
 			}
-			//if (self->info_to_content.count(sha1_info_hash)) {
 			if (static_cast<bool>(o)) {
-				//ce = self->info_to_content.at(sha1_info_hash);
-
 				// TODO: check if content is incomplete and use file instead
 				if (!o.all_of<Components::FT1InfoSHA1>()) {
 					o.emplace<Components::FT1InfoSHA1>(sha1_info);
@@ -153,32 +151,9 @@ void SHA1MappedFilesystem::newFromFile(std::string_view file_name, std::string_v
 				// hash has to be set already
 				// Components::FT1InfoSHA1Hash
 
-				{ // lookup tables and have
-					auto& cc = o.get_or_emplace<Components::FT1ChunkSHA1Cache>();
-					cc.have_all = true;
-					// skip have vec, since all
-					//cc.have_chunk
-					cc.have_count = sha1_info.chunks.size(); // need?
-
-					//self->_info_to_content[sha1_info_hash] = ce;
-					cc.chunk_hash_to_index.clear(); // for cpy pst
-					for (size_t i = 0; i < sha1_info.chunks.size(); i++) {
-						//self->_chunks[sha1_info.chunks[i]] = ce;
-						cc.chunk_hash_to_index[sha1_info.chunks[i]].push_back(i);
-					}
-				}
-
-				{ // file info
-					// TODO: not overwrite fi? since same?
-					auto& file_info = o.emplace_or_replace<Message::Components::Transfer::FileInfo>();
-					file_info.file_list.emplace_back() = {std::string{file_name_}, file_impl->_file_size};
-					file_info.total_size = file_impl->_file_size;
-
-					o.emplace_or_replace<Message::Components::Transfer::FileInfoLocal>(std::vector{std::string{file_path_}});
-				}
-
 				// hmmm
-				o.remove<Message::Components::Transfer::TagPaused>();
+				// TODO: we need a replacement for this
+				o.remove<ObjComp::Ephemeral::File::TagTransferPaused>();
 
 				// we dont want the info anymore
 				o.remove<Components::ReRequestInfoTimer>();
@@ -188,32 +163,33 @@ void SHA1MappedFilesystem::newFromFile(std::string_view file_name, std::string_v
 				o.emplace<Components::FT1InfoSHA1>(sha1_info);
 				o.emplace<Components::FT1InfoSHA1Data>(sha1_info_data); // keep around? or file?
 				o.emplace<Components::FT1InfoSHA1Hash>(sha1_info_hash);
-				{ // lookup tables and have
-					auto& cc = o.emplace<Components::FT1ChunkSHA1Cache>();
-					cc.have_all = true;
-					// skip have vec, since all
-					cc.have_count = sha1_info.chunks.size(); // need?
+			}
 
-					cc.chunk_hash_to_index.clear(); // for cpy pst
-					for (size_t i = 0; i < sha1_info.chunks.size(); i++) {
-						cc.chunk_hash_to_index[sha1_info.chunks[i]].push_back(i);
-					}
-				}
+			{ // lookup tables and have
+				auto& cc = o.get_or_emplace<Components::FT1ChunkSHA1Cache>();
+				// skip have vec, since all
+				cc.have_count = sha1_info.chunks.size(); // need?
 
-				{ // file info
-					auto& file_info = o.emplace<Message::Components::Transfer::FileInfo>();
-					file_info.file_list.emplace_back() = {std::string{file_name_}, file_impl->_file_size};
-					file_info.total_size = file_impl->_file_size;
-
-					o.emplace<Message::Components::Transfer::FileInfoLocal>(std::vector{std::string{file_path_}});
+				cc.chunk_hash_to_index.clear(); // for cpy pst
+				for (size_t i = 0; i < sha1_info.chunks.size(); i++) {
+					cc.chunk_hash_to_index[sha1_info.chunks[i]].push_back(i);
 				}
 			}
 
-			o.emplace_or_replace<Message::Components::Transfer::File>(std::move(file_impl));
+			o.emplace_or_replace<ObjComp::F::TagLocalHaveAll>();
+			o.remove<ObjComp::F::LocalHaveBitset>();
 
-			// TODO: replace with transfers stats
-			if (!o.all_of<Message::Components::Transfer::BytesSent>()) {
-				o.emplace<Message::Components::Transfer::BytesSent>(0u);
+			{ // file info
+				// TODO: not overwrite fi? since same?
+				o.emplace_or_replace<ObjComp::F::SingleInfo>(file_name_, file_impl->_file_size);
+				o.emplace_or_replace<ObjComp::F::SingleInfoLocal>(file_path_);
+				o.emplace_or_replace<ObjComp::Ephemeral::FilePath>(file_path_); // ?
+			}
+
+			o.emplace_or_replace<Components::FT1File2>(std::move(file_impl));
+
+			if (!o.all_of<ObjComp::Ephemeral::File::TransferStats>()) {
+				o.emplace<ObjComp::Ephemeral::File::TransferStats>();
 			}
 
 			cb(o);
@@ -226,23 +202,33 @@ void SHA1MappedFilesystem::newFromFile(std::string_view file_name, std::string_v
 }
 
 std::unique_ptr<File2I> SHA1MappedFilesystem::file2(Object ov, FILE2_FLAGS flags) {
+	if (flags & FILE2_RAW) {
+		std::cerr << "SHA1MF error: does not support raw modes\n";
+		return nullptr;
+	}
+
 	ObjectHandle o{_os.registry(), ov};
 
 	if (!static_cast<bool>(o)) {
 		return nullptr;
 	}
 
-	if (!o.all_of<Message::Components::Transfer::FileInfoLocal>()) {
+	// will this do if we go and support enc?
+	// use ObjComp::Ephemeral::FilePath instead??
+	if (!o.all_of<ObjComp::F::SingleInfoLocal>()) {
 		return nullptr;
 	}
 
-	const auto& file_list = o.get<Message::Components::Transfer::FileInfoLocal>().file_list;
-	if (file_list.empty()) {
+	const auto& file_path = o.get<ObjComp::F::SingleInfoLocal>().file_path;
+	if (file_path.empty()) {
 		return nullptr;
 	}
 
-	auto res = construct_file2_rw_mapped(file_list.front(), -1);
+	// TODO: read-only one too
+	// since they are mapped, is this efficent to have multiple?
+	auto res = construct_file2_rw_mapped(file_path, -1);
 	if (!res || !res->isGood()) {
+		std::cerr << "SHA1MF error: failed constructing mapped file '" << file_path << "'\n";
 		return nullptr;
 	}
 

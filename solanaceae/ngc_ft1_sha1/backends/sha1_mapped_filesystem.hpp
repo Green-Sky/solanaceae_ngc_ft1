@@ -32,7 +32,7 @@ struct SHA1MappedFilesystem : public StorageBackendI {
 	// might return pre-existing?
 	ObjectHandle newFromInfoHash(ByteSpan info_hash);
 
-	std::unique_ptr<File2I> file2(Object o, FILE2_FLAGS flags); // default does nothing
+	std::unique_ptr<File2I> file2(Object o, FILE2_FLAGS flags) override;
 };
 
 } // Backends
