@@ -285,7 +285,7 @@ std::vector<ChunkPicker::ContentChunkR> ChunkPicker::updateChunkRequests(
 		const auto* lhb = o.try_get<ObjComp::F::LocalHaveBitset>();
 
 		// if we dont have anything, this might not exist yet
-		BitSet chunk_candidates = lhb == nullptr ? BitSet{total_chunks} : lhb->have;
+		BitSet chunk_candidates = lhb == nullptr ? BitSet{total_chunks} : (lhb->have.size_bits() >= total_chunks ? lhb->have : BitSet{total_chunks});
 
 		if (!other_have.have_all) {
 			// AND is the same as ~(~A | ~B)

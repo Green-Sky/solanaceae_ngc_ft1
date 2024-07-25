@@ -573,7 +573,7 @@ bool SHA1_NGCFT1::onEvent(const ObjectStore::Events::ObjectUpdate& e) {
 	{ // next, create chuck cache and check for existing data
 		auto& transfer_stats = e.e.get_or_emplace<ObjComp::Ephemeral::File::TransferStats>();
 		auto& lhb = e.e.get_or_emplace<ObjComp::F::LocalHaveBitset>();
-		if (lhb.have.size_bytes() < info.chunks.size()/8) {
+		if (lhb.have.size_bits() < info.chunks.size()) {
 			lhb.have = BitSet{info.chunks.size()};
 		}
 		auto& cc = e.e.emplace<Components::FT1ChunkSHA1Cache>();
@@ -1027,7 +1027,7 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCFT1_recv_done& e) {
 
 			if (!o.all_of<ObjComp::F::TagLocalHaveAll>()) {
 				{
-					auto& lhb = o.get_or_emplace<ObjComp::F::LocalHaveBitset>(info.chunks.size());
+					auto& lhb = o.get_or_emplace<ObjComp::F::LocalHaveBitset>(BitSet{info.chunks.size()});
 					for (const auto inner_chunk_index : transfer.getChunk().chunk_indices) {
 						if (lhb.have[inner_chunk_index]) {
 							continue;
