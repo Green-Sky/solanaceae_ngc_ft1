@@ -5,7 +5,7 @@
 #include <solanaceae/contact/components.hpp>
 #include <solanaceae/tox_contacts/components.hpp>
 #include <solanaceae/message3/components.hpp>
-#include <solanaceae/tox_messages/components.hpp>
+#include <solanaceae/tox_messages/msg_components.hpp>
 #include <solanaceae/object_store/meta_components_file.hpp>
 
 #include "./util.hpp"
@@ -261,18 +261,27 @@ float SHA1_NGCFT1::iterate(float delta) {
 
 		{ // requested info timers
 			std::vector<Object> timed_out;
-			_os.registry().view<Components::ReRequestInfoTimer>().each([delta, &timed_out](Object e, Components::ReRequestInfoTimer& rrit) {
+			_os.registry().view<Components::ReRequestInfoTimer>().each([delta, &timed_out](Object ov, Components::ReRequestInfoTimer& rrit) {
 				rrit.timer += delta;
 
 				// 15sec, TODO: config
 				if (rrit.timer >= 15.f) {
-					timed_out.push_back(e);
+					timed_out.push_back(ov);
 				}
 			});
 			for (const auto e : timed_out) {
 				// TODO: avoid dups
-				_queue_content_want_info.push_back(_os.objectHandle(e));
-				_os.registry().remove<Components::ReRequestInfoTimer>(e);
+				for (const ObjectHandle it : _queue_content_want_info) {
+					assert(it != e);
+				}
+
+				auto o = _os.objectHandle(e);
+				assert(!o.any_of<ObjComp::F::SingleInfo>());
+				assert(!o.any_of<ObjComp::F::TagLocalHaveAll>());
+
+				_queue_content_want_info.push_back(o);
+				//_os.registry().remove<Components::ReRequestInfoTimer>(e);
+				o.remove<Components::ReRequestInfoTimer>();
 				// TODO: throw update?
 			}
 		}
@@ -1209,16 +1218,34 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCFT1_recv_message& e) {
 	// HACK: assume the message sender has all
 	o.get_or_emplace<Components::RemoteHaveBitset>().others[c] = {true, {}};
 
+	// TODO: queue info dl
+	// TODO: queue info/check if we already have info
 	if (!o.all_of<Components::ReRequestInfoTimer>() && !o.all_of<Components::FT1InfoSHA1>()) {
-		// TODO: check if already receiving
-		_queue_content_want_info.push_back(o);
+		bool in_info_want {false};
+		for (const auto it : _queue_content_want_info) {
+			if (it == o) {
+				in_info_want = true;
+				break;
+			}
+		}
+		if (!in_info_want) {
+			// TODO: check if already receiving
+			_queue_content_want_info.push_back(o);
+		}
+	} else if (o.all_of<Components::FT1InfoSHA1>()){
+		// remove from info want
+		o.remove<Components::ReRequestInfoTimer>();
+
+		auto it = std::find(_queue_content_want_info.cbegin(), _queue_content_want_info.cend(), o);
+		if (it != _queue_content_want_info.cend()) {
+			_queue_content_want_info.erase(it);
+		}
 	}
 
 	// since public
 	o.get_or_emplace<Components::AnnounceTargets>().targets.emplace(c.get<Contact::Components::Parent>().parent);
 
-	// TODO: queue info dl
-	// TODO: queue info/check if we already have info
+	_os.throwEventUpdate(o);
 
 	_rmm.throwEventConstruct(reg, new_msg_e);
 
