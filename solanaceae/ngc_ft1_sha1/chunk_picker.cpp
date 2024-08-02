@@ -327,7 +327,8 @@ std::vector<ChunkPicker::ContentChunkR> ChunkPicker::updateChunkRequests(
 		//PickerStrategyRandom ps(chunk_candidates, total_chunks, _rng);
 		PickerStrategyRandomSequential ps(chunk_candidates, total_chunks, _rng, start_offset);
 		size_t out_chunk_idx {0};
-		while (ps.gen(out_chunk_idx) && req_ret.size() < num_requests) {
+		size_t req_from_this_o {0};
+		while (ps.gen(out_chunk_idx) && req_ret.size() < num_requests && req_from_this_o < std::max<size_t>(total_chunks/3, 1)) {
 			// out_chunk_idx is a potential candidate we can request form peer
 
 			// - check against double requests
@@ -355,6 +356,8 @@ std::vector<ChunkPicker::ContentChunkR> ChunkPicker::updateChunkRequests(
 			// TODO: move this after packet was sent successfully
 			// (move net in? hmm)
 			requested_chunks[out_chunk_idx] = Components::FT1ChunkSHA1Requested::Entry{0.f, c};
+
+			req_from_this_o++;
 		}
 	}
 
