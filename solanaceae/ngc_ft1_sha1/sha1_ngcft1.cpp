@@ -1372,7 +1372,7 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCEXT_ft1_have& e) {
 	// we might not know yet
 	if (addParticipation(c, o)) {
 		// something happend, update chunk picker
-		c.emplace_or_replace<ChunkPickerUpdateTag>();
+		//c.emplace_or_replace<ChunkPickerUpdateTag>();
 	}
 
 	auto& remote_have = o.get_or_emplace<Components::RemoteHaveBitset>().others;
@@ -1381,40 +1381,48 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCEXT_ft1_have& e) {
 		remote_have.emplace(c, Components::RemoteHaveBitset::Entry{false, num_total_chunks});
 
 		// new have? nice
-		// (always update on biset, not always on have)
-		c.emplace_or_replace<ChunkPickerUpdateTag>();
+		//c.emplace_or_replace<ChunkPickerUpdateTag>();
 	}
 
 	auto& remote_have_peer = remote_have.at(c);
-	if (!remote_have_peer.have_all) {
-		assert(remote_have_peer.have.size_bits() >= num_total_chunks);
+	if (remote_have_peer.have_all) {
+		return true; // peer somehow already had all, ignoring
+	}
 
-		for (const auto c_i : e.chunks) {
-			if (c_i >= num_total_chunks) {
-				std::cerr << "SHA1_NGCFT1 error: remote sent have with out-of-range chunk index!!!\n";
-				std::cerr << info_hash << ": " << c_i << " >= " << num_total_chunks << "\n";
-				continue;
-			}
+	assert(remote_have_peer.have.size_bits() >= num_total_chunks);
 
-			assert(c_i < num_total_chunks);
-			remote_have_peer.have.set(c_i);
+	bool a_valid_change {false};
+	for (const auto c_i : e.chunks) {
+		if (c_i >= num_total_chunks) {
+			std::cerr << "SHA1_NGCFT1 error: remote sent have with out-of-range chunk index!!!\n";
+			std::cerr << info_hash << ": " << c_i << " >= " << num_total_chunks << "\n";
+			continue;
 		}
 
-		// check for completion?
-		// TODO: optimize
-		bool test_all {true};
-		for (size_t i = 0; i < remote_have_peer.have.size_bits(); i++) {
-			if (!remote_have_peer.have[i]) {
-				test_all = false;
-				break;
-			}
-		}
+		assert(c_i < num_total_chunks);
+		remote_have_peer.have.set(c_i);
+		a_valid_change = true;
+	}
 
-		if (test_all) {
-			// optimize
-			remote_have_peer.have_all = true;
-			remote_have_peer.have = BitSet{};
+	if (a_valid_change) {
+		// new have? nice
+		c.emplace_or_replace<ChunkPickerUpdateTag>();
+	}
+
+	// check for completion?
+	// TODO: optimize
+	bool test_all {true};
+	for (size_t i = 0; i < remote_have_peer.have.size_bits(); i++) {
+		if (!remote_have_peer.have[i]) {
+			test_all = false;
+			break;
 		}
+	}
+
+	if (test_all) {
+		// optimize
+		remote_have_peer.have_all = true;
+		remote_have_peer.have = BitSet{};
 	}
 
 	return true;
@@ -1491,7 +1499,6 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCEXT_ft1_bitset& e) {
 	}
 
 	// new have? nice
-	// (always update on bitset, not always on have)
 	c.emplace_or_replace<ChunkPickerUpdateTag>();
 
 	return true;
@@ -1530,7 +1537,6 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCEXT_ft1_have_all& e) {
 	remote_have[c] = Components::RemoteHaveBitset::Entry{true, {}};
 
 	// new have? nice
-	// (always update on have_all, not always on have)
 	c.emplace_or_replace<ChunkPickerUpdateTag>();
 
 	return true;
