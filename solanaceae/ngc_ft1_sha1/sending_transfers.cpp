@@ -11,7 +11,8 @@ void SendingTransfers::tick(float delta) {
 			// if we have not heard for 10min, timeout (lower level event on real timeout)
 			// (2min was too little, so it seems)
 			// TODO: do we really need this if we get events?
-			if (it->second.time_since_activity >= 60.f*10.f) {
+			// FIXME: disabled for now, we are trusting ngcft1 for now
+			if (false && it->second.time_since_activity >= 60.f*10.f) {
 				std::cerr << "SHA1_NGCFT1 warning: sending tansfer timed out " << "." << int(it->first) << "\n";
 				assert(false);
 				it = peer_it->second.erase(it);
