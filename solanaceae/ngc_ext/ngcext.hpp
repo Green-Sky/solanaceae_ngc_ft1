@@ -283,6 +283,9 @@ enum class NGCEXT_Event : uint8_t {
 	// - x bytes (id, different sizes)
 	PC1_ANNOUNCE = 0x80 | 32u,
 
+	// uses sub splitting
+	P2PRNG = 0x80 | 38u,
+
 	MAX
 };
 
