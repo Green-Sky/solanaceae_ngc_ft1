@@ -1102,8 +1102,11 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCFT1_recv_done& e) {
 
 			// something happend, update chunk picker
 			auto c = _tcm.getContactGroupPeer(e.group_number, e.peer_number);
-			assert(static_cast<bool>(c));
-			c.emplace_or_replace<ChunkPickerUpdateTag>();
+			//assert(static_cast<bool>(c));
+			// happened, went offline but chunk was still done o.o
+			if (static_cast<bool>(c)) {
+				c.emplace_or_replace<ChunkPickerUpdateTag>();
+			}
 		} else {
 			// bad chunk
 			std::cout << "SHA1_NGCFT1: got BAD chunk from " << e.group_number << ":" << e.peer_number << " [" << info.chunks.at(chunk_index) << "] ; instead got [" << SHA1Digest{got_hash} << "]\n";
