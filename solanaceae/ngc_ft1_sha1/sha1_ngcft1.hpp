@@ -24,7 +24,7 @@ class SHA1_NGCFT1 : public ToxEventI, public RegistryMessageModelEventI, public 
 	ObjectStore2& _os;
 	// TODO: backend abstraction
 	Contact3Registry& _cr;
-	RegistryMessageModel& _rmm;
+	RegistryMessageModelI& _rmm;
 	NGCFT1& _nft;
 	ToxContactModel2& _tcm;
 	ToxEventProviderI& _tep;
@@ -88,7 +88,7 @@ class SHA1_NGCFT1 : public ToxEventI, public RegistryMessageModelEventI, public 
 		SHA1_NGCFT1(
 			ObjectStore2& os,
 			Contact3Registry& cr,
-			RegistryMessageModel& rmm,
+			RegistryMessageModelI& rmm,
 			NGCFT1& nft,
 			ToxContactModel2& tcm,
 			ToxEventProviderI& tep,

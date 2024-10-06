@@ -194,7 +194,7 @@ File2I* SHA1_NGCFT1::objGetFile2Read(ObjectHandle o) {
 SHA1_NGCFT1::SHA1_NGCFT1(
 	ObjectStore2& os,
 	Contact3Registry& cr,
-	RegistryMessageModel& rmm,
+	RegistryMessageModelI& rmm,
 	NGCFT1& nft,
 	ToxContactModel2& tcm,
 	ToxEventProviderI& tep,
