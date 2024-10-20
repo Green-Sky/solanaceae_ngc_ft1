@@ -108,7 +108,7 @@ namespace Components {
 		struct Peer {
 			struct Entry {
 				float time_point {0.f};
-				size_t bytes {0u};
+				uint64_t bytes {0u};
 				bool accounted {false};
 			};
 			std::deque<Entry> recently_sent;
