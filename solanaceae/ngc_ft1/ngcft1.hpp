@@ -29,7 +29,7 @@ namespace Events {
 		NGCFT1_file_kind file_kind;
 
 		const uint8_t* file_id;
-		size_t file_id_size;
+		uint32_t file_id_size;
 	};
 
 	struct NGCFT1_recv_init {
@@ -39,10 +39,10 @@ namespace Events {
 		NGCFT1_file_kind file_kind;
 
 		const uint8_t* file_id;
-		size_t file_id_size;
+		uint32_t file_id_size;
 
 		const uint8_t transfer_id;
-		const size_t file_size;
+		const uint64_t file_size;
 
 		// return true to accept, false to deny
 		bool& accept;
@@ -54,9 +54,9 @@ namespace Events {
 
 		uint8_t transfer_id;
 
-		size_t data_offset;
+		uint64_t data_offset;
 		const uint8_t* data;
-		size_t data_size;
+		uint32_t data_size;
 	};
 
 	// request to fill data_size bytes into data
@@ -66,9 +66,9 @@ namespace Events {
 
 		uint8_t transfer_id;
 
-		size_t data_offset;
+		uint64_t data_offset;
 		uint8_t* data;
-		size_t data_size;
+		uint32_t data_size;
 	};
 
 	struct NGCFT1_recv_done {
@@ -96,7 +96,7 @@ namespace Events {
 		NGCFT1_file_kind file_kind;
 
 		const uint8_t* file_id;
-		size_t file_id_size;
+		uint32_t file_id_size;
 	};
 
 } // Events
@@ -159,8 +159,8 @@ class NGCFT1 : public ToxEventI, public NGCEXTEventI, public NGCFT1EventProvider
 					FINISHING, // got all the data, but we wait for 2*delay, since its likely there is data still arriving
 				} state;
 
-				size_t file_size {0};
-				size_t file_size_current {0};
+				uint64_t file_size {0};
+				uint64_t file_size_current {0};
 
 				// if state FINISHING and it reaches 0, delete
 				float finishing_timer {0.f};
@@ -188,8 +188,8 @@ class NGCFT1 : public ToxEventI, public NGCEXTEventI, public NGCFT1EventProvider
 				size_t inits_sent {1}; // is sent when creating
 
 				float time_since_activity {0.f};
-				size_t file_size {0};
-				size_t file_size_current {0};
+				uint64_t file_size {0};
+				uint64_t file_size_current {0};
 
 				// sequence array
 				// list of sent but not acked seq_ids
@@ -224,15 +224,15 @@ class NGCFT1 : public ToxEventI, public NGCEXTEventI, public NGCFT1EventProvider
 		void NGC_FT1_send_request_private(
 			uint32_t group_number, uint32_t peer_number,
 			uint32_t file_kind,
-			const uint8_t* file_id, size_t file_id_size
+			const uint8_t* file_id, uint32_t file_id_size
 		);
 
 		// public does not make sense here
 		bool NGC_FT1_send_init_private(
 			uint32_t group_number, uint32_t peer_number,
 			uint32_t file_kind,
-			const uint8_t* file_id, size_t file_id_size,
-			size_t file_size,
+			const uint8_t* file_id, uint32_t file_id_size,
+			uint64_t file_size,
 			uint8_t* transfer_id
 		);
 
@@ -241,7 +241,7 @@ class NGCFT1 : public ToxEventI, public NGCEXTEventI, public NGCFT1EventProvider
 			uint32_t group_number,
 			uint32_t& message_id,
 			uint32_t file_kind,
-			const uint8_t* file_id, size_t file_id_size
+			const uint8_t* file_id, uint32_t file_id_size
 		);
 
 	public: // cca stuff

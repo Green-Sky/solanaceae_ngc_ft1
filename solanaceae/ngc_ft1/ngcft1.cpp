@@ -122,7 +122,7 @@ void NGCFT1::updateSendTransfer(float time_delta, uint32_t group_number, uint32_
 					size_t chunk_size = std::min<size_t>({
 						peer.cca->MAXIMUM_SEGMENT_DATA_SIZE,
 						static_cast<size_t>(can_packet_size),
-						tf.file_size - tf.file_size_current
+						static_cast<size_t>(tf.file_size - tf.file_size_current),
 					});
 					if (chunk_size == 0) {
 						tf.state = State::FINISHING;
@@ -139,7 +139,7 @@ void NGCFT1::updateSendTransfer(float time_delta, uint32_t group_number, uint32_
 							group_number, peer_number,
 							static_cast<uint8_t>(idx),
 							tf.file_size_current,
-							new_data.data(), new_data.size(),
+							new_data.data(), static_cast<uint32_t>(new_data.size()),
 						}
 					);
 
@@ -306,7 +306,7 @@ float NGCFT1::iterate(float time_delta) {
 void NGCFT1::NGC_FT1_send_request_private(
 	uint32_t group_number, uint32_t peer_number,
 	uint32_t file_kind,
-	const uint8_t* file_id, size_t file_id_size
+	const uint8_t* file_id, uint32_t file_id_size
 ) {
 	// TODO: error check
 	_neep.send_ft1_request(group_number, peer_number, file_kind, file_id, file_id_size);
@@ -315,8 +315,8 @@ void NGCFT1::NGC_FT1_send_request_private(
 bool NGCFT1::NGC_FT1_send_init_private(
 	uint32_t group_number, uint32_t peer_number,
 	uint32_t file_kind,
-	const uint8_t* file_id, size_t file_id_size,
-	size_t file_size,
+	const uint8_t* file_id, uint32_t file_id_size,
+	uint64_t file_size,
 	uint8_t* transfer_id
 ) {
 	if (std::get<0>(_t.toxGroupPeerGetConnectionStatus(group_number, peer_number)).value_or(TOX_CONNECTION_NONE) == TOX_CONNECTION_NONE) {
@@ -374,7 +374,7 @@ bool NGCFT1::NGC_FT1_send_message_public(
 	uint32_t group_number,
 	uint32_t& message_id,
 	uint32_t file_kind,
-	const uint8_t* file_id, size_t file_id_size
+	const uint8_t* file_id, uint32_t file_id_size
 ) {
 	// create msg_id
 	message_id = randombytes_random();
@@ -441,7 +441,7 @@ bool NGCFT1::onEvent(const Events::NGCEXT_ft1_request& e) {
 		Events::NGCFT1_recv_request{
 			e.group_number, e.peer_number,
 			static_cast<NGCFT1_file_kind>(e.file_kind),
-			e.file_id.data(), e.file_id.size()
+			e.file_id.data(), static_cast<uint32_t>(e.file_id.size())
 		}
 	);
 }
@@ -457,7 +457,7 @@ bool NGCFT1::onEvent(const Events::NGCEXT_ft1_init& e) {
 		Events::NGCFT1_recv_init{
 			e.group_number, e.peer_number,
 			static_cast<NGCFT1_file_kind>(e.file_kind),
-			e.file_id.data(), e.file_id.size(),
+			e.file_id.data(), static_cast<uint32_t>(e.file_id.size()),
 			e.transfer_id,
 			e.file_size,
 			accept
@@ -578,7 +578,7 @@ bool NGCFT1::onEvent(const Events::NGCEXT_ft1_data& e) {
 				e.group_number, e.peer_number,
 				e.transfer_id,
 				transfer.file_size_current,
-				data.data(), data.size()
+				data.data(), static_cast<uint32_t>(data.size())
 			}
 		);
 
@@ -672,7 +672,7 @@ bool NGCFT1::onEvent(const Events::NGCEXT_ft1_message& e) {
 			e.group_number, e.peer_number,
 			e.message_id,
 			static_cast<NGCFT1_file_kind>(e.file_kind),
-			e.file_id.data(), e.file_id.size()
+			e.file_id.data(), static_cast<uint32_t>(e.file_id.size())
 		}
 	);
 }
