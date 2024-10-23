@@ -78,7 +78,7 @@ bool NGCEXTEventProvider::parse_ft1_init(
 	e.file_size = 0u;
 	_DATA_HAVE(sizeof(e.file_size), std::cerr << "NGCEXT: packet too small, missing file_size\n"; return false)
 	for (size_t i = 0; i < sizeof(e.file_size); i++, curser++) {
-		e.file_size |= size_t(data[curser]) << (i*8);
+		e.file_size |= uint64_t(data[curser]) << (i*8);
 	}
 
 	// - 1 byte (temporary_file_tf_id)
