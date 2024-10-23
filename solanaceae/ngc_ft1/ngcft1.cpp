@@ -210,13 +210,13 @@ void NGCFT1::iteratePeer(float time_delta, uint32_t group_number, uint32_t peer_
 		if (transfer.state == Group::Peer::RecvTransfer::State::FINISHING) {
 			transfer.finishing_timer -= time_delta;
 			if (transfer.finishing_timer <= 0.f) {
-				dispatch(
-					NGCFT1_Event::recv_done,
-					Events::NGCFT1_recv_done{
-						group_number, peer_number,
-						uint8_t(idx)
-					}
-				);
+				//dispatch(
+				//    NGCFT1_Event::recv_done,
+				//    Events::NGCFT1_recv_done{
+				//        group_number, peer_number,
+				//        uint8_t(idx)
+				//    }
+				//);
 
 				peer.recv_transfers.at(idx).reset();
 			}
@@ -543,7 +543,7 @@ bool NGCFT1::onEvent(const Events::NGCEXT_ft1_init_ack& e) {
 
 bool NGCFT1::onEvent(const Events::NGCEXT_ft1_data& e) {
 #if !NDEBUG
-	//std::cout << "NGCFT1: got FT1_DATA\n";
+	//std::cout << "NGCFT1: got FT1_DATA " << e.sequence_id << "\n";
 #endif
 
 	if (e.data.empty()) {
@@ -602,6 +602,14 @@ bool NGCFT1::onEvent(const Events::NGCEXT_ft1_data& e) {
 		// TODO: keep around for remote timeout + delay + offset, so we can be sure all acks where received
 		// or implement a dedicated finished that needs to be acked
 		transfer.finishing_timer = 0.5f; // TODO: we are receiving, we dont know delay
+
+		dispatch(
+			NGCFT1_Event::recv_done,
+			Events::NGCFT1_recv_done{
+				e.group_number, e.peer_number,
+				e.transfer_id
+			}
+		);
 	}
 
 	return true;

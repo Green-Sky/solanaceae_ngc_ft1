@@ -687,21 +687,21 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCFT1_recv_request& e) {
 		// TODO: queue instead
 		//queueUpRequestInfo(e.group_number, e.peer_number, info_hash);
 		uint8_t transfer_id {0};
-		_nft.NGC_FT1_send_init_private(
+		if (_nft.NGC_FT1_send_init_private(
 			e.group_number, e.peer_number,
 			static_cast<uint32_t>(e.file_kind),
 			e.file_id, e.file_id_size,
 			o.get<Components::FT1InfoSHA1Data>().data.size(),
 			&transfer_id
-		);
-
-		_sending_transfers.emplaceInfo(
-			e.group_number, e.peer_number,
-			transfer_id,
-			SendingTransfers::Entry::Info{
-				o.get<Components::FT1InfoSHA1Data>().data
-			}
-		);
+		)) {
+			_sending_transfers.emplaceInfo(
+				e.group_number, e.peer_number,
+				transfer_id,
+				SendingTransfers::Entry::Info{
+					o.get<Components::FT1InfoSHA1Data>().data
+				}
+			);
+		}
 
 		const auto c = _tcm.getContactGroupPeer(e.group_number, e.peer_number);
 		_tox_peer_to_contact[combine_ids(e.group_number, e.peer_number)] = c; // workaround
