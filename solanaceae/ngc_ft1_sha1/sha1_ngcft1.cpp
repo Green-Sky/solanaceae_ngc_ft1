@@ -855,6 +855,7 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCFT1_recv_init& e) {
 
 bool SHA1_NGCFT1::onEvent(const Events::NGCFT1_recv_data& e) {
 	if (!_receiving_transfers.containsPeerTransfer(e.group_number, e.peer_number, e.transfer_id)) {
+		std::cerr << "SHA1_NGCFT1 waring: unknown transfer " << e.transfer_id << " from " << e.group_number << ":" << e.peer_number << "\n";
 		return false;
 	}
 
@@ -862,6 +863,7 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCFT1_recv_data& e) {
 
 	transfer.time_since_activity = 0.f;
 	if (transfer.isInfo()) {
+		std::cout << "SHA1_NGCFT1: got info data " << e.data_size << "@" << e.data_offset << " from " << e.group_number << ":" << e.peer_number << "\n";
 		auto& info_data = transfer.getInfo().info_data;
 		for (size_t i = 0; i < e.data_size && i + e.data_offset < info_data.size(); i++) {
 			info_data[i+e.data_offset] = e.data[i];
@@ -875,6 +877,7 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCFT1_recv_data& e) {
 
 			auto* file2 = objGetFile2Write(o);
 			if (file2 == nullptr) {
+				std::cerr << "SHA1_NGCFT1 error: writing file failed, no file object\n";
 				return false; // early out
 			}
 			if (!file2->write({e.data, e.data_size}, offset_into_file + e.data_offset)) {

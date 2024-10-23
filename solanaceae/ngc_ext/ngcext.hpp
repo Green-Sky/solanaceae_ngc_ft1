@@ -30,6 +30,7 @@ namespace Events {
 		uint32_t peer_number;
 
 		// respond to a request with 0 or more message ids, sorted by newest first
+
 		// - peer_key bytes (the msg_ids are from)
 		ToxKey peer_key;
 
@@ -47,6 +48,7 @@ namespace Events {
 		uint32_t peer_number;
 
 		// request the other side to initiate a FT
+
 		// - 4 byte (file_kind)
 		uint32_t file_kind;
 
@@ -59,6 +61,7 @@ namespace Events {
 		uint32_t peer_number;
 
 		// tell the other side you want to start a FT
+
 		// - 4 byte (file_kind)
 		uint32_t file_kind;
 
@@ -88,6 +91,7 @@ namespace Events {
 		uint32_t peer_number;
 
 		// data fragment
+
 		// - 1 byte (temporary_file_tf_id)
 		uint8_t transfer_id;
 
