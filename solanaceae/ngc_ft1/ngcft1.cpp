@@ -347,6 +347,8 @@ bool NGCFT1::NGC_FT1_send_init_private(
 			std::cerr << "NGCFT1 error: cant init ft, no free transfer slot\n";
 			return false;
 		}
+
+		idx = i;
 	}
 
 	// TODO: check return value
@@ -532,6 +534,8 @@ bool NGCFT1::onEvent(const Events::NGCEXT_ft1_init_ack& e) {
 		//peer.cca = std::make_unique<LEDBAT>(peer.max_packet_data_size);
 		//peer.cca = std::make_unique<FlowOnly>(peer.max_packet_data_size);
 		//peer.cca->max_byterate_allowed = 1.f *1024*1024;
+	} else {
+		std::cerr << "NGCFT1: reusing cca. rtt:" << peer.cca->getCurrentDelay() << " w:" << peer.cca->getWindow() << " ifc:" << peer.cca->inFlightCount() << "\n";
 	}
 
 	// iterate will now call NGC_FT1_send_data_cb
@@ -601,7 +605,7 @@ bool NGCFT1::onEvent(const Events::NGCEXT_ft1_data& e) {
 
 		// TODO: keep around for remote timeout + delay + offset, so we can be sure all acks where received
 		// or implement a dedicated finished that needs to be acked
-		transfer.finishing_timer = 0.5f; // TODO: we are receiving, we dont know delay
+		transfer.finishing_timer = 0.75f; // TODO: we are receiving, we dont know delay
 
 		dispatch(
 			NGCFT1_Event::recv_done,
@@ -628,7 +632,8 @@ bool NGCFT1::onEvent(const Events::NGCEXT_ft1_data_ack& e) {
 	Group::Peer& peer = groups[e.group_number].peers[e.peer_number];
 	if (!peer.send_transfers[e.transfer_id].has_value()) {
 		// we delete directly, packets might still be in flight (in practice they are when ce)
-		//std::cerr << "NGCFT1 warning: data_ack for unknown transfer\n";
+		// update: we no longer delete directly, but its kinda hacky
+		std::cerr << "NGCFT1 warning: data_ack for unknown transfer\n";
 		return true;
 	}
 
