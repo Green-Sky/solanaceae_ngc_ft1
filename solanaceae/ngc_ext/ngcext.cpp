@@ -3,9 +3,11 @@
 #include <iostream>
 #include <cassert>
 
-NGCEXTEventProvider::NGCEXTEventProvider(ToxI& t, ToxEventProviderI& tep) : _t(t), _tep(tep) {
-	_tep.subscribe(this, Tox_Event_Type::TOX_EVENT_GROUP_CUSTOM_PACKET);
-	_tep.subscribe(this, Tox_Event_Type::TOX_EVENT_GROUP_CUSTOM_PRIVATE_PACKET);
+NGCEXTEventProvider::NGCEXTEventProvider(ToxI& t, ToxEventProviderI& tep) : _t(t), _tep(tep), _tep_sr(_tep.newSubRef(this)) {
+	_tep_sr
+		.subscribe(Tox_Event_Type::TOX_EVENT_GROUP_CUSTOM_PACKET)
+		.subscribe(Tox_Event_Type::TOX_EVENT_GROUP_CUSTOM_PRIVATE_PACKET)
+	;
 }
 
 #define _DATA_HAVE(x, error) if ((data_size - curser) < (x)) { error; }

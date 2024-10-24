@@ -251,16 +251,18 @@ NGCFT1::NGCFT1(
 	ToxI& t,
 	ToxEventProviderI& tep,
 	NGCEXTEventProvider& neep
-) : _t(t), _tep(tep), _neep(neep)
+) : _t(t), _tep(tep), _tep_sr(_tep.newSubRef(this)), _neep(neep), _neep_sr(_neep.newSubRef(this))
 {
-	_neep.subscribe(this, NGCEXT_Event::FT1_REQUEST);
-	_neep.subscribe(this, NGCEXT_Event::FT1_INIT);
-	_neep.subscribe(this, NGCEXT_Event::FT1_INIT_ACK);
-	_neep.subscribe(this, NGCEXT_Event::FT1_DATA);
-	_neep.subscribe(this, NGCEXT_Event::FT1_DATA_ACK);
-	_neep.subscribe(this, NGCEXT_Event::FT1_MESSAGE);
+	_neep_sr
+		.subscribe(NGCEXT_Event::FT1_REQUEST)
+		.subscribe(NGCEXT_Event::FT1_INIT)
+		.subscribe(NGCEXT_Event::FT1_INIT_ACK)
+		.subscribe(NGCEXT_Event::FT1_DATA)
+		.subscribe(NGCEXT_Event::FT1_DATA_ACK)
+		.subscribe(NGCEXT_Event::FT1_MESSAGE)
+	;
 
-	_tep.subscribe(this, Tox_Event_Type::TOX_EVENT_GROUP_PEER_EXIT);
+	_tep_sr.subscribe(Tox_Event_Type::TOX_EVENT_GROUP_PEER_EXIT);
 }
 
 float NGCFT1::iterate(float time_delta) {

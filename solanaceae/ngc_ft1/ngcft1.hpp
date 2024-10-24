@@ -132,7 +132,9 @@ using NGCFT1EventProviderI = EventProviderI<NGCFT1EventI>;
 class NGCFT1 : public ToxEventI, public NGCEXTEventI, public NGCFT1EventProviderI {
 	ToxI& _t;
 	ToxEventProviderI& _tep;
+	ToxEventProviderI::SubscriptionReference _tep_sr;
 	NGCEXTEventProvider& _neep; // not the interface?
+	NGCEXTEventProvider::SubscriptionReference _neep_sr;
 
 	std::default_random_engine _rng{std::random_device{}()};
 

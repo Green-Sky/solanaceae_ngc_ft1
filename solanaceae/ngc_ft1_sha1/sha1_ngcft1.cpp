@@ -201,36 +201,49 @@ SHA1_NGCFT1::SHA1_NGCFT1(
 	NGCEXTEventProvider& neep
 ) :
 	_os(os),
+	_os_sr(_os.newSubRef(this)),
 	_cr(cr),
 	_rmm(rmm),
+	_rmm_sr(_rmm.newSubRef(this)),
 	_nft(nft),
+	_nft_sr(_nft.newSubRef(this)),
 	_tcm(tcm),
 	_tep(tep),
+	_tep_sr(_tep.newSubRef(this)),
 	_neep(neep),
+	_neep_sr(_neep.newSubRef(this)),
 	_mfb(os)
 {
+	_os_sr
 	// TODO: also create and destroy
-	//_os.subscribe(this, ObjectStore_Event::object_construct);
-	_os.subscribe(this, ObjectStore_Event::object_update);
-	//_os.subscribe(this, ObjectStore_Event::object_destroy);
+	//	.subscribe(ObjectStore_Event::object_construct)
+		.subscribe(ObjectStore_Event::object_update)
+	//	.subscribe(ObjectStore_Event::object_destroy)
+	;
 
-	_nft.subscribe(this, NGCFT1_Event::recv_request);
-	_nft.subscribe(this, NGCFT1_Event::recv_init);
-	_nft.subscribe(this, NGCFT1_Event::recv_data);
-	_nft.subscribe(this, NGCFT1_Event::send_data);
-	_nft.subscribe(this, NGCFT1_Event::recv_done);
-	_nft.subscribe(this, NGCFT1_Event::send_done);
-	_nft.subscribe(this, NGCFT1_Event::recv_message);
+	_nft_sr
+		.subscribe(NGCFT1_Event::recv_request)
+		.subscribe(NGCFT1_Event::recv_init)
+		.subscribe(NGCFT1_Event::recv_data)
+		.subscribe(NGCFT1_Event::send_data)
+		.subscribe(NGCFT1_Event::recv_done)
+		.subscribe(NGCFT1_Event::send_done)
+		.subscribe(NGCFT1_Event::recv_message)
+	;
 
-	_rmm.subscribe(this, RegistryMessageModel_Event::send_file_path);
+	_rmm_sr.subscribe(RegistryMessageModel_Event::send_file_path);
 
-	_tep.subscribe(this, Tox_Event_Type::TOX_EVENT_GROUP_PEER_JOIN);
-	_tep.subscribe(this, Tox_Event_Type::TOX_EVENT_GROUP_PEER_EXIT);
+	_tep_sr
+		.subscribe(Tox_Event_Type::TOX_EVENT_GROUP_PEER_JOIN)
+		.subscribe(Tox_Event_Type::TOX_EVENT_GROUP_PEER_EXIT)
+	;
 
-	_neep.subscribe(this, NGCEXT_Event::FT1_HAVE);
-	_neep.subscribe(this, NGCEXT_Event::FT1_BITSET);
-	_neep.subscribe(this, NGCEXT_Event::FT1_HAVE_ALL);
-	_neep.subscribe(this, NGCEXT_Event::PC1_ANNOUNCE);
+	_neep_sr
+		.subscribe(NGCEXT_Event::FT1_HAVE)
+		.subscribe(NGCEXT_Event::FT1_BITSET)
+		.subscribe(NGCEXT_Event::FT1_HAVE_ALL)
+		.subscribe(NGCEXT_Event::PC1_ANNOUNCE)
+	;
 }
 
 float SHA1_NGCFT1::iterate(float delta) {

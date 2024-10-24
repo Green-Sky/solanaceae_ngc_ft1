@@ -22,13 +22,18 @@
 
 class SHA1_NGCFT1 : public ToxEventI, public RegistryMessageModelEventI, public ObjectStoreEventI, public NGCFT1EventI, public NGCEXTEventI {
 	ObjectStore2& _os;
+	ObjectStore2::SubscriptionReference _os_sr;
 	// TODO: backend abstraction
 	Contact3Registry& _cr;
 	RegistryMessageModelI& _rmm;
+	RegistryMessageModelI::SubscriptionReference _rmm_sr;
 	NGCFT1& _nft;
+	NGCFT1::SubscriptionReference _nft_sr;
 	ToxContactModel2& _tcm;
 	ToxEventProviderI& _tep;
+	ToxEventProviderI::SubscriptionReference _tep_sr;
 	NGCEXTEventProvider& _neep;
+	NGCEXTEventProvider::SubscriptionReference _neep_sr;
 
 	Backends::SHA1MappedFilesystem _mfb;
 

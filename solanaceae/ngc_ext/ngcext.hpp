@@ -314,6 +314,7 @@ using NGCEXTEventProviderI = EventProviderI<NGCEXTEventI>;
 class NGCEXTEventProvider : public ToxEventI, public NGCEXTEventProviderI {
 	ToxI& _t;
 	ToxEventProviderI& _tep;
+	ToxEventProviderI::SubscriptionReference _tep_sr;
 
 	public:
 		NGCEXTEventProvider(ToxI& t, ToxEventProviderI& tep);
