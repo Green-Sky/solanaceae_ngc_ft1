@@ -40,6 +40,8 @@ namespace std { // inject
 	};
 } // std
 
+uint32_t chunkSizeFromFileSize(uint64_t file_size);
+
 struct FT1InfoSHA1 {
 	std::string file_name;
 	uint64_t file_size {0};

@@ -1,5 +1,8 @@
 #include "./ft1_sha1_info.hpp"
 
+// next power of two
+#include <entt/core/memory.hpp>
+
 #include <sodium.h>
 
 SHA1Digest::SHA1Digest(const std::vector<uint8_t>& v) {
@@ -26,6 +29,27 @@ std::ostream& operator<<(std::ostream& out, const SHA1Digest& v) {
 	out << str;
 
 	return out;
+}
+
+uint32_t chunkSizeFromFileSize(uint64_t file_size) {
+	const uint64_t fs_low {UINT64_C(512)*1024};
+	const uint64_t fs_high {UINT64_C(2)*1024*1024*1024};
+
+	const uint32_t cs_low {32*1024};
+	const uint32_t cs_high {4*1024*1024};
+
+	if (file_size <= fs_low) { // 512kib
+		return cs_low; // 32kib
+	} else if (file_size >= fs_high) { // 2gib
+		return cs_high; // 4mib
+	}
+
+	double t = file_size - fs_low;
+	t /= fs_high;
+
+	double x = (1 - t) * cs_low + t * cs_high;
+
+	return entt::next_power_of_two(uint64_t(x));
 }
 
 size_t FT1InfoSHA1::chunkSize(size_t chunk_index) const {

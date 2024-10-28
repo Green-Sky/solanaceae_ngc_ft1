@@ -86,6 +86,15 @@ void SHA1MappedFilesystem::newFromFile(std::string_view file_name, std::string_v
 		// build info
 		sha1_info.file_name = file_name_;
 		sha1_info.file_size = file_impl->_file_size; // TODO: remove the reliance on implementation details
+		sha1_info.chunk_size = chunkSizeFromFileSize(sha1_info.file_size);
+		{
+			// TOOD: remove
+			const uint32_t cs_low {32*1024};
+			const uint32_t cs_high {4*1024*1024};
+
+			assert(sha1_info.chunk_size >= cs_low);
+			assert(sha1_info.chunk_size <= cs_high);
+		}
 
 		{ // build chunks
 			// HACK: load file fully
