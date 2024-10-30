@@ -56,6 +56,7 @@ namespace Events {
 		std::vector<uint8_t> file_id;
 	};
 
+	// DEPRECATED: use FT1_INIT2 instead
 	struct NGCEXT_ft1_init {
 		uint32_t group_number;
 		uint32_t peer_number;
@@ -84,6 +85,11 @@ namespace Events {
 
 		// - 2 byte (self_max_lossy_data_size)
 		uint16_t max_lossy_data_size;
+
+		// - 1 byte feature flags
+		//   - 0x01 advertised zstd compression
+		//   - 0x02
+		uint8_t feature_flags;
 	};
 
 	struct NGCEXT_ft1_data {
@@ -176,6 +182,30 @@ namespace Events {
 		std::vector<uint8_t> file_id;
 	};
 
+	struct NGCEXT_ft1_init2 {
+		uint32_t group_number;
+		uint32_t peer_number;
+
+		// tell the other side you want to start a FT
+
+		// - 4 byte (file_kind)
+		uint32_t file_kind;
+
+		// - 8 bytes (data size)
+		uint64_t file_size;
+
+		// - 1 byte (temporary_file_tf_id, for this peer only, technically just a prefix to distinguish between simultainious fts)
+		uint8_t transfer_id;
+
+		// - 1 byte feature flags
+		//   - 0x01 advertise zstd compression
+		//   - 0x02
+		uint8_t feature_flags;
+
+		// - X bytes (file_kind dependent id, differnt sizes)
+		std::vector<uint8_t> file_id;
+	};
+
 	struct NGCEXT_pc1_announce {
 		uint32_t group_number;
 		uint32_t peer_number;
@@ -210,6 +240,7 @@ enum class NGCEXT_Event : uint8_t {
 
 	// tell the other side you want to start a FT
 	// TODO: might use id layer instead. with it, it would look similar to friends_ft
+	// DEPRECATED: use FT1_INIT2 instead
 	// - 4 byte (file_kind)
 	// - 8 bytes (data size, can be 0 if unknown, BUT files have to be atleast 1 byte)
 	// - 1 byte (temporary_file_tf_id, for this peer only, technically just a prefix to distinguish between simultainious fts)
@@ -219,7 +250,8 @@ enum class NGCEXT_Event : uint8_t {
 	// acknowlage init (like an accept)
 	// like tox ft control continue
 	// - 1 byte (transfer_id)
-	// - 2 byte (self_max_lossy_data_size) (optional since v2)
+	// - 2 byte (self_max_lossy_data_size) (optimal since v2)
+	// - 1 byte feature flags (optimal since v3, requires prev)
 	FT1_INIT_ACK,
 
 	// TODO: init deny, speed up non acceptance
@@ -277,8 +309,18 @@ enum class NGCEXT_Event : uint8_t {
 	// - X bytes (file_kind dependent id, differnt sizes)
 	FT1_HAVE_ALL,
 
+	// tell the other side you want to start a FT
+	// update: added feature flags (compression)
+	// - 4 byte (file_kind)
+	// - 8 bytes (data size, can be 0 if unknown, BUT files have to be atleast 1 byte)
+	// - 1 byte (temporary_file_tf_id, for this peer only, technically just a prefix to distinguish between simultainious fts)
+	// - 1 byte feature flags
+	// - X bytes (file_kind dependent id, differnt sizes)
+	FT1_INIT2,
+
 	// TODO: FT1_IDONTHAVE, tell a peer you no longer have said chunk
 	// TODO: FT1_REJECT, tell a peer you wont fulfil the request
+	// TODO: FT1_CANCEL, tell a peer you stop the transfer
 
 	// tell another peer that you are participating in X
 	// you can reply with PC1_ANNOUNCE, to let the other side know, you too are participating in X
@@ -306,6 +348,7 @@ struct NGCEXTEventI {
 	virtual bool onEvent(const Events::NGCEXT_ft1_have&) { return false; }
 	virtual bool onEvent(const Events::NGCEXT_ft1_bitset&) { return false; }
 	virtual bool onEvent(const Events::NGCEXT_ft1_have_all&) { return false; }
+	virtual bool onEvent(const Events::NGCEXT_ft1_init2&) { return false; }
 	virtual bool onEvent(const Events::NGCEXT_pc1_announce&) { return false; }
 };
 
@@ -350,6 +393,18 @@ class NGCEXTEventProvider : public ToxEventI, public NGCEXTEventProviderI {
 			bool _private
 		);
 
+		bool parse_ft1_init_ack_v2(
+			uint32_t group_number, uint32_t peer_number,
+			const uint8_t* data, size_t data_size,
+			bool _private
+		);
+
+		bool parse_ft1_init_ack_v3(
+			uint32_t group_number, uint32_t peer_number,
+			const uint8_t* data, size_t data_size,
+			bool _private
+		);
+
 		bool parse_ft1_data(
 			uint32_t group_number, uint32_t peer_number,
 			const uint8_t* data, size_t data_size,
@@ -368,12 +423,6 @@ class NGCEXTEventProvider : public ToxEventI, public NGCEXTEventProviderI {
 			bool _private
 		);
 
-		bool parse_ft1_init_ack_v2(
-			uint32_t group_number, uint32_t peer_number,
-			const uint8_t* data, size_t data_size,
-			bool _private
-		);
-
 		bool parse_ft1_have(
 			uint32_t group_number, uint32_t peer_number,
 			const uint8_t* data, size_t data_size,
@@ -387,6 +436,12 @@ class NGCEXTEventProvider : public ToxEventI, public NGCEXTEventProviderI {
 		);
 
 		bool parse_ft1_have_all(
+			uint32_t group_number, uint32_t peer_number,
+			const uint8_t* data, size_t data_size,
+			bool _private
+		);
+
+		bool parse_ft1_init2(
 			uint32_t group_number, uint32_t peer_number,
 			const uint8_t* data, size_t data_size,
 			bool _private
@@ -465,6 +520,15 @@ class NGCEXTEventProvider : public ToxEventI, public NGCEXTEventProviderI {
 		bool send_ft1_have_all(
 			uint32_t group_number, uint32_t peer_number,
 			uint32_t file_kind,
+			const uint8_t* file_id, size_t file_id_size
+		);
+
+		bool send_ft1_init2(
+			uint32_t group_number, uint32_t peer_number,
+			uint32_t file_kind,
+			uint64_t file_size,
+			uint8_t transfer_id,
+			uint8_t feature_flags,
 			const uint8_t* file_id, size_t file_id_size
 		);
 

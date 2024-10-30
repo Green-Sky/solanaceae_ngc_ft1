@@ -123,6 +123,83 @@ bool NGCEXTEventProvider::parse_ft1_init_ack(
 	);
 }
 
+bool NGCEXTEventProvider::parse_ft1_init_ack_v2(
+	uint32_t group_number, uint32_t peer_number,
+	const uint8_t* data, size_t data_size,
+	bool _private
+) {
+	if (!_private) {
+		std::cerr << "NGCEXT: ft1_init_ack_v2 cant be public\n";
+		return false;
+	}
+
+	Events::NGCEXT_ft1_init_ack e;
+	e.group_number = group_number;
+	e.peer_number = peer_number;
+	size_t curser = 0;
+
+	// - 1 byte (temporary_file_tf_id)
+	_DATA_HAVE(sizeof(e.transfer_id), std::cerr << "NGCEXT: packet too small, missing transfer_id\n"; return false)
+	e.transfer_id = data[curser++];
+
+	// - 2 byte (max_lossy_data_size)
+	if ((data_size - curser) >= sizeof(e.max_lossy_data_size)) {
+		e.max_lossy_data_size = 0;
+		for (size_t i = 0; i < sizeof(e.max_lossy_data_size); i++, curser++) {
+			e.max_lossy_data_size |= uint16_t(data[curser]) << (i*8);
+		}
+	} else {
+		e.max_lossy_data_size = 500-4; // default
+	}
+
+	return dispatch(
+		NGCEXT_Event::FT1_INIT_ACK,
+		e
+	);
+}
+
+bool NGCEXTEventProvider::parse_ft1_init_ack_v3(
+	uint32_t group_number, uint32_t peer_number,
+	const uint8_t* data, size_t data_size,
+	bool _private
+) {
+	if (!_private) {
+		std::cerr << "NGCEXT: ft1_init_ack_v3 cant be public\n";
+		return false;
+	}
+
+	Events::NGCEXT_ft1_init_ack e;
+	e.group_number = group_number;
+	e.peer_number = peer_number;
+	size_t curser = 0;
+
+	// - 1 byte (temporary_file_tf_id)
+	_DATA_HAVE(sizeof(e.transfer_id), std::cerr << "NGCEXT: packet too small, missing transfer_id\n"; return false)
+	e.transfer_id = data[curser++];
+
+	// - 2 byte (max_lossy_data_size)
+	if ((data_size - curser) >= sizeof(e.max_lossy_data_size)) {
+		e.max_lossy_data_size = 0;
+		for (size_t i = 0; i < sizeof(e.max_lossy_data_size); i++, curser++) {
+			e.max_lossy_data_size |= uint16_t(data[curser]) << (i*8);
+		}
+	} else {
+		e.max_lossy_data_size = 500-4; // default
+	}
+
+	// - 1 byte (feature_flags)
+	if ((data_size - curser) >= sizeof(e.feature_flags)) {
+		e.feature_flags = data[curser++];
+	} else {
+		e.feature_flags = 0x00; // default
+	}
+
+	return dispatch(
+		NGCEXT_Event::FT1_INIT_ACK,
+		e
+	);
+}
+
 bool NGCEXTEventProvider::parse_ft1_data(
 	uint32_t group_number, uint32_t peer_number,
 	const uint8_t* data, size_t data_size,
@@ -225,41 +302,6 @@ bool NGCEXTEventProvider::parse_ft1_message(
 
 	return dispatch(
 		NGCEXT_Event::FT1_MESSAGE,
-		e
-	);
-}
-
-bool NGCEXTEventProvider::parse_ft1_init_ack_v2(
-	uint32_t group_number, uint32_t peer_number,
-	const uint8_t* data, size_t data_size,
-	bool _private
-) {
-	if (!_private) {
-		std::cerr << "NGCEXT: ft1_init_ack_v2 cant be public\n";
-		return false;
-	}
-
-	Events::NGCEXT_ft1_init_ack e;
-	e.group_number = group_number;
-	e.peer_number = peer_number;
-	size_t curser = 0;
-
-	// - 1 byte (temporary_file_tf_id)
-	_DATA_HAVE(sizeof(e.transfer_id), std::cerr << "NGCEXT: packet too small, missing transfer_id\n"; return false)
-	e.transfer_id = data[curser++];
-
-	// - 2 byte (max_lossy_data_size)
-	if ((data_size - curser) >= sizeof(e.max_lossy_data_size)) {
-		e.max_lossy_data_size = 0;
-		for (size_t i = 0; i < sizeof(e.max_lossy_data_size); i++, curser++) {
-			e.max_lossy_data_size |= uint16_t(data[curser]) << (i*8);
-		}
-	} else {
-		e.max_lossy_data_size = 500-4; // default
-	}
-
-	return dispatch(
-		NGCEXT_Event::FT1_INIT_ACK,
 		e
 	);
 }
@@ -401,6 +443,52 @@ bool NGCEXTEventProvider::parse_ft1_have_all(
 	);
 }
 
+bool NGCEXTEventProvider::parse_ft1_init2(
+	uint32_t group_number, uint32_t peer_number,
+	const uint8_t* data, size_t data_size,
+	bool _private
+) {
+	if (!_private) {
+		std::cerr << "NGCEXT: ft1_init2 cant be public\n";
+		return false;
+	}
+
+	Events::NGCEXT_ft1_init2 e;
+	e.group_number = group_number;
+	e.peer_number = peer_number;
+	size_t curser = 0;
+
+	// - 4 byte (file_kind)
+	e.file_kind = 0u;
+	_DATA_HAVE(sizeof(e.file_kind), std::cerr << "NGCEXT: packet too small, missing file_kind\n"; return false)
+	for (size_t i = 0; i < sizeof(e.file_kind); i++, curser++) {
+		e.file_kind |= uint32_t(data[curser]) << (i*8);
+	}
+
+	// - 8 bytes (data size)
+	e.file_size = 0u;
+	_DATA_HAVE(sizeof(e.file_size), std::cerr << "NGCEXT: packet too small, missing file_size\n"; return false)
+	for (size_t i = 0; i < sizeof(e.file_size); i++, curser++) {
+		e.file_size |= uint64_t(data[curser]) << (i*8);
+	}
+
+	// - 1 byte (temporary_file_tf_id)
+	_DATA_HAVE(sizeof(e.transfer_id), std::cerr << "NGCEXT: packet too small, missing transfer_id\n"; return false)
+	e.transfer_id = data[curser++];
+
+	// - 1 byte feature flags
+	_DATA_HAVE(sizeof(e.feature_flags), std::cerr << "NGCEXT: packet too small, missing feature_flags\n"; return false)
+	e.feature_flags = data[curser++];
+
+	// - X bytes (file_kind dependent id, differnt sizes)
+	e.file_id = {data+curser, data+curser+(data_size-curser)};
+
+	return dispatch(
+		NGCEXT_Event::FT1_INIT2,
+		e
+	);
+}
+
 bool NGCEXTEventProvider::parse_pc1_announce(
 	uint32_t group_number, uint32_t peer_number,
 	const uint8_t* data, size_t data_size,
@@ -445,7 +533,8 @@ bool NGCEXTEventProvider::handlePacket(
 			return parse_ft1_init(group_number, peer_number, data+1, data_size-1, _private);
 		case NGCEXT_Event::FT1_INIT_ACK:
 			//return parse_ft1_init_ack(group_number, peer_number, data+1, data_size-1, _private);
-			return parse_ft1_init_ack_v2(group_number, peer_number, data+1, data_size-1, _private);
+			//return parse_ft1_init_ack_v2(group_number, peer_number, data+1, data_size-1, _private);
+			return parse_ft1_init_ack_v3(group_number, peer_number, data+1, data_size-1, _private);
 		case NGCEXT_Event::FT1_DATA:
 			return parse_ft1_data(group_number, peer_number, data+1, data_size-1, _private);
 		case NGCEXT_Event::FT1_DATA_ACK:
@@ -458,6 +547,8 @@ bool NGCEXTEventProvider::handlePacket(
 			return parse_ft1_bitset(group_number, peer_number, data+1, data_size-1, _private);
 		case NGCEXT_Event::FT1_HAVE_ALL:
 			return parse_ft1_have_all(group_number, peer_number, data+1, data_size-1, _private);
+		case NGCEXT_Event::FT1_INIT2:
+			return parse_ft1_init2(group_number, peer_number, data+1, data_size-1, _private);
 		case NGCEXT_Event::PC1_ANNOUNCE:
 			return parse_pc1_announce(group_number, peer_number, data+1, data_size-1, _private);
 		default:
@@ -693,6 +784,39 @@ bool NGCEXTEventProvider::send_ft1_have_all(
 	for (size_t i = 0; i < sizeof(file_kind); i++) {
 		pkg.push_back((file_kind>>(i*8)) & 0xff);
 	}
+	for (size_t i = 0; i < file_id_size; i++) {
+		pkg.push_back(file_id[i]);
+	}
+
+	// lossless
+	return _t.toxGroupSendCustomPrivatePacket(group_number, peer_number, true, pkg) == TOX_ERR_GROUP_SEND_CUSTOM_PRIVATE_PACKET_OK;
+}
+
+bool NGCEXTEventProvider::send_ft1_init2(
+	uint32_t group_number, uint32_t peer_number,
+	uint32_t file_kind,
+	uint64_t file_size,
+	uint8_t transfer_id,
+	uint8_t feature_flags,
+	const uint8_t* file_id, size_t file_id_size
+) {
+	// - 1 byte packet id
+	// - 4 byte (file_kind)
+	// - 8 bytes (data size)
+	// - 1 byte (temporary_file_tf_id, for this peer only, technically just a prefix to distinguish between simultainious fts)
+	// - 1 byte (feature_flags)
+	// - X bytes (file_kind dependent id, differnt sizes)
+
+	std::vector<uint8_t> pkg;
+	pkg.push_back(static_cast<uint8_t>(NGCEXT_Event::FT1_INIT2));
+	for (size_t i = 0; i < sizeof(file_kind); i++) {
+		pkg.push_back((file_kind>>(i*8)) & 0xff);
+	}
+	for (size_t i = 0; i < sizeof(file_size); i++) {
+		pkg.push_back((file_size>>(i*8)) & 0xff);
+	}
+	pkg.push_back(transfer_id);
+	pkg.push_back(feature_flags);
 	for (size_t i = 0; i < file_id_size; i++) {
 		pkg.push_back(file_id[i]);
 	}
