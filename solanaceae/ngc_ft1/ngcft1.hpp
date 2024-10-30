@@ -235,7 +235,8 @@ class NGCFT1 : public ToxEventI, public NGCEXTEventI, public NGCFT1EventProvider
 			uint32_t file_kind,
 			const uint8_t* file_id, uint32_t file_id_size,
 			uint64_t file_size,
-			uint8_t* transfer_id
+			uint8_t* transfer_id,
+			bool can_compress = false // set this if you know the data is compressable (eg text)
 		);
 
 		// sends the message and fills in message_id
@@ -270,6 +271,7 @@ class NGCFT1 : public ToxEventI, public NGCEXTEventI, public NGCFT1EventProvider
 		bool onEvent(const Events::NGCEXT_ft1_data&) override;
 		bool onEvent(const Events::NGCEXT_ft1_data_ack&) override;
 		bool onEvent(const Events::NGCEXT_ft1_message&) override;
+		bool onEvent(const Events::NGCEXT_ft1_init2&) override;
 
 	protected:
 		bool onToxEvent(const Tox_Event_Group_Peer_Exit* e) override;

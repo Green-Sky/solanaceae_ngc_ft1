@@ -319,7 +319,8 @@ bool NGCFT1::NGC_FT1_send_init_private(
 	uint32_t file_kind,
 	const uint8_t* file_id, uint32_t file_id_size,
 	uint64_t file_size,
-	uint8_t* transfer_id
+	uint8_t* transfer_id,
+	bool can_compress
 ) {
 	if (std::get<0>(_t.toxGroupPeerGetConnectionStatus(group_number, peer_number)).value_or(TOX_CONNECTION_NONE) == TOX_CONNECTION_NONE) {
 		std::cerr << "NGCFT1 error: cant init ft, peer offline\n";
@@ -454,7 +455,7 @@ bool NGCFT1::onEvent(const Events::NGCEXT_ft1_init& e) {
 //#if !NDEBUG
 	std::cout << "NGCFT1: got FT1_INIT fk:" << e.file_kind << " fs:" << e.file_size << " tid:" << int(e.transfer_id) << " [" << bin2hex(e.file_id) << "]\n";
 //#endif
-
+#if 0
 	bool accept = false;
 	dispatch(
 		NGCFT1_Event::recv_init,
@@ -490,8 +491,19 @@ bool NGCFT1::onEvent(const Events::NGCEXT_ft1_init& e) {
 		0u,
 		{} // rsb
 	};
-
 	return true;
+#else
+	// HACK: simply forward to init2 hanlder
+	return onEvent(Events::NGCEXT_ft1_init2{
+		e.group_number,
+		e.peer_number,
+		e.file_kind,
+		e.file_size,
+		e.transfer_id,
+		0x00, // non set
+		e.file_id, // sadly a copy, wont matter in the future
+	});
+#endif
 }
 
 bool NGCFT1::onEvent(const Events::NGCEXT_ft1_init_ack& e) {
@@ -517,6 +529,11 @@ bool NGCFT1::onEvent(const Events::NGCEXT_ft1_init_ack& e) {
 	using State = Group::Peer::SendTransfer::State;
 	if (transfer.state != State::INIT_SENT) {
 		std::cerr << "NGCFT1 error: init_ack but not in INIT_SENT state\n";
+		return true;
+	}
+
+	if (e.max_lossy_data_size < 16) {
+		std::cerr << "NGCFT1 error: init_ack max_lossy_data_size is less than 16 bytes\n";
 		return true;
 	}
 
@@ -690,6 +707,50 @@ bool NGCFT1::onEvent(const Events::NGCEXT_ft1_message& e) {
 			e.file_id.data(), static_cast<uint32_t>(e.file_id.size())
 		}
 	);
+}
+
+bool NGCFT1::onEvent(const Events::NGCEXT_ft1_init2& e) {
+//#if !NDEBUG
+	std::cout << "NGCFT1: got FT1_INIT2 fk:" << e.file_kind << " fs:" << e.file_size << " tid:" << int(e.transfer_id) << " ff:" << int(e.feature_flags) << " [" << bin2hex(e.file_id) << "]\n";
+//#endif
+
+	bool accept = false;
+	dispatch(
+		NGCFT1_Event::recv_init,
+		Events::NGCFT1_recv_init{
+			e.group_number, e.peer_number,
+			static_cast<NGCFT1_file_kind>(e.file_kind),
+			e.file_id.data(), static_cast<uint32_t>(e.file_id.size()),
+			e.transfer_id,
+			e.file_size,
+			accept
+		}
+	);
+
+	if (!accept) {
+		std::cout << "NGCFT1: rejected init2\n";
+		return true; // return true?
+	}
+
+	_neep.send_ft1_init_ack(e.group_number, e.peer_number, e.transfer_id);
+
+	std::cout << "NGCFT1: accepted init2\n";
+
+	auto& peer = groups[e.group_number].peers[e.peer_number];
+	if (peer.recv_transfers[e.transfer_id].has_value()) {
+		std::cerr << "NGCFT1 warning: overwriting existing recv_transfer " << int(e.transfer_id) << ", other peer started new transfer on preexising\n";
+	}
+
+	peer.recv_transfers[e.transfer_id] = Group::Peer::RecvTransfer{
+		e.file_kind,
+		e.file_id,
+		Group::Peer::RecvTransfer::State::INITED,
+		e.file_size,
+		0u,
+		{} // rsb
+	};
+
+	return true;
 }
 
 bool NGCFT1::onToxEvent(const Tox_Event_Group_Peer_Exit* e) {

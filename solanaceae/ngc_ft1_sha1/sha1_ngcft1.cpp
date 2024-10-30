@@ -920,6 +920,7 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCFT1_recv_data& e) {
 
 bool SHA1_NGCFT1::onEvent(const Events::NGCFT1_send_data& e) {
 	if (!_sending_transfers.containsPeerTransfer(e.group_number, e.peer_number, e.transfer_id)) {
+		std::cerr << "SHA1_NGCFT1 error: ngcft1 requested data for unknown transfer\n";
 		return false;
 	}
 
