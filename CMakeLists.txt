@@ -43,6 +43,21 @@ target_link_libraries(solanaceae_ngcft1 PUBLIC
 
 ########################################
 
+add_library(solanaceae_ngchs2
+	./solanaceae/ngc_hs2/ngc_hs2.hpp
+	./solanaceae/ngc_hs2/ngc_hs2.cpp
+)
+target_include_directories(solanaceae_ngchs2 PUBLIC .)
+target_compile_features(solanaceae_ngchs2 PUBLIC cxx_std_17)
+target_link_libraries(solanaceae_ngchs2 PUBLIC
+	solanaceae_ngcft1
+	solanaceae_tox_contacts
+	solanaceae_message3
+	solanaceae_object_store
+)
+
+########################################
+
 add_library(solanaceae_sha1_ngcft1
 	# hacky deps
 	./solanaceae/ngc_ft1_sha1/mio.hpp
