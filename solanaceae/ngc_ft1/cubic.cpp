@@ -7,7 +7,9 @@ void CUBIC::updateReductionTimer(float time_delta) {
 	const auto now {getTimeNow()};
 
 	// only keep updating while the cca interaction is not too long ago
-	if (now - _time_point_last_update <= getCurrentDelay()*4.f) {
+	// or simply when there are packets in flight
+	// (you need space to resend timedout, which still use up pipe space)
+	if (!_in_flight.empty() || now - _time_point_last_update <= getCurrentDelay()*4.f) {
 		_time_since_reduction += time_delta;
 	}
 }
@@ -86,12 +88,14 @@ int64_t CUBIC::canSend(float time_delta) {
 	updateReductionTimer(time_delta);
 
 	if (fspace_pkgs == 0u) {
+		std::cerr << "CUBIC: flow said 0\n";
 		return 0u;
 	}
 
 	const auto window = getCWnD();
 	int64_t cspace_bytes = window - _in_flight_bytes;
 	if (cspace_bytes < MAXIMUM_SEGMENT_DATA_SIZE) {
+		//std::cerr << "CUBIC: cspace < seg size\n";
 		return 0u;
 	}
 

@@ -40,22 +40,24 @@ void NGCFT1::updateSendTransfer(float time_delta, uint32_t group_number, uint32_
 				} else {
 					// timed out, resend
 					std::cerr << "NGCFT1 warning: ft init timed out, resending\n";
-					//sendPKG_FT1_INIT(group_number, peer_number, tf.file_kind, tf.file_size, idx, tf.file_id.data(), tf.file_id.size());
 					_neep.send_ft1_init(group_number, peer_number, tf.file_kind, tf.file_size, idx, tf.file_id.data(), tf.file_id.size());
 					tf.inits_sent++;
 					tf.time_since_activity = 0.f;
 				}
 			}
-			//break;
-			return;
+			break;
 		case State::FINISHING: // we still have unacked packets
 			tf.ssb.for_each(time_delta, [&](uint16_t id, const std::vector<uint8_t>& data, float& time_since_activity) {
-				if (can_packet_size >= data.size() && timeouts_set.count({idx, id})) {
-					_neep.send_ft1_data(group_number, peer_number, idx, id, data.data(), data.size());
-					peer.cca->onLoss({idx, id}, false);
-					time_since_activity = 0.f;
-					timeouts_set.erase({idx, id});
-					can_packet_size -= data.size();
+				if (timeouts_set.count({idx, id})) {
+					if (can_packet_size >= data.size()) {
+						_neep.send_ft1_data(group_number, peer_number, idx, id, data.data(), data.size());
+						peer.cca->onLoss({idx, id}, false);
+						time_since_activity = 0.f;
+						timeouts_set.erase({idx, id});
+						can_packet_size -= data.size();
+					} else {
+						std::cerr << "NGCFT1 warning: no space to resend timedout\n";
+					}
 				}
 			});
 			if (tf.time_since_activity >= sending_give_up_after) {
@@ -198,7 +200,6 @@ void NGCFT1::iteratePeer(float time_delta, uint32_t group_number, uint32_t peer_
 		}
 	}
 
-	//for (auto& transfer_opt : peer.recv_transfers) {
 	for (size_t idx = 0; idx < peer.recv_transfers.size(); idx++) {
 		if (!peer.recv_transfers.at(idx).has_value()) {
 			continue;

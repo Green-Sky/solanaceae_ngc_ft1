@@ -143,7 +143,7 @@ class NGCFT1 : public ToxEventI, public NGCEXTEventI, public NGCFT1EventProvider
 	// TODO: config
 	size_t acks_per_packet {3u}; // 3
 	float init_retry_timeout_after {4.f};
-	float sending_give_up_after {15.f}; // 30sec (per active transfer)
+	float sending_give_up_after {10.f}; // sec (per active transfer)
 
 	struct Group {
 		struct Peer {

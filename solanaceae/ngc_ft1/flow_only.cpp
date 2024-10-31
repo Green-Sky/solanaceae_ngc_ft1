@@ -65,7 +65,8 @@ float FlowOnly::getWindow(void) const {
 int64_t FlowOnly::canSend(float time_delta) {
 	if (_in_flight.empty()) {
 		assert(_in_flight_bytes == 0);
-		return MAXIMUM_SEGMENT_DATA_SIZE;
+		// TODO: should we really exit early here??
+		return 2*MAXIMUM_SEGMENT_DATA_SIZE;
 	}
 
 	updateWindow();
