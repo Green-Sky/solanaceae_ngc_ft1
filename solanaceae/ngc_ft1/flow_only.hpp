@@ -32,6 +32,7 @@ struct FlowOnly : public CCAI {
 		};
 		std::vector<FlyingBunch> _in_flight;
 		int64_t _in_flight_bytes {0};
+		int64_t _in_flight_bytes_accounted {0};
 
 		int32_t _consecutive_events {0};
 
@@ -58,6 +59,8 @@ struct FlowOnly : public CCAI {
 
 		void updateWindow(void);
 
+		void updateAccounted(void);
+
 		virtual void onCongestion(void) {};
 
 		// internal logic, calls the onCongestion() event
@@ -77,6 +80,7 @@ struct FlowOnly : public CCAI {
 
 		int64_t inFlightCount(void) const override;
 		int64_t inFlightBytes(void) const override;
+		int64_t inFlightBytesAccounted(void) const override;
 
 	public: // callbacks
 		// data size is without overhead

@@ -29,6 +29,25 @@ void FlowOnly::updateWindow(void) {
 	_fwnd = std::max(_fwnd, 2.f * MAXIMUM_SEGMENT_DATA_SIZE);
 }
 
+void FlowOnly::updateAccounted(void) {
+	int64_t size_timedout {0};
+
+	{ // can be expensive
+		// code see getTimeouts()
+		// after 3 rtt delay, we trigger timeout
+		const auto now_adjusted = getTimeNow() - getCurrentDelay()*3.f;
+
+		for (const auto& [seq, time_stamp, size, _] : _in_flight) {
+			if (now_adjusted > time_stamp) {
+				//list.push_back(seq);
+				size_timedout += size;
+			}
+		}
+	}
+
+	_in_flight_bytes_accounted = _in_flight_bytes - size_timedout;
+}
+
 void FlowOnly::updateCongestion(void) {
 	updateWindow();
 	const auto tmp_window = getWindow();
@@ -70,8 +89,10 @@ int64_t FlowOnly::canSend(float time_delta) {
 	}
 
 	updateWindow();
+	updateAccounted();
 
-	int64_t fspace = _fwnd - _in_flight_bytes;
+	//int64_t fspace = _fwnd - _in_flight_bytes;
+	int64_t fspace = _fwnd - _in_flight_bytes_accounted;
 	if (fspace < MAXIMUM_SEGMENT_DATA_SIZE) {
 		return 0u;
 	}
@@ -105,6 +126,10 @@ int64_t FlowOnly::inFlightCount(void) const {
 
 int64_t FlowOnly::inFlightBytes(void) const {
 	return _in_flight_bytes;
+}
+
+int64_t FlowOnly::inFlightBytesAccounted(void) const {
+	return _in_flight_bytes_accounted;
 }
 
 void FlowOnly::onSent(SeqIDType seq, size_t data_size) {

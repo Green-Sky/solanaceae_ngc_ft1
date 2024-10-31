@@ -61,6 +61,10 @@ struct CCAI {
 		// returns -1 if not implemented, can return 0
 		virtual int64_t inFlightBytes(void) const { return -1; }
 
+		// returns -1 if not implemented, can return 0
+		// excluded timed out packets (not those currently resent)
+		virtual int64_t inFlightBytesAccounted(void) const { return -1; }
+
 	public: // callbacks
 		// data size is without overhead
 		virtual void onSent(SeqIDType seq, size_t data_size) = 0;
