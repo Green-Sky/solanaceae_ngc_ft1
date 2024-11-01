@@ -57,18 +57,18 @@ Manual exceptions to all can be made at the users discretion, eg for other self 
 
 TODO: is reusing the ft request api a good idea for this?
 
-| fttype | name | content (ft id) |
-|------|------|---------------------|
-| 0x01 | time range | - ts start </br> - ts end </br> - supported compression? |
-|      | TODO: id range based request? | |
-| 0x01 | single message | - ppk </br> - mid </br> - ts |
+| fttype     | name | content (ft id) |
+|------------|------|---------------------|
+| 0x00000f00 | time range | - ts start </br> - ts end </br> - supported compression? |
+|            | TODO: id range based request? | |
+| 0x00000f01 | single message | - ppk </br> - mid </br> - ts |
 
 ## File transfers
 
-| fttype | name | content |
-|--------|------|---------------------|
-| 0x01   | time range | - feature bitset (1byte? different compressions?) </br> - ts start </br> - ts end </br> - list size </br> \\+ entry `ppk` </br> \\+ entry `mid` </br> \\+ entry `ts` |
-| 0x01   | single message | - message type (text/textaction/file) </br> - text if text or action, file type and file id if file |
+| fttype     | name | content |
+|------------|------|---------------------|
+| 0x00000f00 | time range | - feature bitset (1byte? different compressions?) </br> - ts start </br> - ts end </br> - list size </br> \\+ entry `ppk` </br> \\+ entry `mid` </br> \\+ entry `ts` |
+| 0x00000f01 | single message | - message type (text/textaction/file) </br> - text if text or action, file type and file id if file |
 
 ## TODO
 

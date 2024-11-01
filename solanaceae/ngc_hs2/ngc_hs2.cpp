@@ -3,15 +3,26 @@
 #include <solanaceae/tox_contacts/tox_contact_model2.hpp>
 
 NGCHS2::NGCHS2(
+	Contact3Registry& cr,
+	RegistryMessageModelI& rmm,
 	ToxContactModel2& tcm,
 	ToxEventProviderI& tep,
 	NGCFT1& nft
 ) :
+	_cr(cr),
+	_rmm(rmm),
+	_rmm_sr(_rmm.newSubRef(this)),
 	_tcm(tcm),
 	_tep_sr(tep.newSubRef(this)),
 	_nft(nft),
 	_nftep_sr(_nft.newSubRef(this))
 {
+	_rmm_sr
+		.subscribe(RegistryMessageModel_Event::message_construct)
+		.subscribe(RegistryMessageModel_Event::message_updated)
+		.subscribe(RegistryMessageModel_Event::message_destroy)
+	;
+
 	_tep_sr
 		.subscribe(TOX_EVENT_GROUP_PEER_JOIN)
 		.subscribe(TOX_EVENT_GROUP_PEER_EXIT)
@@ -33,6 +44,18 @@ NGCHS2::~NGCHS2(void) {
 
 float NGCHS2::iterate(float delta) {
 	return 1000.f;
+}
+
+bool NGCHS2::onEvent(const Message::Events::MessageConstruct&) {
+	return false;
+}
+
+bool NGCHS2::onEvent(const Message::Events::MessageUpdated&) {
+	return false;
+}
+
+bool NGCHS2::onEvent(const Message::Events::MessageDestory&) {
+	return false;
 }
 
 bool NGCHS2::onEvent(const Events::NGCFT1_recv_request& e) {
