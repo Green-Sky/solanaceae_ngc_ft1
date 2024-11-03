@@ -23,7 +23,7 @@ class ToxContactModel2;
 //  deal with a queue, and delay (at least 1sec, 3-10sec after a peer con change)
 //  or we always overrequest (eg 48h), and only fetch messages in, or close to range
 
-class NGCHS2 : public RegistryMessageModelEventI, public ToxEventI, public NGCFT1EventI {
+class NGCHS2Recv : public RegistryMessageModelEventI, public ToxEventI, public NGCFT1EventI {
 	Contact3Registry& _cr;
 	RegistryMessageModelI& _rmm;
 	RegistryMessageModelI::SubscriptionReference _rmm_sr;
@@ -47,7 +47,7 @@ class NGCHS2 : public RegistryMessageModelEventI, public ToxEventI, public NGCFT
 	static const int64_t _max_time_into_past_default {60}; // s
 
 	public:
-		NGCHS2(
+		NGCHS2Recv(
 			Contact3Registry& cr,
 			RegistryMessageModelI& rmm,
 			ToxContactModel2& tcm,
@@ -55,7 +55,7 @@ class NGCHS2 : public RegistryMessageModelEventI, public ToxEventI, public NGCFT
 			NGCFT1& nf
 		);
 
-		~NGCHS2(void);
+		~NGCHS2Recv(void);
 
 		float iterate(float delta);
 

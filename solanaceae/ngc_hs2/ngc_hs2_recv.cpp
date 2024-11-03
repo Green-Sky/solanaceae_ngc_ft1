@@ -1,8 +1,8 @@
-#include "./ngc_hs2.hpp"
+#include "./ngc_hs2_recv.hpp"
 
 #include <solanaceae/tox_contacts/tox_contact_model2.hpp>
 
-NGCHS2::NGCHS2(
+NGCHS2Recv::NGCHS2Recv(
 	Contact3Registry& cr,
 	RegistryMessageModelI& rmm,
 	ToxContactModel2& tcm,
@@ -29,7 +29,6 @@ NGCHS2::NGCHS2(
 	;
 
 	_nftep_sr
-		.subscribe(NGCFT1_Event::recv_init)
 		.subscribe(NGCFT1_Event::recv_request)
 		.subscribe(NGCFT1_Event::recv_init)
 		.subscribe(NGCFT1_Event::recv_data)
@@ -39,26 +38,26 @@ NGCHS2::NGCHS2(
 	;
 }
 
-NGCHS2::~NGCHS2(void) {
+NGCHS2Recv::~NGCHS2Recv(void) {
 }
 
-float NGCHS2::iterate(float delta) {
+float NGCHS2Recv::iterate(float delta) {
 	return 1000.f;
 }
 
-bool NGCHS2::onEvent(const Message::Events::MessageConstruct&) {
+bool NGCHS2Recv::onEvent(const Message::Events::MessageConstruct&) {
 	return false;
 }
 
-bool NGCHS2::onEvent(const Message::Events::MessageUpdated&) {
+bool NGCHS2Recv::onEvent(const Message::Events::MessageUpdated&) {
 	return false;
 }
 
-bool NGCHS2::onEvent(const Message::Events::MessageDestory&) {
+bool NGCHS2Recv::onEvent(const Message::Events::MessageDestory&) {
 	return false;
 }
 
-bool NGCHS2::onEvent(const Events::NGCFT1_recv_request& e) {
+bool NGCHS2Recv::onEvent(const Events::NGCFT1_recv_request& e) {
 	if (
 		e.file_kind != NGCFT1_file_kind::HS2_INFO_RANGE_TIME &&
 		e.file_kind != NGCFT1_file_kind::HS2_SINGLE_MESSAGE
@@ -69,7 +68,7 @@ bool NGCHS2::onEvent(const Events::NGCFT1_recv_request& e) {
 	return false;
 }
 
-bool NGCHS2::onEvent(const Events::NGCFT1_recv_init& e) {
+bool NGCHS2Recv::onEvent(const Events::NGCFT1_recv_init& e) {
 	if (
 		e.file_kind != NGCFT1_file_kind::HS2_INFO_RANGE_TIME &&
 		e.file_kind != NGCFT1_file_kind::HS2_SINGLE_MESSAGE
@@ -80,23 +79,23 @@ bool NGCHS2::onEvent(const Events::NGCFT1_recv_init& e) {
 	return false;
 }
 
-bool NGCHS2::onEvent(const Events::NGCFT1_recv_data&) {
+bool NGCHS2Recv::onEvent(const Events::NGCFT1_recv_data&) {
 	return false;
 }
 
-bool NGCHS2::onEvent(const Events::NGCFT1_send_data&) {
+bool NGCHS2Recv::onEvent(const Events::NGCFT1_send_data&) {
 	return false;
 }
 
-bool NGCHS2::onEvent(const Events::NGCFT1_recv_done&) {
+bool NGCHS2Recv::onEvent(const Events::NGCFT1_recv_done&) {
 	return false;
 }
 
-bool NGCHS2::onEvent(const Events::NGCFT1_send_done&) {
+bool NGCHS2Recv::onEvent(const Events::NGCFT1_send_done&) {
 	return false;
 }
 
-bool NGCHS2::onToxEvent(const Tox_Event_Group_Peer_Join* e) {
+bool NGCHS2Recv::onToxEvent(const Tox_Event_Group_Peer_Join* e) {
 	const auto group_number = tox_event_group_peer_join_get_group_number(e);
 	const auto peer_number = tox_event_group_peer_join_get_peer_id(e);
 
@@ -108,7 +107,7 @@ bool NGCHS2::onToxEvent(const Tox_Event_Group_Peer_Join* e) {
 	return false;
 }
 
-bool NGCHS2::onToxEvent(const Tox_Event_Group_Peer_Exit* e) {
+bool NGCHS2Recv::onToxEvent(const Tox_Event_Group_Peer_Exit* e) {
 	return false;
 }
 

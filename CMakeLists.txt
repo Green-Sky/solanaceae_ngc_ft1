@@ -44,8 +44,10 @@ target_link_libraries(solanaceae_ngcft1 PUBLIC
 ########################################
 
 add_library(solanaceae_ngchs2
-	./solanaceae/ngc_hs2/ngc_hs2.hpp
-	./solanaceae/ngc_hs2/ngc_hs2.cpp
+	./solanaceae/ngc_hs2/ngc_hs2_send.hpp
+	./solanaceae/ngc_hs2/ngc_hs2_send.cpp
+	./solanaceae/ngc_hs2/ngc_hs2_recv.hpp
+	./solanaceae/ngc_hs2/ngc_hs2_recv.cpp
 )
 target_include_directories(solanaceae_ngchs2 PUBLIC .)
 target_compile_features(solanaceae_ngchs2 PUBLIC cxx_std_17)
