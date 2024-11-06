@@ -625,7 +625,8 @@ bool NGCFT1::onEvent(const Events::NGCEXT_ft1_data& e) {
 
 		// TODO: keep around for remote timeout + delay + offset, so we can be sure all acks where received
 		// or implement a dedicated finished that needs to be acked
-		transfer.finishing_timer = 0.75f; // TODO: we are receiving, we dont know delay
+		//transfer.finishing_timer = 0.75f; // TODO: we are receiving, we dont know delay
+		transfer.finishing_timer = FlowOnly::RTT_MAX;
 
 		dispatch(
 			NGCFT1_Event::recv_done,

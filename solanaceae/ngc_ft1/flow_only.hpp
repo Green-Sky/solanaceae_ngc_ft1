@@ -12,7 +12,7 @@ struct FlowOnly : public CCAI {
 	public: // config
 		static constexpr float RTT_EMA_ALPHA = 0.001f; // might need change over time
 		static constexpr float RTT_UP_MAX = 3.0f; // how much larger a delay can be to be taken into account
-		static constexpr float RTT_MAX = 2.f; // 2 sec is probably too much
+		static constexpr float RTT_MAX = 2.f; // maybe larger for tunneled connections
 
 	protected:
 		// initialize to low value, will get corrected very fast
