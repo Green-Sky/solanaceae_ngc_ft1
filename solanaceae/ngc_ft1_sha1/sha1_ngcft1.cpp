@@ -1165,6 +1165,13 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCFT1_recv_message& e) {
 		return false;
 	}
 
+	// TODO: make perms go though contacts
+	// TODO: consider temporal component? not here, here is now
+	if (!_tcm.groupPeerCanSpeak(e.group_number, e.peer_number)) {
+		// peer has not the permission to speak, discard
+		return false; // return true?
+	}
+
 	uint64_t ts = Message::getTimeMS();
 
 	const auto c = _tcm.getContactGroupPeer(e.group_number, e.peer_number);

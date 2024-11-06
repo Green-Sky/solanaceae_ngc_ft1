@@ -1,5 +1,6 @@
 #include "./ngc_hs2_send.hpp"
-#include "solanaceae/util/span.hpp"
+
+#include <solanaceae/util/span.hpp>
 
 #include <solanaceae/tox_contacts/tox_contact_model2.hpp>
 
@@ -51,10 +52,23 @@ void NGCHS2Send::handleRange(Contact3Handle c, const Events::NGCFT1_recv_request
 
 void NGCHS2Send::handleSingleMessage(Contact3Handle c, const Events::NGCFT1_recv_request& e) {
 	ByteSpan fid{e.file_id, e.file_id_size};
+	if (fid.size != 32+sizeof(uint32_t)+sizeof(uint64_t)) {
+		// error
+		return;
+	}
+
 	// parse
 	// - ppk
+	// TOX_GROUP_PEER_PUBLIC_KEY_SIZE (32)
+	ByteSpan ppk{fid.ptr, 32};
+
 	// - mid
+	//static_assert(sizeof(Tox_Group_Message_Id) == sizeof(uint32_t));
+	ByteSpan mid_bytes{fid.ptr+ppk.size, sizeof(uint32_t)};
+
 	// - ts
+	// uint64_t (seconds? we dont want milliseconds
+	ByteSpan ts_bytes{mid_bytes.ptr+mid_bytes.size, sizeof(uint64_t)};
 
 	// file content
 	// - message type (text/textaction/file(ft1sha1))
@@ -63,6 +77,8 @@ void NGCHS2Send::handleSingleMessage(Contact3Handle c, const Events::NGCFT1_recv
 	// - else if file
 	//   - file type
 	//   - file id
+
+	// for queue, we need group, peer, msg_ppk, msg_mid, msg_ts
 
 	// dedupe insert into queue
 }
