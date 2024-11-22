@@ -133,6 +133,7 @@ void ChunkPicker::updateParticipation(
 
 	entt::dense_set<Object> checked;
 	for (const Object ov : c.get<Contact::Components::FT1Participation>().participating) {
+		using Priority = ObjComp::Ephemeral::File::DownloadPriority::Priority;
 		const ObjectHandle o {objreg, ov};
 
 		if (participating_unfinished.contains(o)) {
@@ -150,6 +151,21 @@ void ChunkPicker::updateParticipation(
 				participating_unfinished.erase(o);
 				continue;
 			}
+
+			// TODO: optimize this to only change on dirty, or something
+			if (o.all_of<ObjComp::Ephemeral::File::DownloadPriority>()) {
+				Priority prio = o.get<ObjComp::Ephemeral::File::DownloadPriority>().p;
+
+				uint16_t pskips =
+					prio == Priority::HIGHEST ? 0u :
+					prio == Priority::HIGH ? 1u :
+					prio == Priority::NORMAL ? 2u :
+					prio == Priority::LOW ? 4u :
+					8u // LOWEST
+				;
+
+				participating_unfinished.at(o).should_skip = pskips;
+			}
 		} else {
 			if (!o.all_of<Components::FT1ChunkSHA1Cache, Components::FT1InfoSHA1>()) {
 				continue;
@@ -160,8 +176,6 @@ void ChunkPicker::updateParticipation(
 			}
 
 			if (!o.all_of<ObjComp::F::TagLocalHaveAll>()) {
-				//using Priority = Components::DownloadPriority::Priority;
-				using Priority = ObjComp::Ephemeral::File::DownloadPriority::Priority;
 				Priority prio = Priority::NORMAL;
 
 				if (o.all_of<ObjComp::Ephemeral::File::DownloadPriority>()) {
@@ -239,13 +253,12 @@ std::vector<ChunkPicker::ContentChunkR> ChunkPicker::updateChunkRequests(
 	// round robin content (remember last obj)
 	if (!objreg.valid(participating_in_last) || !participating_unfinished.count(participating_in_last)) {
 		participating_in_last = participating_unfinished.begin()->first;
-		//participating_in_last = *participating_unfinished.begin();
 	}
 	assert(objreg.valid(participating_in_last));
 
 	auto it = participating_unfinished.find(participating_in_last);
 	// hard limit robin rounds to array size time 20
-	for (size_t i = 0; req_ret.size() < num_requests && i < participating_unfinished.size()*20; i++) {
+	for (size_t i = 0; req_ret.size() < num_requests && i < participating_unfinished.size()*20; i++, it++) {
 		if (it == participating_unfinished.end()) {
 			it = participating_unfinished.begin();
 		}
@@ -254,6 +267,7 @@ std::vector<ChunkPicker::ContentChunkR> ChunkPicker::updateChunkRequests(
 			it->second.skips++;
 			continue;
 		}
+		it->second.skips = 0;
 
 		ObjectHandle o {objreg, it->first};
 
@@ -361,7 +375,8 @@ std::vector<ChunkPicker::ContentChunkR> ChunkPicker::updateChunkRequests(
 		}
 	}
 
-	if (it == participating_unfinished.end() || ++it == participating_unfinished.end()) {
+	//if (it == participating_unfinished.end() || ++it == participating_unfinished.end()) {
+	if (it == participating_unfinished.end()) {
 		participating_in_last = entt::null;
 	} else {
 		participating_in_last = it->first;
