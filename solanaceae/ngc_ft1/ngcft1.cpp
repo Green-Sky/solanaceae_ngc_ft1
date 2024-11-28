@@ -56,7 +56,9 @@ void NGCFT1::updateSendTransfer(float time_delta, uint32_t group_number, uint32_
 						timeouts_set.erase({idx, id});
 						can_packet_size -= data.size();
 					} else {
+#if 0 // too spammy
 						std::cerr << "NGCFT1 warning: no space to resend timedout\n";
+#endif
 					}
 				}
 			});

@@ -17,49 +17,26 @@
 class ToxContactModel2;
 
 
-struct InfoRequest {
+struct TimeRangeRequest {
 	uint64_t ts_start{0};
 	uint64_t ts_end{0};
 };
 
-struct SingleMessageRequest {
-	ByteSpan ppk;
-	uint32_t mid {0};
-	uint64_t ts {0}; // deciseconds
-};
-
 // TODO: move to own file
 namespace Components {
-	struct IncommingInfoRequestQueue {
-		std::vector<InfoRequest> _queue;
+	struct IncommingTimeRangeRequestQueue {
+		std::vector<TimeRangeRequest> _queue;
 
 		// we should remove/notadd queued requests
 		// that are subsets of same or larger ranges
-		void queueRequest(const InfoRequest& new_request);
+		void queueRequest(const TimeRangeRequest& new_request);
 	};
 
-	struct IncommingInfoRequestRunning {
+	struct IncommingTimeRangeRequestRunning {
 		struct Entry {
-			InfoRequest ir;
+			TimeRangeRequest ir;
 			std::vector<uint8_t> data; // trasfer data in memory
 		};
-		entt::dense_map<uint8_t, Entry> _list;
-	};
-
-	struct IncommingMsgRequestQueue {
-		// optimize dup lookups (this list could be large)
-		std::vector<SingleMessageRequest> _queue;
-
-		// removes dups
-		void queueRequest(const SingleMessageRequest& new_request);
-	};
-
-	struct IncommingMsgRequestRunning {
-		struct Entry {
-			SingleMessageRequest smr;
-			std::vector<uint8_t> data; // trasfer data in memory
-		};
-		// make more efficent? this list is very short
 		entt::dense_map<uint8_t, Entry> _list;
 	};
 } // Components
@@ -81,7 +58,7 @@ class NGCHS2Send : public RegistryMessageModelEventI, public NGCFT1EventI {
 	// comp on peer c
 
 	// limit to 2 uploads per peer simultaniously
-	// TODO: increase for prod (4?)
+	// TODO: increase for prod (4?) or maybe even lower?
 	// currently per type
 	constexpr static size_t _max_parallel_per_peer {2};
 
@@ -100,8 +77,7 @@ class NGCHS2Send : public RegistryMessageModelEventI, public NGCFT1EventI {
 
 		float iterate(float delta);
 
-		void handleRange(Contact3Handle c, const Events::NGCFT1_recv_request&);
-		void handleSingleMessage(Contact3Handle c, const Events::NGCFT1_recv_request&);
+		void handleTimeRange(Contact3Handle c, const Events::NGCFT1_recv_request&);
 
 	protected:
 		bool onEvent(const Message::Events::MessageConstruct&) override;

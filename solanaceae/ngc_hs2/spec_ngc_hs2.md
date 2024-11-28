@@ -1,34 +1,47 @@
-# [NGC] Group-History-Sync (v2) [PoC] [Draft]
+# [NGC] Group-History-Sync (v2.1) [PoC] [Draft]
 
-Simple group history sync that uses `peer public key` + `message_id` + `timestamp` (`ppk+mid+ts`) to, mostly, uniquely identify messages and deliver them.
+Simple group history sync that uses `timestamp` + `peer public key` + `message_id` (`ts+ppk+mid`) to, mostly, uniquely identify messages and deliver them.
+
+Messages are bundled up in a `msgpack` `array` and sent as a file transfer.
 
 ## Requirements
 
-TODO
+TODO: more?
+
+### Msgpack
+
+For serializing the messages.
 
 ### File transfers
 
-For sending packs of messages. A single message can be larger than a single custom packet, so this is a must-have.
+For sending packs of messages.
+Even a single message can be larger than a single custom packet, so this is a must-have.
+This also allows for compression down the road.
 
 ## Procedure
 
-Peer A can request `ppk+mid+ts` list for a given time range from peer B.
+Peer A can request `ts+ppk+mid+msg` list for a given time range from peer B.
 
-Peer B then sends a filetransfer (with special file type) of list of `ppk+mid+ts`.
-Optionally compressed. (Delta-coding / zstd)
+Peer B then sends a filetransfer (with special file type) of list of `ts+ppk+mid+msg`.
+Optionally compressed. (Delta-coding? / zstd)
 
 Peer A keeps doing that until the desired time span is covered.
 
-After that or simultaniously, Peer A requests messages from peer B, either indivitually, or packed? in ranges?.
-Optionally compressed.
-
 During all that, peer B usually does the same thing to peer A.
+
+TODO: deny request explicitly. also why (like perms and time range too large etc)
 
 ## Traffic savings
 
 It is recomended to remember if a range has been requested and answered from a given peer, to reduce traffic.
 
 While compression is optional, it is recommended.
+Timestamps fit delta coding.
+Peer keys fit dicts.
+Message ids are mostly high entropy.
+The Message itself is text, so dict/huffman fits well.
+
+TODO: store the 4 coloms SoA instead of AoS ?
 
 ## Message uniqueness
 
@@ -59,19 +72,41 @@ TODO: is reusing the ft request api a good idea for this?
 
 | fttype     | name | content (ft id) |
 |------------|------|---------------------|
-| 0x00000f00 | time range | - ts start </br> - ts end </br> - supported compression? |
-|            | TODO: id range based request? | |
-| 0x00000f01 | single message | - ppk </br> - mid </br> - ts |
+| 0x00000f02 | time range msgpack | - ts start </br> - ts end |
 
-## File transfers
+## File transfer content
 
-| fttype     | name | content |
-|------------|------|---------------------|
-| 0x00000f00 | time range | - feature bitset (1byte? different compressions?) </br> - ts start </br> - ts end </br> - list size </br> \\+ entry `ppk` </br> \\+ entry `mid` </br> \\+ entry `ts` |
-| 0x00000f01 | single message | - message type (text/textaction/file) </br> - text if text or action, file type and file id if file |
+| fttype     | name | content                    | note |
+|------------|------|----------------------------|---|
+| 0x00000f02 | time range msgpack | `message list` in msgpack | |
+
+### time range msgpack
+
+Msgpack array of messages.
+
+```
+ name                    | type/size         | note
+-------------------------|-------------------|-----
+- array                  | 32bit number msgs
+  - ts                   | 64bit deciseconds
+  - ppk                  | 32bytes
+  - mid                  | 16bit
+  - msgtype              | enum (string or number?)
+  - if text/textaction   |
+    - text               | string            | maybe byte array instead?
+  - if file              |
+    - fkind              | 32bit enum        | is this right?
+    - fid                | bytes kind        | length depends on kind
+```
+
+Name is the actual string key.
+Data type sizes are suggestions, if not defined by the tox protocol.
+
+How unknown `msgtype`s are handled is client defined.
+They can be fully ignored or displayed as broken.
 
 ## TODO
 
 - [ ] figure out a pro-active approach (instead of waiting for a range request)
-- [ ] compression in the ft layer? (would make it reusable) hint/autodetect?
+- [ ] compression in the ft layer? (would make it reusable) hint/autodetect/autoenable for >1k ?
 

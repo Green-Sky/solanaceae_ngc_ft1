@@ -75,20 +75,7 @@ enum class NGCFT1_file_kind : uint32_t {
 
 	// https://gist.github.com/Green-Sky/440cd9817a7114786850eb4c62dc57c3
 	// id: ts start, ts end
-	// content:
-	//  - ts start (do we need this? when this is part of the id?)
-	//  - ts end (same)
-	//  - list size
-	//    - ppk
-	//    - mid
-	//    - ts
-	HS2_INFO_RANGE_TIME = 0x00000f00,
-	// TODO: half open ranges
-	// TODO: id based
-	// TODO: ppk based?
-
-	// id: ppk, mid, ts
-	HS2_SINGLE_MESSAGE,
-	// TODO: message pack
+	HS2_RANGE_TIME = 0x00000f00, // TODO: remove, did not survive
+	HS2_RANGE_TIME_MSGPACK = 0x00000f02,
 };
 

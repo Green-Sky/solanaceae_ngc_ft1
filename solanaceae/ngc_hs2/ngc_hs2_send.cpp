@@ -12,7 +12,7 @@
 
 namespace Components {
 
-void IncommingInfoRequestQueue::queueRequest(const InfoRequest& new_request) {
+void IncommingTimeRangeRequestQueue::queueRequest(const TimeRangeRequest& new_request) {
 	// TODO: do more than exact dedupe
 	for (const auto& [ts_start, ts_end] : _queue) {
 		if (ts_start == new_request.ts_start && ts_end == new_request.ts_end) {
@@ -20,15 +20,6 @@ void IncommingInfoRequestQueue::queueRequest(const InfoRequest& new_request) {
 		}
 	}
 
-	_queue.push_back(new_request);
-}
-
-void IncommingMsgRequestQueue::queueRequest(const SingleMessageRequest& new_request) {
-	for (const auto& [ppk, mid, ts] : _queue) {
-		if (mid == new_request.mid && ts == new_request.ts && ppk == new_request.ppk) {
-			return; // already enqueued
-		}
-	}
 	_queue.push_back(new_request);
 }
 
@@ -75,7 +66,7 @@ float NGCHS2Send::iterate(float delta) {
 	auto fn_iirq = [this](auto&& view) {
 		for (auto&& [cv, iirq] : view.each()) {
 			Contact3Handle c{_cr, cv};
-			auto& iirr = c.get_or_emplace<Components::IncommingInfoRequestRunning>();
+			auto& iirr = c.get_or_emplace<Components::IncommingTimeRangeRequestRunning>();
 
 			// dedup queued from running
 
@@ -87,38 +78,15 @@ float NGCHS2Send::iterate(float delta) {
 		}
 	};
 
-	auto fn_imrq = [this](auto&& view) {
-		for (auto&& [cv, imrq] : view.each()) {
-			Contact3Handle c{_cr, cv};
-			auto& imrr = c.get_or_emplace<Components::IncommingMsgRequestRunning>();
-
-			// dedup queued from running
-
-			if (imrr._list.size() >= _max_parallel_per_peer) {
-				continue;
-			}
-
-			// new ft here?
-		}
-	};
-
 	// first handle range requests on weak self
-	//for (auto&& [cv, iirq] : _cr.view<Contact::Components::TagSelfWeak, Components::IncommingInfoRequestQueue>().each()) {
-	fn_iirq(_cr.view<Contact::Components::TagSelfWeak, Components::IncommingInfoRequestQueue>());
-
-	// then handle messages on weak self
-	//for (auto&& [cv, imrq] : _cr.view<Contact::Components::TagSelfWeak, Components::IncommingMsgRequestQueue>().each()) {
-	fn_imrq(_cr.view<Contact::Components::TagSelfWeak, Components::IncommingMsgRequestQueue>());
+	//for (auto&& [cv, iirq] : _cr.view<Contact::Components::TagSelfWeak, Components::IncommingTimeRangeRequestQueue>().each()) {
+	fn_iirq(_cr.view<Contact::Components::TagSelfWeak, Components::IncommingTimeRangeRequestQueue>());
 
 	// we could stop here, if too much is already running
 
 	// then range on others
-	//for (auto&& [cv, iirq] : _cr.view<Components::IncommingInfoRequestQueue>(entt::exclude_t<Contact::Components::TagSelfWeak>{}).each()) {
-	fn_iirq(_cr.view<Components::IncommingInfoRequestQueue>(entt::exclude_t<Contact::Components::TagSelfWeak>{}));
-
-	// then messages on others
-	//for (auto&& [cv, imrq] : _cr.view<Components::IncommingMsgRequestQueue>(entt::exclude_t<Contact::Components::TagSelfWeak>{}).each()) {
-	fn_imrq(_cr.view<Components::IncommingMsgRequestQueue>(entt::exclude_t<Contact::Components::TagSelfWeak>{}));
+	//for (auto&& [cv, iirq] : _cr.view<Components::IncommingTimeRangeRequestQueue>(entt::exclude_t<Contact::Components::TagSelfWeak>{}).each()) {
+	fn_iirq(_cr.view<Components::IncommingTimeRangeRequestQueue>(entt::exclude_t<Contact::Components::TagSelfWeak>{}));
 
 	return 1000.f;
 }
@@ -146,7 +114,7 @@ static uint64_t deserlTS(ByteSpan ts_bytes) {
 	return deserlSimpleType<uint64_t>(ts_bytes);
 }
 
-void NGCHS2Send::handleRange(Contact3Handle c, const Events::NGCFT1_recv_request& e) {
+void NGCHS2Send::handleTimeRange(Contact3Handle c, const Events::NGCFT1_recv_request& e) {
 	ByteSpan fid{e.file_id, e.file_id_size};
 	// TODO: better size check
 	if (fid.size != sizeof(uint64_t)+sizeof(uint64_t)) {
@@ -172,12 +140,13 @@ void NGCHS2Send::handleRange(Contact3Handle c, const Events::NGCFT1_recv_request
 
 	// dedupe insert into queue
 	// how much overlap do we allow?
-	c.get_or_emplace<Components::IncommingInfoRequestQueue>().queueRequest({
+	c.get_or_emplace<Components::IncommingTimeRangeRequestQueue>().queueRequest({
 		ts_start,
 		ts_end,
 	});
 }
 
+#if 0
 void NGCHS2Send::handleSingleMessage(Contact3Handle c, const Events::NGCFT1_recv_request& e) {
 	ByteSpan fid{e.file_id, e.file_id_size};
 	// TODO: better size check
@@ -208,13 +177,6 @@ void NGCHS2Send::handleSingleMessage(Contact3Handle c, const Events::NGCFT1_recv
 		return;
 	}
 
-	// file content
-	// - message type (text/textaction/file(ft1sha1))
-	// - if text/textaction
-	//   - text (string)
-	// - else if file
-	//   - file type
-	//   - file id
 
 	// for queue, we need group, peer, msg_ppk, msg_mid, msg_ts
 
@@ -225,6 +187,7 @@ void NGCHS2Send::handleSingleMessage(Contact3Handle c, const Events::NGCFT1_recv
 		ts,
 	});
 }
+#endif
 
 bool NGCHS2Send::onEvent(const Message::Events::MessageConstruct&) {
 	return false;
@@ -240,8 +203,7 @@ bool NGCHS2Send::onEvent(const Message::Events::MessageDestory&) {
 
 bool NGCHS2Send::onEvent(const Events::NGCFT1_recv_request& e) {
 	if (
-		e.file_kind != NGCFT1_file_kind::HS2_INFO_RANGE_TIME &&
-		e.file_kind != NGCFT1_file_kind::HS2_SINGLE_MESSAGE
+		e.file_kind != NGCFT1_file_kind::HS2_RANGE_TIME_MSGPACK
 	) {
 		return false; // not for us
 	}
@@ -267,10 +229,8 @@ bool NGCHS2Send::onEvent(const Events::NGCFT1_recv_request& e) {
 		//  - out of max time range (ft specific, not a quick_allow)
 	}
 
-	if (e.file_kind == NGCFT1_file_kind::HS2_INFO_RANGE_TIME) {
-		handleRange(c, e);
-	} else if (e.file_kind == NGCFT1_file_kind::HS2_SINGLE_MESSAGE) {
-		handleSingleMessage(c, e);
+	if (e.file_kind == NGCFT1_file_kind::HS2_RANGE_TIME_MSGPACK) {
+		handleTimeRange(c, e);
 	}
 
 	return true;
