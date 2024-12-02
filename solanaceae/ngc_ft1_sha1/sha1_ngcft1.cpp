@@ -717,7 +717,7 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCFT1_recv_request& e) {
 		}
 
 		const auto c = _tcm.getContactGroupPeer(e.group_number, e.peer_number);
-		_tox_peer_to_contact[combine_ids(e.group_number, e.peer_number)] = c; // workaround
+		_tox_peer_to_contact[combine_ids(e.group_number, e.peer_number)] = c; // cache
 	} else if (e.file_kind == NGCFT1_file_kind::HASH_SHA1_CHUNK) {
 		if (e.file_id_size != 20) {
 			// error
@@ -735,7 +735,7 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCFT1_recv_request& e) {
 
 		{ // they advertise interest in the content
 			const auto c = _tcm.getContactGroupPeer(e.group_number, e.peer_number);
-			_tox_peer_to_contact[combine_ids(e.group_number, e.peer_number)] = c; // workaround
+			_tox_peer_to_contact[combine_ids(e.group_number, e.peer_number)] = c; // cache
 			if (addParticipation(c, o)) {
 				// something happend, update chunk picker
 				assert(static_cast<bool>(c));
@@ -796,7 +796,7 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCFT1_recv_init& e) {
 		e.accept = true;
 
 		const auto c = _tcm.getContactGroupPeer(e.group_number, e.peer_number);
-		_tox_peer_to_contact[combine_ids(e.group_number, e.peer_number)] = c; // workaround
+		_tox_peer_to_contact[combine_ids(e.group_number, e.peer_number)] = c; // cache
 	} else if (e.file_kind == NGCFT1_file_kind::HASH_SHA1_CHUNK) {
 		SHA1Digest sha1_chunk_hash {e.file_id, e.file_id_size};
 
@@ -809,7 +809,7 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCFT1_recv_init& e) {
 
 		{ // they have the content (probably, might be fake, should move this to done)
 			const auto c = _tcm.getContactGroupPeer(e.group_number, e.peer_number);
-			_tox_peer_to_contact[combine_ids(e.group_number, e.peer_number)] = c; // workaround
+			_tox_peer_to_contact[combine_ids(e.group_number, e.peer_number)] = c; // cache
 			if (addParticipation(c, o)) {
 				// something happend, update chunk picker
 				assert(static_cast<bool>(c));
@@ -955,7 +955,16 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCFT1_send_data& e) {
 		// TODO: add event to propergate to messages
 		//_rmm.throwEventUpdate(transfer); // should we?
 
-		auto c = _tcm.getContactGroupPeer(e.group_number, e.peer_number);
+		Contact3Handle c;
+		const auto tpcc_it = _tox_peer_to_contact.find(combine_ids(e.group_number, e.peer_number));
+		if (tpcc_it != _tox_peer_to_contact.cend()) {
+			c = tpcc_it->second;
+		} else {
+			c = _tcm.getContactGroupPeer(e.group_number, e.peer_number);
+			if (static_cast<bool>(c)) {
+				_tox_peer_to_contact[combine_ids(e.group_number, e.peer_number)] = c;
+			}
+		}
 		if (static_cast<bool>(c)) {
 			chunk_transfer.content.get_or_emplace<Components::TransferStatsTally>()
 				.tally[c]
@@ -1394,7 +1403,7 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCEXT_ft1_have& e) {
 
 	const auto c = _tcm.getContactGroupPeer(e.group_number, e.peer_number);
 	assert(static_cast<bool>(c));
-	_tox_peer_to_contact[combine_ids(e.group_number, e.peer_number)] = c; // workaround
+	_tox_peer_to_contact[combine_ids(e.group_number, e.peer_number)] = c; // cache
 
 	// we might not know yet
 	if (addParticipation(c, o)) {
@@ -1492,7 +1501,7 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCEXT_ft1_bitset& e) {
 
 	const auto c = _tcm.getContactGroupPeer(e.group_number, e.peer_number);
 	assert(static_cast<bool>(c));
-	_tox_peer_to_contact[combine_ids(e.group_number, e.peer_number)] = c; // workaround
+	_tox_peer_to_contact[combine_ids(e.group_number, e.peer_number)] = c; // cache
 
 	// we might not know yet
 	addParticipation(c, o);
@@ -1555,7 +1564,7 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCEXT_ft1_have_all& e) {
 
 	const auto c = _tcm.getContactGroupPeer(e.group_number, e.peer_number);
 	assert(static_cast<bool>(c));
-	_tox_peer_to_contact[combine_ids(e.group_number, e.peer_number)] = c; // workaround
+	_tox_peer_to_contact[combine_ids(e.group_number, e.peer_number)] = c; // cache
 
 	// we might not know yet
 	addParticipation(c, o);
@@ -1602,7 +1611,7 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCEXT_pc1_announce& e) {
 
 	// add to participants
 	const auto c = _tcm.getContactGroupPeer(e.group_number, e.peer_number);
-	_tox_peer_to_contact[combine_ids(e.group_number, e.peer_number)] = c; // workaround
+	_tox_peer_to_contact[combine_ids(e.group_number, e.peer_number)] = c; // cache
 	auto o = itc_it->second;
 	if (addParticipation(c, o)) {
 		// something happend, update chunk picker
