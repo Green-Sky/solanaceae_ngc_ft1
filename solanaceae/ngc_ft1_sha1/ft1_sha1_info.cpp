@@ -63,6 +63,7 @@ size_t FT1InfoSHA1::chunkSize(size_t chunk_index) const {
 
 std::vector<uint8_t> FT1InfoSHA1::toBuffer(void) const {
 	std::vector<uint8_t> buffer;
+	buffer.reserve(256+8+4+20*chunks.size());
 
 	assert(!file_name.empty());
 	// TODO: optimize

@@ -74,6 +74,9 @@ class SHA1_NGCFT1 : public ToxEventI, public RegistryMessageModelEventI, public 
 	// only used to remove participation on peer exit
 	entt::dense_map<uint64_t, Contact3Handle> _tox_peer_to_contact;
 
+	// reset every iterate; kept here as an allocation optimization
+	entt::dense_map<Contact3, size_t> _peer_open_requests;
+
 	void updateMessages(ObjectHandle ce);
 
 	std::optional<std::pair<uint32_t, uint32_t>> selectPeerForRequest(ObjectHandle ce);

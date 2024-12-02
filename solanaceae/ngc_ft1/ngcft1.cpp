@@ -672,6 +672,7 @@ bool NGCFT1::onEvent(const Events::NGCEXT_ft1_data_ack& e) {
 
 	{
 		std::vector<CCAI::SeqIDType> seqs;
+		seqs.reserve(e.sequence_ids.size());
 		for (const auto it : e.sequence_ids) {
 			// TODO: improve this o.o
 			seqs.push_back({e.transfer_id, it});

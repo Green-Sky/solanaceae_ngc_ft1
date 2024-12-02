@@ -86,6 +86,7 @@ int64_t FlowOnly::canSend(float time_delta) {
 
 std::vector<FlowOnly::SeqIDType> FlowOnly::getTimeouts(void) const {
 	std::vector<SeqIDType> list;
+	list.reserve(_in_flight.size()/3); // we dont know, so we just guess
 
 	// after 3 rtt delay, we trigger timeout
 	const auto now_adjusted = getTimeNow() - getCurrentDelay()*3.f;

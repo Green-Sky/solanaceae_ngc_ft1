@@ -250,7 +250,7 @@ float SHA1_NGCFT1::iterate(float delta) {
 	//std::cerr << "---------- new tick ----------\n";
 	_mfb.tick(); // does not need to be called as often, once every sec would be enough, but the pointer deref + atomic bool should be very fast
 
-	entt::dense_map<Contact3, size_t> peer_open_requests;
+	_peer_open_requests.clear();
 
 	{ // timers
 		// sending transfers
@@ -299,7 +299,7 @@ float SHA1_NGCFT1::iterate(float delta) {
 			}
 		}
 		{ // requested chunk timers
-			_os.registry().view<Components::FT1ChunkSHA1Requested>().each([delta, &peer_open_requests](Components::FT1ChunkSHA1Requested& ftchunk_requested) {
+			_os.registry().view<Components::FT1ChunkSHA1Requested>().each([this, delta](Components::FT1ChunkSHA1Requested& ftchunk_requested) {
 				for (auto it = ftchunk_requested.chunks.begin(); it != ftchunk_requested.chunks.end();) {
 					it->second.timer += delta;
 
@@ -307,7 +307,7 @@ float SHA1_NGCFT1::iterate(float delta) {
 					if (it->second.timer >= 60.f) {
 						it = ftchunk_requested.chunks.erase(it);
 					} else {
-						peer_open_requests[it->second.c] += 1;
+						_peer_open_requests[it->second.c] += 1;
 						it++;
 					}
 				}
@@ -447,7 +447,7 @@ float SHA1_NGCFT1::iterate(float delta) {
 	Systems::chunk_picker_updates(
 		_cr,
 		_os.registry(),
-		peer_open_requests,
+		_peer_open_requests,
 		_receiving_transfers,
 		_nft,
 		delta
@@ -456,7 +456,7 @@ float SHA1_NGCFT1::iterate(float delta) {
 	// transfer statistics systems
 	Systems::transfer_tally_update(_os.registry(), getTimeNow());
 
-	if (peer_open_requests.empty()) {
+	if (_peer_open_requests.empty()) {
 		return 2.f;
 	} else {
 		// pretty conservative and should be ajusted on a per peer, per delay basis

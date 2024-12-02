@@ -255,6 +255,7 @@ bool NGCEXTEventProvider::parse_ft1_data_ack(
 	_DATA_HAVE(sizeof(e.transfer_id), std::cerr << "NGCEXT: packet too small, missing transfer_id\n"; return false)
 	e.transfer_id = data[curser++];
 
+	e.sequence_ids.reserve(std::max<int64_t>(data_size-curser, 1)/sizeof(uint16_t));
 	while (curser < data_size) {
 		_DATA_HAVE(sizeof(uint16_t), std::cerr << "NGCEXT: packet too small, missing seq_id\n"; return false)
 		uint16_t seq_id = data[curser++];
