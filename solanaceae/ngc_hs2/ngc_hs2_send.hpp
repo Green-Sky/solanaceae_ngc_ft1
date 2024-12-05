@@ -51,10 +51,10 @@ class NGCHS2Send : public RegistryMessageModelEventI, public NGCFT1EventI {
 	float _iterate_heat {0.f};
 	constexpr static float _iterate_cooldown {1.22f}; // sec
 
-	// open/running info requests (by c)
+	// open/running range requests (by c)
 	// comp on peer c
 
-	// open/running info responses (by c)
+	// open/running range responses (by c)
 	// comp on peer c
 
 	// limit to 2 uploads per peer simultaniously
@@ -78,6 +78,10 @@ class NGCHS2Send : public RegistryMessageModelEventI, public NGCFT1EventI {
 		float iterate(float delta);
 
 		void handleTimeRange(Contact3Handle c, const Events::NGCFT1_recv_request&);
+
+		// msg reg contact
+		// time ranges
+		std::vector<uint8_t> buildHSFileRange(Contact3Handle c, uint64_t ts_start, uint64_t ts_end);
 
 	protected:
 		bool onEvent(const Message::Events::MessageConstruct&) override;

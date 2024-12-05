@@ -16,7 +16,7 @@ enum class NGCFT1_file_kind : uint32_t {
 	// id: TOX_FILE_ID_LENGTH (32) bytes
 	// this is basically and id and probably not a hash, like the tox friend api
 	// this id can be unique between 2 peers
-	ID = 8u,
+	ID = 8u, // TODO: this is actually DATA and 0
 
 	// id: hash of the info, like a torrent infohash (using the same hash as the data)
 	// TODO: determain internal format

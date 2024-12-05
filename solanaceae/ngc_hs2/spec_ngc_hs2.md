@@ -92,7 +92,7 @@ Msgpack array of messages.
   - ppk                  | 32bytes
   - mid                  | 16bit
   - msgtype              | enum (string or number?)
-  - if text/textaction   |
+  - if text/action       |
     - text               | string            | maybe byte array instead?
   - if file              |
     - fkind              | 32bit enum        | is this right?

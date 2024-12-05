@@ -56,6 +56,7 @@ target_link_libraries(solanaceae_ngchs2 PUBLIC
 	solanaceae_tox_contacts
 	solanaceae_message3
 	solanaceae_object_store
+	nlohmann_json::nlohmann_json
 )
 
 ########################################

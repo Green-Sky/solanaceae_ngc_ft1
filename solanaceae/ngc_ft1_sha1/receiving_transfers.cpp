@@ -7,8 +7,8 @@ void ReceivingTransfers::tick(float delta) {
 		for (auto it = peer_it->second.begin(); it != peer_it->second.end();) {
 			it->second.time_since_activity += delta;
 
-			// if we have not heard for 20sec, timeout
-			if (it->second.time_since_activity >= 20.f) {
+			// if we have not heard for 60sec, timeout
+			if (it->second.time_since_activity >= 60.f) {
 				std::cerr << "SHA1_NGCFT1 warning: receiving tansfer timed out " << "." << int(it->first) << "\n";
 				// TODO: if info, requeue? or just keep the timer comp? - no, timer comp will continue ticking, even if loading
 				//it->second.v
