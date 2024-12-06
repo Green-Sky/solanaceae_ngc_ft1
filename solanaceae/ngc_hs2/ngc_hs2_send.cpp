@@ -251,7 +251,6 @@ std::vector<uint8_t> NGCHS2Send::buildHSFileRange(Contact3Handle c, uint64_t ts_
 			continue; // skip
 		}
 
-
 		const auto& [c_from_c, c_to_c] = msg_reg.get<Message::Components::ContactFrom, Message::Components::ContactTo>(e);
 
 		if (c_to_c.c != c) {

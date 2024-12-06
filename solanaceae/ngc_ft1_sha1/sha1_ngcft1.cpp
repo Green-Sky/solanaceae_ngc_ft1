@@ -1399,8 +1399,6 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCEXT_ft1_have& e) {
 		return false;
 	}
 
-	const size_t num_total_chunks = o.get<Components::FT1InfoSHA1>().chunks.size();
-
 	const auto c = _tcm.getContactGroupPeer(e.group_number, e.peer_number);
 	assert(static_cast<bool>(c));
 	_tox_peer_to_contact[combine_ids(e.group_number, e.peer_number)] = c; // cache
@@ -1411,6 +1409,8 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCEXT_ft1_have& e) {
 		//c.emplace_or_replace<ChunkPickerUpdateTag>();
 	}
 
+	const size_t num_total_chunks = o.get<Components::FT1InfoSHA1>().chunks.size();
+
 	auto& remote_have = o.get_or_emplace<Components::RemoteHaveBitset>().others;
 	if (!remote_have.contains(c)) {
 		// init
@@ -1418,6 +1418,10 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCEXT_ft1_have& e) {
 
 		// new have? nice
 		//c.emplace_or_replace<ChunkPickerUpdateTag>();
+	}
+
+	if (o.all_of<ObjComp::F::TagLocalHaveAll>()) {
+		return true; // we dont care beyond this point
 	}
 
 	auto& remote_have_peer = remote_have.at(c);
