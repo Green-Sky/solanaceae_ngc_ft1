@@ -12,6 +12,7 @@
 #include <solanaceae/util/span.hpp>
 
 #include <vector>
+#include <deque>
 
 // fwd
 class ToxContactModel2;
@@ -25,17 +26,22 @@ struct TimeRangeRequest {
 // TODO: move to own file
 namespace Components {
 	struct IncommingTimeRangeRequestQueue {
-		std::vector<TimeRangeRequest> _queue;
+		struct Entry {
+			TimeRangeRequest ir;
+			std::vector<uint8_t> fid;
+		};
+		std::deque<Entry> _queue;
 
 		// we should remove/notadd queued requests
 		// that are subsets of same or larger ranges
-		void queueRequest(const TimeRangeRequest& new_request);
+		void queueRequest(const TimeRangeRequest& new_request, const ByteSpan fid);
 	};
 
 	struct IncommingTimeRangeRequestRunning {
 		struct Entry {
 			TimeRangeRequest ir;
-			std::vector<uint8_t> data; // trasfer data in memory
+			std::vector<uint8_t> data; // transfer data in memory
+			float last_activity {0.f};
 		};
 		entt::dense_map<uint8_t, Entry> _list;
 	};
@@ -81,7 +87,7 @@ class NGCHS2Send : public RegistryMessageModelEventI, public NGCFT1EventI {
 
 		// msg reg contact
 		// time ranges
-		std::vector<uint8_t> buildHSFileRange(Contact3Handle c, uint64_t ts_start, uint64_t ts_end);
+		[[nodiscard]] std::vector<uint8_t> buildChatLogFileRange(Contact3Handle c, uint64_t ts_start, uint64_t ts_end);
 
 	protected:
 		bool onEvent(const Message::Events::MessageConstruct&) override;
