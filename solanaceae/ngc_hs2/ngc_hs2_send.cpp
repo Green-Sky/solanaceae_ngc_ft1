@@ -17,7 +17,7 @@
 
 #include <nlohmann/json.hpp>
 
-#include <algorithm>
+#include "./ts_find_start.hpp"
 
 #include <iostream>
 
@@ -212,35 +212,15 @@ std::vector<uint8_t> NGCHS2Send::buildHSFileRange(Contact3Handle c, uint64_t ts_
 		return {};
 	}
 
-	std::cout << "!!!! starting msg ts search, ts_start:" << ts_start << " ts_end:" << ts_end << "\n";
+	//std::cout << "!!!! starting msg ts search, ts_start:" << ts_start << " ts_end:" << ts_end << "\n";
 
 	auto ts_view = msg_reg.view<Message::Components::Timestamp>();
 
 	// we iterate "forward", so from newest to oldest
 
 	// start is the newest ts
-	auto ts_start_it = ts_view.end(); // start invalid
+	const auto ts_start_it = find_start_by_ts(ts_view, ts_start);
 	// end is the oldest ts
-	//
-	{ // binary search for first value not newer than start ts
-		// -> first value smaller than start ts
-		auto res = std::lower_bound(
-			ts_view.begin(), ts_view.end(),
-			ts_start,
-			[&ts_view](const auto& a, const auto& b) {
-				const auto& [a_comp] = ts_view.get(a);
-				return a_comp.ts > b; // > bc ts is sorted high to low?
-			}
-		);
-
-		if (res != ts_view.end()) {
-			const auto& [ts_comp] = ts_view.get(*res);
-			std::cout << "!!!! first value not newer than start ts is " << ts_comp.ts << "\n";
-			ts_start_it = res;
-		} else {
-			std::cout << "!!!! no first value not newer than start ts\n";
-		}
-	}
 
 	// we only search for the start point, because we walk to the end anyway
 

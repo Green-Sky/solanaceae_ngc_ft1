@@ -43,24 +43,6 @@ target_link_libraries(solanaceae_ngcft1 PUBLIC
 
 ########################################
 
-add_library(solanaceae_ngchs2
-	./solanaceae/ngc_hs2/ngc_hs2_send.hpp
-	./solanaceae/ngc_hs2/ngc_hs2_send.cpp
-	#./solanaceae/ngc_hs2/ngc_hs2_recv.hpp
-	#./solanaceae/ngc_hs2/ngc_hs2_recv.cpp
-)
-target_include_directories(solanaceae_ngchs2 PUBLIC .)
-target_compile_features(solanaceae_ngchs2 PUBLIC cxx_std_17)
-target_link_libraries(solanaceae_ngchs2 PUBLIC
-	solanaceae_ngcft1
-	solanaceae_tox_contacts
-	solanaceae_message3
-	solanaceae_object_store
-	nlohmann_json::nlohmann_json
-)
-
-########################################
-
 add_library(solanaceae_sha1_ngcft1
 	# hacky deps
 	./solanaceae/ngc_ft1_sha1/mio.hpp
@@ -120,8 +102,6 @@ target_link_libraries(solanaceae_sha1_ngcft1 PUBLIC
 	solanaceae_file2
 )
 
-########################################
-
 option(SOLANACEAE_NGCFT1_SHA1_BUILD_TESTING "Build the solanaceae_ngcft1_sha1 tests" OFF)
 message("II SOLANACEAE_NGCFT1_SHA1_BUILD_TESTING " ${SOLANACEAE_NGCFT1_SHA1_BUILD_TESTING})
 
@@ -136,6 +116,46 @@ if (SOLANACEAE_NGCFT1_SHA1_BUILD_TESTING)
 	#target_link_libraries(bitset_tests PUBLIC
 	#    solanaceae_sha1_ngcft1
 	#)
+
+endif()
+
+########################################
+
+add_library(solanaceae_ngchs2
+	./solanaceae/ngc_hs2/ts_find_start.hpp
+
+	./solanaceae/ngc_hs2/ngc_hs2_send.hpp
+	./solanaceae/ngc_hs2/ngc_hs2_send.cpp
+
+	#./solanaceae/ngc_hs2/ngc_hs2_recv.hpp
+	#./solanaceae/ngc_hs2/ngc_hs2_recv.cpp
+)
+target_include_directories(solanaceae_ngchs2 PUBLIC .)
+target_compile_features(solanaceae_ngchs2 PUBLIC cxx_std_17)
+target_link_libraries(solanaceae_ngchs2 PUBLIC
+	solanaceae_ngcft1
+	solanaceae_sha1_ngcft1 # HACK: properly abstract filekind/-id
+	solanaceae_tox_contacts
+	solanaceae_message3
+	solanaceae_object_store
+	nlohmann_json::nlohmann_json
+)
+
+option(SOLANACEAE_NGCHS2_BUILD_TESTING "Build the solanaceae_ngchs2 tests" OFF)
+message("II SOLANACEAE_NGCHS2_BUILD_TESTING " ${SOLANACEAE_NGCHS2_BUILD_TESTING})
+
+if (SOLANACEAE_NGCHS2_BUILD_TESTING)
+	include(CTest)
+
+	add_executable(test_hs2_ts_binarysearch
+		./solanaceae/ngc_hs2/test_ts_binarysearch.cpp
+	)
+
+	target_link_libraries(test_hs2_ts_binarysearch PUBLIC
+		solanaceae_ngchs2
+	)
+
+	add_test(NAME test_hs2_ts_binarysearch COMMAND test_hs2_ts_binarysearch)
 
 endif()
 
