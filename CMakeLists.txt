@@ -124,8 +124,8 @@ endif()
 add_library(solanaceae_ngchs2
 	./solanaceae/ngc_hs2/ts_find_start.hpp
 
-	./solanaceae/ngc_hs2/ngc_hs2_send.hpp
-	./solanaceae/ngc_hs2/ngc_hs2_send.cpp
+	./solanaceae/ngc_hs2/ngc_hs2_sigma.hpp
+	./solanaceae/ngc_hs2/ngc_hs2_sigma.cpp
 
 	#./solanaceae/ngc_hs2/ngc_hs2_recv.hpp
 	#./solanaceae/ngc_hs2/ngc_hs2_recv.cpp

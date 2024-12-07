@@ -47,7 +47,7 @@ namespace Components {
 	};
 } // Components
 
-class NGCHS2Send : public RegistryMessageModelEventI, public NGCFT1EventI {
+class NGCHS2Sigma : public RegistryMessageModelEventI, public NGCFT1EventI {
 	Contact3Registry& _cr;
 	RegistryMessageModelI& _rmm;
 	ToxContactModel2& _tcm;
@@ -72,14 +72,14 @@ class NGCHS2Send : public RegistryMessageModelEventI, public NGCFT1EventI {
 	constexpr static int64_t _max_time_into_past_default {60*15}; // s
 
 	public:
-		NGCHS2Send(
+		NGCHS2Sigma(
 			Contact3Registry& cr,
 			RegistryMessageModelI& rmm,
 			ToxContactModel2& tcm,
 			NGCFT1& nf
 		);
 
-		~NGCHS2Send(void);
+		~NGCHS2Sigma(void);
 
 		float iterate(float delta);
 

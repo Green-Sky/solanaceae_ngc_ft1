@@ -1,4 +1,4 @@
-#include "./ngc_hs2_send.hpp"
+#include "./ngc_hs2_sigma.hpp"
 
 #include <solanaceae/util/span.hpp>
 
@@ -39,7 +39,7 @@ void IncommingTimeRangeRequestQueue::queueRequest(const TimeRangeRequest& new_re
 } // Components
 
 
-NGCHS2Send::NGCHS2Send(
+NGCHS2Sigma::NGCHS2Sigma(
 	Contact3Registry& cr,
 	RegistryMessageModelI& rmm,
 	ToxContactModel2& tcm,
@@ -58,10 +58,10 @@ NGCHS2Send::NGCHS2Send(
 	;
 }
 
-NGCHS2Send::~NGCHS2Send(void) {
+NGCHS2Sigma::~NGCHS2Sigma(void) {
 }
 
-float NGCHS2Send::iterate(float delta) {
+float NGCHS2Sigma::iterate(float delta) {
 	// limit how often we update here (new fts usually)
 	if (_iterate_heat > 0.f) {
 		_iterate_heat -= delta;
@@ -147,7 +147,7 @@ float NGCHS2Send::iterate(float delta) {
 				}
 			}
 			for (const auto it : to_remove) {
-				std::cout << "NGCHS2Send warning: timed out ." << (int)it << "\n";
+				std::cout << "NGCHS2Sigma warning: timed out ." << (int)it << "\n";
 				// TODO: need a way to tell ft?
 				irr._list.erase(it);
 				// technically we are not supposed to timeout and instead rely on the done event
@@ -173,15 +173,15 @@ static uint64_t deserlSimpleType(ByteSpan bytes) {
 	return value;
 }
 
-static uint32_t deserlMID(ByteSpan mid_bytes) {
-	return deserlSimpleType<uint32_t>(mid_bytes);
-}
+//static uint32_t deserlMID(ByteSpan mid_bytes) {
+//    return deserlSimpleType<uint32_t>(mid_bytes);
+//}
 
 static uint64_t deserlTS(ByteSpan ts_bytes) {
 	return deserlSimpleType<uint64_t>(ts_bytes);
 }
 
-void NGCHS2Send::handleTimeRange(Contact3Handle c, const Events::NGCFT1_recv_request& e) {
+void NGCHS2Sigma::handleTimeRange(Contact3Handle c, const Events::NGCFT1_recv_request& e) {
 	ByteSpan fid{e.file_id, e.file_id_size};
 	// TODO: better size check
 	if (fid.size != sizeof(uint64_t)+sizeof(uint64_t)) {
@@ -213,50 +213,7 @@ void NGCHS2Send::handleTimeRange(Contact3Handle c, const Events::NGCFT1_recv_req
 	);
 }
 
-#if 0
-void NGCHS2Send::handleSingleMessage(Contact3Handle c, const Events::NGCFT1_recv_request& e) {
-	ByteSpan fid{e.file_id, e.file_id_size};
-	// TODO: better size check
-	if (fid.size != 32+sizeof(uint32_t)+sizeof(uint64_t)) {
-		std::cerr << "NGCHS2S error: singlemessage not lange enough\n";
-		return;
-	}
-
-	ByteSpan ppk;
-	uint32_t mid {0};
-	uint64_t ts {0}; // deciseconds
-
-	// parse
-	try {
-		// - ppk
-		// TOX_GROUP_PEER_PUBLIC_KEY_SIZE (32)
-		ppk = {fid.ptr, 32};
-
-		// - mid
-		ByteSpan mid_bytes{fid.ptr+ppk.size, sizeof(uint32_t)};
-		mid = deserlMID(mid_bytes);
-
-		// - ts
-		ByteSpan ts_bytes{mid_bytes.ptr+mid_bytes.size, sizeof(uint64_t)};
-		ts = deserlTS(ts_bytes);
-	} catch (...) {
-		std::cerr << "NGCHS2S error: failed to parse singlemessage\n";
-		return;
-	}
-
-
-	// for queue, we need group, peer, msg_ppk, msg_mid, msg_ts
-
-	// dedupe insert into queue
-	c.get_or_emplace<Components::IncommingMsgRequestQueue>().queueRequest({
-		ppk,
-		mid,
-		ts,
-	});
-}
-#endif
-
-std::vector<uint8_t> NGCHS2Send::buildChatLogFileRange(Contact3Handle c, uint64_t ts_start, uint64_t ts_end) {
+std::vector<uint8_t> NGCHS2Sigma::buildChatLogFileRange(Contact3Handle c, uint64_t ts_start, uint64_t ts_end) {
 	const Message3Registry* reg_ptr = static_cast<const RegistryMessageModelI&>(_rmm).get(c);
 	if (reg_ptr == nullptr) {
 		return {};
@@ -368,19 +325,19 @@ std::vector<uint8_t> NGCHS2Send::buildChatLogFileRange(Contact3Handle c, uint64_
 	return nlohmann::json::to_msgpack(j_array);
 }
 
-bool NGCHS2Send::onEvent(const Message::Events::MessageConstruct&) {
+bool NGCHS2Sigma::onEvent(const Message::Events::MessageConstruct&) {
 	return false;
 }
 
-bool NGCHS2Send::onEvent(const Message::Events::MessageUpdated&) {
+bool NGCHS2Sigma::onEvent(const Message::Events::MessageUpdated&) {
 	return false;
 }
 
-bool NGCHS2Send::onEvent(const Message::Events::MessageDestory&) {
+bool NGCHS2Sigma::onEvent(const Message::Events::MessageDestory&) {
 	return false;
 }
 
-bool NGCHS2Send::onEvent(const Events::NGCFT1_recv_request& e) {
+bool NGCHS2Sigma::onEvent(const Events::NGCFT1_recv_request& e) {
 	if (
 		e.file_kind != NGCFT1_file_kind::HS2_RANGE_TIME_MSGPACK
 	) {
@@ -415,7 +372,7 @@ bool NGCHS2Send::onEvent(const Events::NGCFT1_recv_request& e) {
 	return true;
 }
 
-bool NGCHS2Send::onEvent(const Events::NGCFT1_send_data& e) {
+bool NGCHS2Sigma::onEvent(const Events::NGCFT1_send_data& e) {
 	auto c = _tcm.getContactGroupPeer(e.group_number, e.peer_number);
 	if (!c) {
 		return false;
@@ -432,7 +389,7 @@ bool NGCHS2Send::onEvent(const Events::NGCFT1_send_data& e) {
 
 	auto& transfer = irr._list.at(e.transfer_id);
 	if (transfer.data.size() < e.data_offset+e.data_size) {
-		std::cerr << "NGCHS2Send error: ft send data larger then file???\n";
+		std::cerr << "NGCHS2Sigma error: ft send data larger then file???\n";
 		assert(false && "how");
 	}
 	std::memcpy(e.data, transfer.data.data()+e.data_offset, e.data_size);
@@ -441,7 +398,7 @@ bool NGCHS2Send::onEvent(const Events::NGCFT1_send_data& e) {
 	return true;
 }
 
-bool NGCHS2Send::onEvent(const Events::NGCFT1_send_done& e) {
+bool NGCHS2Sigma::onEvent(const Events::NGCFT1_send_done& e) {
 	auto c = _tcm.getContactGroupPeer(e.group_number, e.peer_number);
 	if (!c) {
 		return false;
@@ -459,7 +416,7 @@ bool NGCHS2Send::onEvent(const Events::NGCFT1_send_done& e) {
 	irr._list.erase(e.transfer_id);
 
 	// TODO: check if we completed it
-	std::cout << "NGCHS2Send: sent chatlog to " << e.group_number << ":" << e.peer_number << "." << (int)e.transfer_id << "\n";
+	std::cout << "NGCHS2Sigma: sent chatlog to " << e.group_number << ":" << e.peer_number << "." << (int)e.transfer_id << "\n";
 
 	return true;
 }
