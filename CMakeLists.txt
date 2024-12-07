@@ -127,8 +127,8 @@ add_library(solanaceae_ngchs2
 	./solanaceae/ngc_hs2/ngc_hs2_sigma.hpp
 	./solanaceae/ngc_hs2/ngc_hs2_sigma.cpp
 
-	#./solanaceae/ngc_hs2/ngc_hs2_recv.hpp
-	#./solanaceae/ngc_hs2/ngc_hs2_recv.cpp
+	./solanaceae/ngc_hs2/ngc_hs2_rizzler.hpp
+	./solanaceae/ngc_hs2/ngc_hs2_rizzler.cpp
 )
 target_include_directories(solanaceae_ngchs2 PUBLIC .)
 target_compile_features(solanaceae_ngchs2 PUBLIC cxx_std_17)
