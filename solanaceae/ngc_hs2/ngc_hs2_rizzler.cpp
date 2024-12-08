@@ -1,4 +1,5 @@
 #include "./ngc_hs2_rizzler.hpp"
+#include "tox/tox_events.h"
 
 #include <solanaceae/tox_contacts/tox_contact_model2.hpp>
 
@@ -12,18 +13,24 @@ NGCHS2Rizzler::NGCHS2Rizzler(
 	Contact3Registry& cr,
 	RegistryMessageModelI& rmm,
 	ToxContactModel2& tcm,
-	NGCFT1& nft
+	NGCFT1& nft,
+	ToxEventProviderI& tep
 ) :
 	_cr(cr),
 	_rmm(rmm),
 	_tcm(tcm),
 	_nft(nft),
-	_nftep_sr(_nft.newSubRef(this))
+	_nftep_sr(_nft.newSubRef(this)),
+	_tep_sr(tep.newSubRef(this))
+
 {
 	_nftep_sr
 		.subscribe(NGCFT1_Event::recv_init)
 		.subscribe(NGCFT1_Event::recv_data)
 		.subscribe(NGCFT1_Event::recv_done)
+	;
+	_tep_sr
+		.subscribe(Tox_Event_Type::TOX_EVENT_GROUP_PEER_JOIN)
 	;
 }
 

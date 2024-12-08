@@ -76,7 +76,7 @@ class NGCHS2Sigma : public RegistryMessageModelEventI, public NGCFT1EventI {
 			Contact3Registry& cr,
 			RegistryMessageModelI& rmm,
 			ToxContactModel2& tcm,
-			NGCFT1& nf
+			NGCFT1& nft
 		);
 
 		~NGCHS2Sigma(void);

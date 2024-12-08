@@ -1,6 +1,7 @@
 #pragma once
 
 #include <solanaceae/contact/contact_model3.hpp>
+#include <solanaceae/toxcore/tox_event_interface.hpp>
 
 #include <solanaceae/ngc_ft1/ngcft1.hpp>
 
@@ -14,6 +15,7 @@ class NGCHS2Rizzler : public ToxEventI, public NGCFT1EventI {
 	ToxContactModel2& _tcm;
 	NGCFT1& _nft;
 	NGCFT1EventProviderI::SubscriptionReference _nftep_sr;
+	ToxEventProviderI::SubscriptionReference _tep_sr;
 
 	// 5s-6s
 	const float _delay_before_first_request_min {5.f};
@@ -36,7 +38,8 @@ class NGCHS2Rizzler : public ToxEventI, public NGCFT1EventI {
 			Contact3Registry& cr,
 			RegistryMessageModelI& rmm,
 			ToxContactModel2& tcm,
-			NGCFT1& nf
+			NGCFT1& nft,
+			ToxEventProviderI& tep
 		);
 
 		~NGCHS2Rizzler(void);
