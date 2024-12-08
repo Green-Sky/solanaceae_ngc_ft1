@@ -1,8 +1,20 @@
-cmake_minimum_required(VERSION 3.9 FATAL_ERROR)
+cmake_minimum_required(VERSION 3.24 FATAL_ERROR)
 
 add_subdirectory(./external)
 
 project(solanaceae)
+
+if (CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
+	set(SOLANACEAE_NGCFT1_STANDALONE ON)
+else()
+	set(SOLANACEAE_NGCFT1_STANDALONE OFF)
+endif()
+message("II SOLANACEAE_NGCFT1_STANDALONE " ${SOLANACEAE_NGCFT1_STANDALONE})
+
+option(SOLANACEAE_NGCFT1_BUILD_PLUGINS "Build the solanaceae_ngcft1 plugins" ${SOLANACEAE_NGCFT1_BUILD_PLUGINS})
+
+# TODO: move this stuff to src
+########################################
 
 add_library(solanaceae_ngcext
 	./solanaceae/ngc_ext/ngcext.hpp
@@ -157,5 +169,11 @@ if (SOLANACEAE_NGCHS2_BUILD_TESTING)
 
 	add_test(NAME test_hs2_ts_binarysearch COMMAND test_hs2_ts_binarysearch)
 
+endif()
+
+########################################
+
+if (SOLANACEAE_NGCFT1_BUILD_PLUGINS)
+	add_subdirectory(./plugins)
 endif()
 
