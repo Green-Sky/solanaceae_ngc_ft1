@@ -30,10 +30,14 @@ void IncommingTimeRangeRequestQueue::queueRequest(const TimeRangeRequest& new_re
 	for (const auto& [time_range, _] : _queue) {
 		if (time_range.ts_start == new_request.ts_start && time_range.ts_end == new_request.ts_end) {
 			return; // already enqueued
+			// TODO: what about fid?
 		}
 	}
 
-	_queue.emplace_back(Entry{new_request, std::vector<uint8_t>{fid.cbegin(), fid.cend()}});
+	_queue.emplace_back(Entry{
+		new_request,
+		std::vector<uint8_t>{fid.cbegin(), fid.cend()}
+	});
 }
 
 } // Components
@@ -75,6 +79,11 @@ float NGCHS2Sigma::iterate(float delta) {
 
 	auto fn_iirq = [this](auto&& view) {
 		for (auto&& [cv, iirq] : view.each()) {
+			if (iirq._queue.empty()) {
+				// TODO: remove comp?
+				continue;
+			}
+
 			Contact3Handle c{_cr, cv};
 			auto& iirr = c.get_or_emplace<Components::IncommingTimeRangeRequestRunning>();
 
@@ -164,7 +173,7 @@ static uint64_t deserlSimpleType(ByteSpan bytes) {
 		throw int(1);
 	}
 
-	Type value;
+	Type value{};
 
 	for (size_t i = 0; i < sizeof(Type); i++) {
 		value |= Type(bytes[i]) << (i*8);
@@ -205,6 +214,11 @@ void NGCHS2Sigma::handleTimeRange(Contact3Handle c, const Events::NGCFT1_recv_re
 		return;
 	}
 
+	if (ts_end >= ts_start) {
+		std::cerr << "NGCHS2S error: end not < start\n";
+		return;
+	}
+
 	// dedupe insert into queue
 	// how much overlap do we allow?
 	c.get_or_emplace<Components::IncommingTimeRangeRequestQueue>().queueRequest(
@@ -225,6 +239,13 @@ std::vector<uint8_t> NGCHS2Sigma::buildChatLogFileRange(Contact3Handle c, uint64
 		// nothing to do here
 		return {};
 	}
+
+	std::cout << "NGCHS2Sigma: building chatlog for time range " << ts_start-ts_end << "s\n";
+
+	// convert seconds to milliseconds
+	// TODO: lift out?
+	ts_start *= 1000;
+	ts_end *= 1000;
 
 	//std::cout << "!!!! starting msg ts search, ts_start:" << ts_start << " ts_end:" << ts_end << "\n";
 
@@ -322,6 +343,8 @@ std::vector<uint8_t> NGCHS2Sigma::buildChatLogFileRange(Contact3Handle c, uint64
 		j_array.push_back(j_entry);
 	}
 
+	std::cout << "NGCHS2Sigma: built chat log with " << j_array.size() << " entries\n";
+
 	return nlohmann::json::to_msgpack(j_array);
 }
 
@@ -399,6 +422,7 @@ bool NGCHS2Sigma::onEvent(const Events::NGCFT1_send_data& e) {
 }
 
 bool NGCHS2Sigma::onEvent(const Events::NGCFT1_send_done& e) {
+	// TODO: this will return null if the peer just disconnected
 	auto c = _tcm.getContactGroupPeer(e.group_number, e.peer_number);
 	if (!c) {
 		return false;

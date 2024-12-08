@@ -1,11 +1,11 @@
 #include "./ngc_hs2_rizzler.hpp"
-#include "tox/tox_events.h"
 
 #include <solanaceae/tox_contacts/tox_contact_model2.hpp>
-
-#include <solanaceae/tox_contacts/components.hpp>
-
 #include <solanaceae/message3/registry_message_model.hpp>
+#include <solanaceae/tox_contacts/components.hpp>
+#include <solanaceae/ngc_ft1/ngcft1_file_kind.hpp>
+
+#include <solanaceae/util/span.hpp>
 
 #include <iostream>
 
@@ -57,7 +57,7 @@ float NGCHS2Rizzler::iterate(float delta) {
 		// now in sec
 		const uint64_t ts_now = Message::getTimeMS()/1000;
 
-		if (sendRequest(group_number, peer_number, ts_now, ts_now-(60*48))) {
+		if (sendRequest(group_number, peer_number, ts_now, ts_now-(60*60*48))) {
 			// TODO: requeue
 			// TODO: segment
 			// TODO: dont request already received ranges
@@ -73,18 +73,41 @@ float NGCHS2Rizzler::iterate(float delta) {
 
 			//std::cout << "ZOX #### requeued request in " << it->second.delay << "s\n";
 
-			it++;
 		} else {
 			// on failure, assume disconnected
-			it = _request_queue.erase(it);
 		}
 
-		// just choose something small, since we expect a response might arrive soon
-		//min_interval = std::min(min_interval, _delay_between_syncs_min);
+		// remove from request queue
+		it = _request_queue.erase(it);
 	}
 
-
 	return 1000.f;
+}
+
+template<typename Type>
+static uint64_t deserlSimpleType(ByteSpan bytes) {
+	if (bytes.size < sizeof(Type)) {
+		throw int(1);
+	}
+
+	Type value{};
+
+	for (size_t i = 0; i < sizeof(Type); i++) {
+		value |= Type(bytes[i]) << (i*8);
+	}
+
+	return value;
+}
+
+static uint64_t deserlTS(ByteSpan ts_bytes) {
+	return deserlSimpleType<uint64_t>(ts_bytes);
+}
+
+template<typename Type>
+static void serlSimpleType(std::vector<uint8_t>& bytes, const Type& value) {
+	for (size_t i = 0; i < sizeof(Type); i++) {
+		bytes.push_back(uint8_t(value >> (i*8) & 0xff));
+	}
 }
 
 bool NGCHS2Rizzler::sendRequest(
@@ -92,10 +115,25 @@ bool NGCHS2Rizzler::sendRequest(
 	uint64_t ts_start, uint64_t ts_end
 ) {
 	std::cout << "NGCHS2Rizzler: sending request to " << group_number << ":" << peer_number << " (" << ts_start << "," << ts_end << ")\n";
-	return false;
+
+	// build fid
+	std::vector<uint8_t> fid;
+	fid.reserve(sizeof(uint64_t)+sizeof(uint64_t));
+
+	serlSimpleType(fid, ts_start);
+	serlSimpleType(fid, ts_end);
+
+	assert(fid.size() == sizeof(uint64_t)+sizeof(uint64_t));
+
+	return _nft.NGC_FT1_send_request_private(
+		group_number, peer_number,
+		(uint32_t)NGCFT1_file_kind::HS2_RANGE_TIME_MSGPACK,
+		fid.data(), fid.size() // fid
+	);
 }
 
-bool NGCHS2Rizzler::onEvent(const Events::NGCFT1_recv_init&) {
+bool NGCHS2Rizzler::onEvent(const Events::NGCFT1_recv_init& e) {
+	std::cout << "NGCHS2Rizzler: recv_init " << e.group_number << ":" << e.peer_number << "." << (int)e.transfer_id << "\n";
 	return false;
 }
 

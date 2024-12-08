@@ -308,13 +308,12 @@ float NGCFT1::iterate(float time_delta) {
 	}
 }
 
-void NGCFT1::NGC_FT1_send_request_private(
+bool NGCFT1::NGC_FT1_send_request_private(
 	uint32_t group_number, uint32_t peer_number,
 	uint32_t file_kind,
 	const uint8_t* file_id, uint32_t file_id_size
 ) {
-	// TODO: error check
-	_neep.send_ft1_request(group_number, peer_number, file_kind, file_id, file_id_size);
+	return _neep.send_ft1_request(group_number, peer_number, file_kind, file_id, file_id_size);
 }
 
 bool NGCFT1::NGC_FT1_send_init_private(

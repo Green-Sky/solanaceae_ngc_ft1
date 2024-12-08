@@ -223,7 +223,7 @@ class NGCFT1 : public ToxEventI, public NGCEXTEventI, public NGCFT1EventProvider
 		float iterate(float delta);
 
 	public: // ft1 api
-		void NGC_FT1_send_request_private(
+		bool NGC_FT1_send_request_private(
 			uint32_t group_number, uint32_t peer_number,
 			uint32_t file_kind,
 			const uint8_t* file_id, uint32_t file_id_size
