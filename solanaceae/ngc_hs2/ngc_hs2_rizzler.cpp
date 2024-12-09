@@ -215,21 +215,11 @@ void NGCHS2Rizzler::handleMsgPack(Contact3Handle sync_by_c, const std::vector<ui
 
 				uint32_t mid = j_entry.at("mid");
 
-				const std::string& type = j_entry.at("msgtype");
-
 				if (
 					!(j_entry.count("text")) &&
 					!(j_entry.count("fkind") && j_entry.count("fid"))
 				) {
 					std::cerr << "NGCHS2Rizzler error: msg neither contains text nor file fields\n";
-					continue;
-				}
-
-				if (
-					type != "text" && type != "action" &&
-					type != "file"
-				) {
-					std::cerr << "NGCHS2Rizzler error: unknown entry '" << j_entry.dump() << "'\n";
 					continue;
 				}
 
@@ -255,20 +245,22 @@ void NGCHS2Rizzler::handleMsgPack(Contact3Handle sync_by_c, const std::vector<ui
 
 				Message3Handle new_real_msg{reg, reg.create()};
 
+				new_real_msg.emplace<Message::Components::Timestamp>(ts); // reactive?
+
 				new_real_msg.emplace<Message::Components::ContactFrom>(from_c);
 				new_real_msg.emplace<Message::Components::ContactTo>(sync_by_c.get<Contact::Components::Parent>().parent);
 
 				new_real_msg.emplace<Message::Components::ToxGroupMessageID>(mid);
 
-				if (type == "text" || type == "action") {
-					bool is_action = type == "action";
+				if (j_entry.contains("action") && static_cast<bool>(j_entry.at("action"))) {
+					new_real_msg.emplace<Message::Components::TagMessageIsAction>();
+				}
+
+				if (j_entry.contains("text")) {
 					const std::string& text = j_entry.at("text");
 
 					new_real_msg.emplace<Message::Components::MessageText>(text);
 
-					if (is_action) {
-						new_real_msg.emplace<Message::Components::TagMessageIsAction>();
-					}
 #if 0
 					std::cout
 						<< "msg ts:" << ts
@@ -279,7 +271,7 @@ void NGCHS2Rizzler::handleMsgPack(Contact3Handle sync_by_c, const std::vector<ui
 						<< "\n"
 					;
 #endif
-				} else if (type == "file") {
+				} else if (j_entry.contains("fkind") && j_entry.contains("fid")) {
 					uint32_t fkind = j_entry.at("fkind");
 
 					const auto& j_fid = j_entry.at("fid");
@@ -365,7 +357,6 @@ void NGCHS2Rizzler::handleMsgPack(Contact3Handle sync_by_c, const std::vector<ui
 
 					new_msg.emplace<Message::Components::TimestampProcessed>(now_ts);
 					new_msg.emplace<Message::Components::TimestampWritten>(ts);
-					new_msg.emplace<Message::Components::Timestamp>(ts); // reactive?
 
 					new_msg.emplace<Message::Components::TagUnread>();
 					_rmm.throwEventConstruct(reg, new_msg);

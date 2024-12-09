@@ -91,8 +91,9 @@ Msgpack array of messages.
   - ts                   | 64bit deciseconds
   - ppk                  | 32bytes
   - mid                  | 16bit
-  - msgtype              | enum (string or number?)
-  - if text/action       |
+  - if action            |
+    - action             | bool
+  - if text              |
     - text               | string            | maybe byte array instead?
   - if file              |
     - fkind              | 32bit enum        | is this right?
@@ -101,9 +102,6 @@ Msgpack array of messages.
 
 Name is the actual string key.
 Data type sizes are suggestions, if not defined by the tox protocol.
-
-How unknown `msgtype`s are handled is client defined.
-They can be fully ignored or displayed as broken.
 
 ## TODO
 

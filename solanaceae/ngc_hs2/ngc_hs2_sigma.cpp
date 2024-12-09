@@ -319,12 +319,11 @@ std::vector<uint8_t> NGCHS2Sigma::buildChatLogFileRange(Contact3Handle c, uint64
 		}
 		j_entry["mid"] = msg_reg.get<Message::Components::ToxGroupMessageID>(e).id;
 
+		if (msg_reg.all_of<Message::Components::TagMessageIsAction>(e)) {
+			j_entry["action"] = true;
+		}
+
 		if (msg_reg.all_of<Message::Components::MessageText>(e)) {
-			if (msg_reg.all_of<Message::Components::TagMessageIsAction>(e)) {
-				j_entry["msgtype"] = "action"; // TODO: textaction?
-			} else {
-				j_entry["msgtype"] = "text";
-			}
 			j_entry["text"] = msg_reg.get<Message::Components::MessageText>(e).text;
 		} else if (msg_reg.any_of<Message::Components::MessageFileObject>(e)) {
 			const auto& o = msg_reg.get<Message::Components::MessageFileObject>(e).o;
@@ -334,7 +333,6 @@ std::vector<uint8_t> NGCHS2Sigma::buildChatLogFileRange(Contact3Handle c, uint64
 
 			// HACK: use tox fild_id and file_kind instead!!
 			if (o.all_of<Components::FT1InfoSHA1Hash>()) {
-				j_entry["msgtype"] = "file";
 				j_entry["fkind"] = NGCFT1_file_kind::HASH_SHA1_INFO;
 				j_entry["fid"] = nlohmann::json::binary_t{o.get<Components::FT1InfoSHA1Hash>().hash};
 			} else {
