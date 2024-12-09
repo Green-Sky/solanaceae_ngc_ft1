@@ -23,30 +23,6 @@ struct TimeRangeRequest {
 	uint64_t ts_end{0};
 };
 
-// TODO: move to own file
-namespace Components {
-	struct IncommingTimeRangeRequestQueue {
-		struct Entry {
-			TimeRangeRequest ir;
-			std::vector<uint8_t> fid;
-		};
-		std::deque<Entry> _queue;
-
-		// we should remove/notadd queued requests
-		// that are subsets of same or larger ranges
-		void queueRequest(const TimeRangeRequest& new_request, const ByteSpan fid);
-	};
-
-	struct IncommingTimeRangeRequestRunning {
-		struct Entry {
-			TimeRangeRequest ir;
-			std::vector<uint8_t> data; // transfer data in memory
-			float last_activity {0.f};
-		};
-		entt::dense_map<uint8_t, Entry> _list;
-	};
-} // Components
-
 class NGCHS2Sigma : public RegistryMessageModelEventI, public NGCFT1EventI {
 	Contact3Registry& _cr;
 	RegistryMessageModelI& _rmm;

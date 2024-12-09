@@ -134,6 +134,8 @@ endif()
 ########################################
 
 add_library(solanaceae_ngchs2
+	./solanaceae/ngc_hs2/serl.hpp
+
 	./solanaceae/ngc_hs2/ts_find_start.hpp
 
 	./solanaceae/ngc_hs2/ngc_hs2_sigma.hpp

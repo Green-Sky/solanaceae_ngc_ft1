@@ -4,10 +4,12 @@
 #include <solanaceae/toxcore/tox_event_interface.hpp>
 
 #include <solanaceae/ngc_ft1/ngcft1.hpp>
+#include <solanaceae/ngc_ft1_sha1/sha1_ngcft1.hpp>
 
 // fwd
 class ToxContactModel2;
 class RegistryMessageModelI;
+
 
 class NGCHS2Rizzler : public ToxEventI, public NGCFT1EventI {
 	Contact3Registry& _cr;
@@ -16,6 +18,7 @@ class NGCHS2Rizzler : public ToxEventI, public NGCFT1EventI {
 	NGCFT1& _nft;
 	NGCFT1EventProviderI::SubscriptionReference _nftep_sr;
 	ToxEventProviderI::SubscriptionReference _tep_sr;
+	SHA1_NGCFT1& _sha1_nft;
 
 	// 5s-6s
 	const float _delay_before_first_request_min {5.f};
@@ -39,7 +42,8 @@ class NGCHS2Rizzler : public ToxEventI, public NGCFT1EventI {
 			RegistryMessageModelI& rmm,
 			ToxContactModel2& tcm,
 			NGCFT1& nft,
-			ToxEventProviderI& tep
+			ToxEventProviderI& tep,
+			SHA1_NGCFT1& sha1_nft
 		);
 
 		~NGCHS2Rizzler(void);
@@ -51,6 +55,8 @@ class NGCHS2Rizzler : public ToxEventI, public NGCFT1EventI {
 			uint32_t group_number, uint32_t peer_number,
 			uint64_t ts_start, uint64_t ts_end
 		);
+
+		void handleMsgPack(Contact3Handle c, const std::vector<uint8_t>& data);
 
 	protected:
 		bool onEvent(const Events::NGCFT1_recv_init&) override;

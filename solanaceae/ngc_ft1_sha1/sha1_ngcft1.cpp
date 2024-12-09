@@ -552,6 +552,75 @@ void SHA1_NGCFT1::onSendFileHashFinished(ObjectHandle o, Message3Registry* reg_p
 	updateMessages(o); // nop // TODO: remove
 }
 
+void SHA1_NGCFT1::constructFileMessageInPlace(Message3Handle msg, NGCFT1_file_kind file_kind, ByteSpan file_id) {
+	if (file_kind != NGCFT1_file_kind::HASH_SHA1_INFO) {
+		return;
+	}
+
+	// check if content exists
+	const std::vector<uint8_t> sha1_info_hash{file_id.cbegin(), file_id.cend()};
+	ObjectHandle o;
+	if (_info_to_content.count(sha1_info_hash)) {
+		o = _info_to_content.at(sha1_info_hash);
+		std::cout << "SHA1_NGCFT1: new message has existing content\n";
+	} else {
+		// TODO: backend
+		o = _mfb.newObject(ByteSpan{sha1_info_hash});
+		_info_to_content[sha1_info_hash] = o;
+		o.emplace<Components::FT1InfoSHA1Hash>(sha1_info_hash);
+		std::cout << "SHA1_NGCFT1: new message has new content\n";
+	}
+	o.get_or_emplace<Components::Messages>().messages.push_back(msg);
+	msg.emplace_or_replace<Message::Components::MessageFileObject>(o);
+
+	// TODO: remove this assumption, this gets very unrelieable with hs
+	if (const auto* from_c_comp = msg.try_get<Message::Components::ContactFrom>(); from_c_comp != nullptr && _cr.valid(from_c_comp->c)) {
+		Contact3Handle c{_cr, from_c_comp->c};
+		// HACK: assume the message sender is participating. usually a safe bet.
+		if (addParticipation(c, o)) {
+			// something happend, update chunk picker
+			assert(static_cast<bool>(c));
+			c.emplace_or_replace<ChunkPickerUpdateTag>();
+		}
+
+		// HACK: assume the message sender has all
+		o.get_or_emplace<Components::RemoteHaveBitset>().others[c] = {true, {}};
+
+		// TODO: check if public
+		// since public
+		if (c.all_of<Contact::Components::Parent>()) {
+			// TODO: if this is a dummy contact, should it have parent?
+			o.get_or_emplace<Components::AnnounceTargets>().targets.emplace(c.get<Contact::Components::Parent>().parent);
+		}
+	}
+
+	// TODO: queue info dl
+	// TODO: queue info/check if we already have info
+	if (!o.all_of<Components::ReRequestInfoTimer>() && !o.all_of<Components::FT1InfoSHA1>()) {
+		bool in_info_want {false};
+		for (const auto it : _queue_content_want_info) {
+			if (it == o) {
+				in_info_want = true;
+				break;
+			}
+		}
+		if (!in_info_want) {
+			// TODO: check if already receiving
+			_queue_content_want_info.push_back(o);
+		}
+	} else if (o.all_of<Components::FT1InfoSHA1>()){
+		// remove from info want
+		o.remove<Components::ReRequestInfoTimer>();
+
+		auto it = std::find(_queue_content_want_info.cbegin(), _queue_content_want_info.cend(), o);
+		if (it != _queue_content_want_info.cend()) {
+			_queue_content_want_info.erase(it);
+		}
+	}
+
+	_os.throwEventUpdate(o);
+}
+
 bool SHA1_NGCFT1::onEvent(const ObjectStore::Events::ObjectUpdate& e) {
 	if (!e.e.all_of<ObjComp::Ephemeral::File::ActionTransferAccept>()) {
 		return false;
@@ -868,7 +937,8 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCFT1_recv_init& e) {
 
 bool SHA1_NGCFT1::onEvent(const Events::NGCFT1_recv_data& e) {
 	if (!_receiving_transfers.containsPeerTransfer(e.group_number, e.peer_number, e.transfer_id)) {
-		std::cerr << "SHA1_NGCFT1 warning: unknown transfer " << (int)e.transfer_id << " from " << e.group_number << ":" << e.peer_number << "\n";
+		// not ours
+		//std::cerr << "SHA1_NGCFT1 warning: unknown transfer " << (int)e.transfer_id << " from " << e.group_number << ":" << e.peer_number << "\n";
 		return false;
 	}
 
@@ -920,7 +990,8 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCFT1_recv_data& e) {
 
 bool SHA1_NGCFT1::onEvent(const Events::NGCFT1_send_data& e) {
 	if (!_sending_transfers.containsPeerTransfer(e.group_number, e.peer_number, e.transfer_id)) {
-		std::cerr << "SHA1_NGCFT1 error: ngcft1 requested data for unknown transfer\n";
+		// not ours
+		//std::cerr << "SHA1_NGCFT1 error: ngcft1 requested data for unknown transfer\n";
 		return false;
 	}
 
@@ -1228,6 +1299,9 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCFT1_recv_message& e) {
 		rb.try_emplace(self_c, ts);
 	}
 
+	constructFileMessageInPlace({reg, new_msg_e}, e.file_kind, {e.file_id, e.file_id_size});
+
+#if 0
 	// check if content exists
 	const auto sha1_info_hash = std::vector<uint8_t>{e.file_id, e.file_id+e.file_id_size};
 	ObjectHandle o;
@@ -1282,6 +1356,7 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCFT1_recv_message& e) {
 	o.get_or_emplace<Components::AnnounceTargets>().targets.emplace(c.get<Contact::Components::Parent>().parent);
 
 	_os.throwEventUpdate(o);
+#endif
 
 	_rmm.throwEventConstruct(reg, new_msg_e);
 

@@ -17,28 +17,52 @@
 
 #include <nlohmann/json.hpp>
 
+#include "./serl.hpp"
+
 #include "./ts_find_start.hpp"
 
 #include <iostream>
 
 // https://www.youtube.com/watch?v=AdAqsgga3qo
 
+// TODO: move to own file
 namespace Components {
 
-void IncommingTimeRangeRequestQueue::queueRequest(const TimeRangeRequest& new_request, const ByteSpan fid) {
-	// TODO: do more than exact dedupe
-	for (const auto& [time_range, _] : _queue) {
-		if (time_range.ts_start == new_request.ts_start && time_range.ts_end == new_request.ts_end) {
-			return; // already enqueued
-			// TODO: what about fid?
-		}
-	}
+	struct IncommingTimeRangeRequestQueue {
+		struct Entry {
+			TimeRangeRequest ir;
+			std::vector<uint8_t> fid;
+		};
+		std::deque<Entry> _queue;
 
-	_queue.emplace_back(Entry{
-		new_request,
-		std::vector<uint8_t>{fid.cbegin(), fid.cend()}
-	});
-}
+		// we should remove/notadd queued requests
+		// that are subsets of same or larger ranges
+		void queueRequest(const TimeRangeRequest& new_request, const ByteSpan fid);
+	};
+
+	struct IncommingTimeRangeRequestRunning {
+		struct Entry {
+			TimeRangeRequest ir;
+			std::vector<uint8_t> data; // transfer data in memory
+			float last_activity {0.f};
+		};
+		entt::dense_map<uint8_t, Entry> _list;
+	};
+
+	void IncommingTimeRangeRequestQueue::queueRequest(const TimeRangeRequest& new_request, const ByteSpan fid) {
+		// TODO: do more than exact dedupe
+		for (const auto& [time_range, _] : _queue) {
+			if (time_range.ts_start == new_request.ts_start && time_range.ts_end == new_request.ts_end) {
+				return; // already enqueued
+				// TODO: what about fid?
+			}
+		}
+
+		_queue.emplace_back(Entry{
+			new_request,
+			std::vector<uint8_t>{fid.cbegin(), fid.cend()}
+		});
+	}
 
 } // Components
 
@@ -165,29 +189,6 @@ float NGCHS2Sigma::iterate(float delta) {
 	);
 
 	return 1000.f;
-}
-
-template<typename Type>
-static uint64_t deserlSimpleType(ByteSpan bytes) {
-	if (bytes.size < sizeof(Type)) {
-		throw int(1);
-	}
-
-	Type value{};
-
-	for (size_t i = 0; i < sizeof(Type); i++) {
-		value |= Type(bytes[i]) << (i*8);
-	}
-
-	return value;
-}
-
-//static uint32_t deserlMID(ByteSpan mid_bytes) {
-//    return deserlSimpleType<uint32_t>(mid_bytes);
-//}
-
-static uint64_t deserlTS(ByteSpan ts_bytes) {
-	return deserlSimpleType<uint64_t>(ts_bytes);
 }
 
 void NGCHS2Sigma::handleTimeRange(Contact3Handle c, const Events::NGCFT1_recv_request& e) {
@@ -333,6 +334,7 @@ std::vector<uint8_t> NGCHS2Sigma::buildChatLogFileRange(Contact3Handle c, uint64
 
 			// HACK: use tox fild_id and file_kind instead!!
 			if (o.all_of<Components::FT1InfoSHA1Hash>()) {
+				j_entry["msgtype"] = "file";
 				j_entry["fkind"] = NGCFT1_file_kind::HASH_SHA1_INFO;
 				j_entry["fid"] = nlohmann::json::binary_t{o.get<Components::FT1InfoSHA1Hash>().hash};
 			} else {
