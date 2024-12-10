@@ -9,6 +9,9 @@
 #include <solanaceae/tox_messages/msg_components.hpp>
 #include <solanaceae/ngc_ft1/ngcft1_file_kind.hpp>
 
+// TODO: move somewhere else?
+#include <solanaceae/ngc_ft1_sha1/util.hpp>
+
 #include <solanaceae/util/span.hpp>
 
 #include <entt/entity/entity.hpp>
@@ -233,10 +236,14 @@ void NGCHS2Rizzler::handleMsgPack(Contact3Handle sync_by_c, const std::vector<ui
 					}
 
 					from_c = findContactByID(_cr, id);
+
 					if (!_cr.valid(from_c)) {
 						// create sparse contact with id only
 						from_c = _cr.create();
 						_cr.emplace_or_replace<Contact::Components::ID>(from_c, id);
+
+						// TODO: only if public message
+						_cr.emplace_or_replace<Contact::Components::Parent>(from_c, sync_by_c.get<Contact::Components::Parent>().parent);
 					}
 				}
 
@@ -333,6 +340,7 @@ void NGCHS2Rizzler::handleMsgPack(Contact3Handle sync_by_c, const std::vector<ui
 				Message3Handle new_msg = new_real_msg;
 
 				if (dup_msg) {
+					// we leak objects here (if file)
 					reg.destroy(new_msg);
 					new_msg = dup_msg;
 				}
@@ -424,6 +432,7 @@ bool NGCHS2Rizzler::onEvent(const Events::NGCFT1_recv_init& e) {
 	}
 
 	auto& rnncl = c.get_or_emplace<Components::RunningChatLogs>();
+	_tox_peer_to_contact[combine_ids(e.group_number, e.peer_number)] = c; // cache
 
 	auto& transfer = rnncl.list[e.transfer_id];
 	transfer.data.reserve(e.file_size); // danger?
@@ -463,9 +472,17 @@ bool NGCHS2Rizzler::onEvent(const Events::NGCFT1_recv_data& e) {
 }
 
 bool NGCHS2Rizzler::onEvent(const Events::NGCFT1_recv_done& e) {
-	auto c = _tcm.getContactGroupPeer(e.group_number, e.peer_number);
-	// TODO: fix disconnect
-	if (!c) {
+	// FIXME: this does not work, tcm just delteded the relation ship
+	//auto c = _tcm.getContactGroupPeer(e.group_number, e.peer_number);
+	//if (!c) {
+	//    return false;
+	//}
+	const auto c_it = _tox_peer_to_contact.find(combine_ids(e.group_number, e.peer_number));
+	if (c_it == _tox_peer_to_contact.end()) {
+		return false;
+	}
+	auto c = c_it->second;
+	if (!static_cast<bool>(c)) {
 		return false;
 	}
 
@@ -481,6 +498,7 @@ bool NGCHS2Rizzler::onEvent(const Events::NGCFT1_recv_done& e) {
 	std::cout << "NGCHS2Rizzler: recv_done " << e.group_number << ":" << e.peer_number << "." << (int)e.transfer_id << "\n";
 	{
 		auto& transfer = rnncl.list.at(e.transfer_id);
+		// TODO: done might mean failed, so we might be parsing bs here
 
 		// use data
 		// TODO: move out of packet handler

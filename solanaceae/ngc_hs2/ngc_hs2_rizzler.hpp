@@ -36,6 +36,10 @@ class NGCHS2Rizzler : public ToxEventI, public NGCFT1EventI {
 	// c -> delay, timer
 	std::map<Contact3, RequestQueueInfo> _request_queue;
 
+	// FIXME: workaround missing contact events
+	// only used on peer exit (no, also used to quicken lookups)
+	entt::dense_map<uint64_t, Contact3Handle> _tox_peer_to_contact;
+
 	public:
 		NGCHS2Rizzler(
 			Contact3Registry& cr,

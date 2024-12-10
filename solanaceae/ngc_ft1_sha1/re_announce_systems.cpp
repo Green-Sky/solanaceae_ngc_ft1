@@ -18,6 +18,12 @@ void re_announce(
 	std::vector<Object> to_remove;
 	os_reg.view<Components::ReAnnounceTimer>().each([&os_reg, &cr, &neep, &to_remove, delta](Object ov, Components::ReAnnounceTimer& rat) {
 		ObjectHandle o{os_reg, ov};
+		// if no known targets, or no hash, remove
+		if (!o.all_of<Components::AnnounceTargets, Components::FT1InfoSHA1Hash>()) {
+			to_remove.push_back(ov);
+			return;
+		}
+
 		// TODO: pause
 		//// if paused -> remove
 		//if (o.all_of<Message::Components::Transfer::TagPaused>()) {
@@ -25,11 +31,11 @@ void re_announce(
 		//    return;
 		//}
 
-		// if not downloading or info incomplete -> remove
-		if (!o.all_of<Components::FT1ChunkSHA1Cache, Components::FT1InfoSHA1Hash, Components::AnnounceTargets>()) {
+		// // if not downloading or info incomplete -> remove
+		//if (!o.all_of<Components::FT1ChunkSHA1Cache, Components::FT1InfoSHA1Hash, Components::AnnounceTargets>()) {
+		// if not downloading AND info complete -> remove
+		if (!o.all_of<Components::FT1ChunkSHA1Cache>() && o.all_of<Components::FT1InfoSHA1Data>()) {
 			to_remove.push_back(ov);
-			// TODO: triggers with hs, figure out why
-			//assert(false && "transfer in broken state");
 			return;
 		}
 

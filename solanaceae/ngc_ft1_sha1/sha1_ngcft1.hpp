@@ -71,7 +71,7 @@ class SHA1_NGCFT1 : public ToxEventI, public RegistryMessageModelEventI, public 
 	std::deque<QBitsetEntry> _queue_send_bitset;
 
 	// FIXME: workaround missing contact events
-	// only used to remove participation on peer exit
+	// only used on peer exit (no, also used to quicken lookups)
 	entt::dense_map<uint64_t, Contact3Handle> _tox_peer_to_contact;
 
 	// reset every iterate; kept here as an allocation optimization

@@ -47,6 +47,10 @@ class NGCHS2Sigma : public RegistryMessageModelEventI, public NGCFT1EventI {
 	constexpr static bool _only_send_self_observed {true};
 	constexpr static int64_t _max_time_into_past_default {60*15}; // s
 
+	// FIXME: workaround missing contact events
+	// only used on peer exit (no, also used to quicken lookups)
+	entt::dense_map<uint64_t, Contact3Handle> _tox_peer_to_contact;
+
 	public:
 		NGCHS2Sigma(
 			Contact3Registry& cr,

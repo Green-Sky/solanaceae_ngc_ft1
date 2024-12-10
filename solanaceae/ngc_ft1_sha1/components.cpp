@@ -49,7 +49,8 @@ void ReAnnounceTimer::reset(void) {
 
 void ReAnnounceTimer::lower(void) {
 	timer *= 0.1f;
-	last_max *= 0.1f;
+	//last_max *= 0.1f; // is this a good idea?
+	last_max *= 0.9f; // is this a good idea?
 }
 
 void TransferStatsTally::Peer::trimSent(const float time_now) {

@@ -69,6 +69,12 @@ void SHA1_NGCFT1::updateMessages(ObjectHandle o) {
 	assert(o.all_of<Components::Messages>());
 
 	for (auto msg : o.get<Components::Messages>().messages) {
+		// FIXME: hs might create and destory messages for objects without events
+		// we should really do garbage collection
+		if (!msg) {
+			continue;
+		}
+
 		msg.emplace_or_replace<Message::Components::MessageFileObject>(o);
 
 		// messages no long hold this info
@@ -82,33 +88,20 @@ void SHA1_NGCFT1::updateMessages(ObjectHandle o) {
 std::optional<std::pair<uint32_t, uint32_t>> SHA1_NGCFT1::selectPeerForRequest(ObjectHandle ce) {
 	// get a list of peers we can request this file from
 	std::vector<std::pair<uint32_t, uint32_t>> tox_peers;
-	for (const auto c : ce.get<Components::SuspectedParticipants>().participants) {
-		// TODO: sort by con state?
-		// prio to direct?
-		if (const auto* cs = _cr.try_get<Contact::Components::ConnectionState>(c); cs == nullptr || cs->state == Contact::Components::ConnectionState::State::disconnected) {
-			continue;
+
+	// 1 in 20 chance to ask random peer instead
+	// also works well for empty SuspectedParticipants
+	if ((_rng()%20) == 0) {
+		tox_peers.clear();
+		// or messages? should be the same
+		if (!ce.all_of<Components::AnnounceTargets>()) {
+			// rip
+			std::cerr << "SHA1_NGCFT1 warning: tried random, but no AnnounceTargets\n";
+			return std::nullopt;
 		}
 
-		if (_cr.all_of<Contact::Components::ToxGroupPeerEphemeral>(c)) {
-			const auto& tgpe = _cr.get<Contact::Components::ToxGroupPeerEphemeral>(c);
-			tox_peers.push_back({tgpe.group_number, tgpe.peer_number});
-		}
-	}
-
-	// 1 in 40 chance to ask random peer instead
-	// TODO: config + tweak
-	// TODO: save group in content to avoid the tox_peers list build
-	// TODO: remove once pc1_announce is shipped
-	if (tox_peers.empty() || (_rng()%40) == 0) {
-		// meh
-		// HACK: determain group based on last tox_peers
-		if (!tox_peers.empty()) {
-			const uint32_t group_number = tox_peers.back().first;
-			auto gch = _tcm.getContactGroup(group_number);
-			assert(static_cast<bool>(gch));
-
-			std::vector<uint32_t> un_tox_peers;
-			for (const auto child : gch.get<Contact::Components::ParentOf>().subs) {
+		for (const auto& target : ce.get<Components::AnnounceTargets>().targets) {
+			for (const auto child : _cr.get<Contact::Components::ParentOf>(target).subs) {
 				if (const auto* cs = _cr.try_get<Contact::Components::ConnectionState>(child); cs == nullptr || cs->state == Contact::Components::ConnectionState::State::disconnected) {
 					continue;
 				}
@@ -119,26 +112,39 @@ std::optional<std::pair<uint32_t, uint32_t>> SHA1_NGCFT1::selectPeerForRequest(O
 
 				if (_cr.all_of<Contact::Components::ToxGroupPeerEphemeral>(child)) {
 					const auto& tgpe = _cr.get<Contact::Components::ToxGroupPeerEphemeral>(child);
-					un_tox_peers.push_back(tgpe.peer_number);
+					tox_peers.push_back({tgpe.group_number, tgpe.peer_number});
 				}
 			}
-			if (un_tox_peers.empty()) {
-				// no one online, we are out of luck
-			} else {
-				const size_t sample_i = _rng()%un_tox_peers.size();
-				const auto peer_number = un_tox_peers.at(sample_i);
+		}
+		std::cout << "SHA1_NGCFT1: doing random peer select over " << tox_peers.size() << " peers\n";
+	} else if (ce.all_of<Components::SuspectedParticipants>()) {
+		for (const auto c : ce.get<Components::SuspectedParticipants>().participants) {
+			// TODO: sort by con state?
+			// prio to direct?
+			if (const auto* cs = _cr.try_get<Contact::Components::ConnectionState>(c); cs == nullptr || cs->state == Contact::Components::ConnectionState::State::disconnected) {
+				continue;
+			}
 
-				return std::make_pair(group_number, peer_number);
+			if (_cr.all_of<Contact::Components::TagSelfStrong>(c)) {
+				// FIXME: how did we select ourselfs to be a suspected participant
+				continue;
+			}
+
+			if (_cr.all_of<Contact::Components::ToxGroupPeerEphemeral>(c)) {
+				const auto& tgpe = _cr.get<Contact::Components::ToxGroupPeerEphemeral>(c);
+				tox_peers.push_back({tgpe.group_number, tgpe.peer_number});
 			}
 		}
-	} else {
-		const size_t sample_i = _rng()%tox_peers.size();
-		const auto [group_number, peer_number] = tox_peers.at(sample_i);
-
-		return std::make_pair(group_number, peer_number);
 	}
 
-	return std::nullopt;
+	if (tox_peers.empty()) {
+		return std::nullopt;
+	}
+
+	const size_t sample_i = _rng()%tox_peers.size();
+	const auto [group_number, peer_number] = tox_peers.at(sample_i);
+
+	return std::make_pair(group_number, peer_number);
 }
 
 void SHA1_NGCFT1::queueBitsetSendFull(Contact3Handle c, ObjectHandle o) {
@@ -247,7 +253,6 @@ SHA1_NGCFT1::SHA1_NGCFT1(
 }
 
 float SHA1_NGCFT1::iterate(float delta) {
-	//std::cerr << "---------- new tick ----------\n";
 	_mfb.tick(); // does not need to be called as often, once every sec would be enough, but the pointer deref + atomic bool should be very fast
 
 	_peer_open_requests.clear();
@@ -293,7 +298,6 @@ float SHA1_NGCFT1::iterate(float delta) {
 				assert(!o.any_of<ObjComp::F::TagLocalHaveAll>());
 
 				_queue_content_want_info.push_back(o);
-				//_os.registry().remove<Components::ReRequestInfoTimer>(e);
 				o.remove<Components::ReRequestInfoTimer>();
 				// TODO: throw update?
 			}
@@ -420,6 +424,8 @@ float SHA1_NGCFT1::iterate(float delta) {
 			assert(!ce.all_of<Components::FT1ChunkSHA1Cache>());
 			assert(ce.all_of<Components::FT1InfoSHA1Hash>());
 
+			//std::cout << "SHA1_NGCFT1: trying to request info\n";
+
 			auto selected_peer_opt = selectPeerForRequest(ce);
 			if (selected_peer_opt.has_value()) {
 				const auto [group_number, peer_number] = selected_peer_opt.value();
@@ -434,10 +440,12 @@ float SHA1_NGCFT1::iterate(float delta) {
 				);
 				ce.emplace<Components::ReRequestInfoTimer>(0.f);
 
-				_queue_content_want_info.pop_front();
-
 				std::cout << "SHA1_NGCFT1: sent info request for [" << SHA1Digest{info_hash} << "] to " << group_number << ":" << peer_number << "\n";
+			} else {
+				_queue_content_want_info.push_back(ce);
 			}
+
+			_queue_content_want_info.pop_front();
 		}
 	}
 
@@ -573,26 +581,23 @@ void SHA1_NGCFT1::constructFileMessageInPlace(Message3Handle msg, NGCFT1_file_ki
 	o.get_or_emplace<Components::Messages>().messages.push_back(msg);
 	msg.emplace_or_replace<Message::Components::MessageFileObject>(o);
 
-	// TODO: remove this assumption, this gets very unrelieable with hs
+	// TODO: use to_c instead?
 	if (const auto* from_c_comp = msg.try_get<Message::Components::ContactFrom>(); from_c_comp != nullptr && _cr.valid(from_c_comp->c)) {
 		Contact3Handle c{_cr, from_c_comp->c};
-		// HACK: assume the message sender is participating. usually a safe bet.
-		if (addParticipation(c, o)) {
-			// something happend, update chunk picker
-			assert(static_cast<bool>(c));
-			c.emplace_or_replace<ChunkPickerUpdateTag>();
-		}
-
-		// HACK: assume the message sender has all
-		o.get_or_emplace<Components::RemoteHaveBitset>().others[c] = {true, {}};
 
 		// TODO: check if public
 		// since public
 		if (c.all_of<Contact::Components::Parent>()) {
 			// TODO: if this is a dummy contact, should it have parent?
 			o.get_or_emplace<Components::AnnounceTargets>().targets.emplace(c.get<Contact::Components::Parent>().parent);
+		} else {
+			std::cerr << "SHA1_NGCFT1 warning: from contact has no parent, cant add to AnnounceTargets\n";
 		}
+		// TODO: if private, add c directly
 	}
+
+	// queue announce that we are participating
+	o.get_or_emplace<Components::ReAnnounceTimer>(0.1f, 60.f*(_rng()%5120) / 1024.f).timer = (_rng()%512) / 1024.f;
 
 	// TODO: queue info dl
 	// TODO: queue info/check if we already have info
@@ -1301,63 +1306,6 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCFT1_recv_message& e) {
 
 	constructFileMessageInPlace({reg, new_msg_e}, e.file_kind, {e.file_id, e.file_id_size});
 
-#if 0
-	// check if content exists
-	const auto sha1_info_hash = std::vector<uint8_t>{e.file_id, e.file_id+e.file_id_size};
-	ObjectHandle o;
-	if (_info_to_content.count(sha1_info_hash)) {
-		o = _info_to_content.at(sha1_info_hash);
-		std::cout << "SHA1_NGCFT1: new message has existing content\n";
-	} else {
-		// TODO: backend
-		o = _mfb.newObject(ByteSpan{sha1_info_hash});
-		_info_to_content[sha1_info_hash] = o;
-		o.emplace<Components::FT1InfoSHA1Hash>(sha1_info_hash);
-		std::cout << "SHA1_NGCFT1: new message has new content\n";
-	}
-	o.get_or_emplace<Components::Messages>().messages.push_back({reg, new_msg_e});
-	reg_ptr->emplace<Message::Components::MessageFileObject>(new_msg_e, o);
-
-	// HACK: assume the message sender is participating. usually a safe bet.
-	if (addParticipation(c, o)) {
-		// something happend, update chunk picker
-		assert(static_cast<bool>(c));
-		c.emplace_or_replace<ChunkPickerUpdateTag>();
-	}
-
-	// HACK: assume the message sender has all
-	o.get_or_emplace<Components::RemoteHaveBitset>().others[c] = {true, {}};
-
-	// TODO: queue info dl
-	// TODO: queue info/check if we already have info
-	if (!o.all_of<Components::ReRequestInfoTimer>() && !o.all_of<Components::FT1InfoSHA1>()) {
-		bool in_info_want {false};
-		for (const auto it : _queue_content_want_info) {
-			if (it == o) {
-				in_info_want = true;
-				break;
-			}
-		}
-		if (!in_info_want) {
-			// TODO: check if already receiving
-			_queue_content_want_info.push_back(o);
-		}
-	} else if (o.all_of<Components::FT1InfoSHA1>()){
-		// remove from info want
-		o.remove<Components::ReRequestInfoTimer>();
-
-		auto it = std::find(_queue_content_want_info.cbegin(), _queue_content_want_info.cend(), o);
-		if (it != _queue_content_want_info.cend()) {
-			_queue_content_want_info.erase(it);
-		}
-	}
-
-	// since public
-	o.get_or_emplace<Components::AnnounceTargets>().targets.emplace(c.get<Contact::Components::Parent>().parent);
-
-	_os.throwEventUpdate(o);
-#endif
-
 	_rmm.throwEventConstruct(reg, new_msg_e);
 
 	return true; // false?
@@ -1696,15 +1644,21 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCEXT_pc1_announce& e) {
 		// something happend, update chunk picker
 		// !!! this is probably too much
 		assert(static_cast<bool>(c));
-		c.emplace_or_replace<ChunkPickerUpdateTag>();
+
+		if (!o.all_of<ObjComp::F::TagLocalHaveAll>()) {
+			c.emplace_or_replace<ChunkPickerUpdateTag>();
+		}
 
 		std::cout << "SHA1_NGCFT1: and we where interested!\n";
 		// we should probably send the bitset back here / add to queue (can be multiple packets)
 		if (o.all_of<Components::FT1ChunkSHA1Cache>() && o.get<Components::FT1ChunkSHA1Cache>().have_count > 0) {
 			queueBitsetSendFull(c, o);
+		} else if (o.all_of<Components::ReAnnounceTimer>()) {
+			o.get<Components::ReAnnounceTimer>().lower();
 		}
 	}
 
+	// return true instead?
 	return false;
 }
 

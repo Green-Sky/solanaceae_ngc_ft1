@@ -15,6 +15,9 @@
 #include <solanaceae/ngc_ft1/ngcft1_file_kind.hpp>
 #include <solanaceae/ngc_ft1_sha1/components.hpp>
 
+// TODO: move somewhere else?
+#include <solanaceae/ngc_ft1_sha1/util.hpp>
+
 #include <nlohmann/json.hpp>
 
 #include "./serl.hpp"
@@ -132,6 +135,7 @@ float NGCHS2Sigma::iterate(float delta) {
 				continue;
 			}
 			const auto [group_number, peer_number] = c.get<Contact::Components::ToxGroupPeerEphemeral>();
+			_tox_peer_to_contact[combine_ids(group_number, peer_number)] = c; // cache
 
 			// TODO: check allowed range here
 			//_max_time_into_past_default
@@ -423,8 +427,17 @@ bool NGCHS2Sigma::onEvent(const Events::NGCFT1_send_data& e) {
 
 bool NGCHS2Sigma::onEvent(const Events::NGCFT1_send_done& e) {
 	// TODO: this will return null if the peer just disconnected
-	auto c = _tcm.getContactGroupPeer(e.group_number, e.peer_number);
-	if (!c) {
+	// FIXME: this does not work, tcm just delteded the relation ship
+	//auto c = _tcm.getContactGroupPeer(e.group_number, e.peer_number);
+	//if (!c) {
+	//    return false;
+	//}
+	const auto c_it = _tox_peer_to_contact.find(combine_ids(e.group_number, e.peer_number));
+	if (c_it == _tox_peer_to_contact.end()) {
+		return false;
+	}
+	auto c = c_it->second;
+	if (!static_cast<bool>(c)) {
 		return false;
 	}
 
