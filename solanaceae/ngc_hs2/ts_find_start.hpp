@@ -8,7 +8,7 @@
 // perform binary search to find the first message not newer than ts_start
 template<typename View>
 auto find_start_by_ts(const View& view, uint64_t ts_start) {
-	std::cout << "!!!! starting msg ts search, ts_start:" << ts_start << "\n";
+	//std::cout << "!!!! starting msg ts search, ts_start:" << ts_start << "\n";
 
 	// -> first value smaller than start ts
 	auto res = std::lower_bound(
@@ -22,9 +22,9 @@ auto find_start_by_ts(const View& view, uint64_t ts_start) {
 
 	if (res != view.end()) {
 		const auto& [ts_comp] = view.get(*res);
-		std::cout << "!!!! first value not newer than start ts is " << ts_comp.ts << "\n";
+		//std::cout << "!!!! first value not newer than start ts is " << ts_comp.ts << "\n";
 	} else {
-		std::cout << "!!!! no first value not newer than start ts\n";
+		//std::cout << "!!!! no first value not newer than start ts\n";
 	}
 	return res;
 }

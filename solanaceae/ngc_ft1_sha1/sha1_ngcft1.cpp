@@ -560,9 +560,9 @@ void SHA1_NGCFT1::onSendFileHashFinished(ObjectHandle o, Message3Registry* reg_p
 	updateMessages(o); // nop // TODO: remove
 }
 
-void SHA1_NGCFT1::constructFileMessageInPlace(Message3Handle msg, NGCFT1_file_kind file_kind, ByteSpan file_id) {
+ObjectHandle SHA1_NGCFT1::constructFileMessageInPlace(Message3Handle msg, NGCFT1_file_kind file_kind, ByteSpan file_id) {
 	if (file_kind != NGCFT1_file_kind::HASH_SHA1_INFO) {
-		return;
+		return {};
 	}
 
 	// check if content exists
@@ -624,6 +624,8 @@ void SHA1_NGCFT1::constructFileMessageInPlace(Message3Handle msg, NGCFT1_file_ki
 	}
 
 	_os.throwEventUpdate(o);
+
+	return o;
 }
 
 bool SHA1_NGCFT1::onEvent(const ObjectStore::Events::ObjectUpdate& e) {
@@ -1304,7 +1306,12 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCFT1_recv_message& e) {
 		rb.try_emplace(self_c, ts);
 	}
 
-	constructFileMessageInPlace({reg, new_msg_e}, e.file_kind, {e.file_id, e.file_id_size});
+	auto o = constructFileMessageInPlace({reg, new_msg_e}, e.file_kind, {e.file_id, e.file_id_size});
+
+	if (o) {
+		// the other peer just sent the file message, so it is likely they have the file
+		addParticipation(c, o);
+	}
 
 	_rmm.throwEventConstruct(reg, new_msg_e);
 
