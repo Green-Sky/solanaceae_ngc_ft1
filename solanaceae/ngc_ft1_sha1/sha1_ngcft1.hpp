@@ -37,6 +37,8 @@ class SHA1_NGCFT1 : public ToxEventI, public RegistryMessageModelEventI, public 
 
 	Backends::SHA1MappedFilesystem _mfb;
 
+	bool _object_update_lock {false};
+
 	std::minstd_rand _rng {1337*11};
 
 	using clock = std::chrono::steady_clock;

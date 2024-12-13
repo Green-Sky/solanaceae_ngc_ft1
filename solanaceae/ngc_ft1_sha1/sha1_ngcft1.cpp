@@ -629,6 +629,10 @@ ObjectHandle SHA1_NGCFT1::constructFileMessageInPlace(Message3Handle msg, NGCFT1
 }
 
 bool SHA1_NGCFT1::onEvent(const ObjectStore::Events::ObjectUpdate& e) {
+	if (_object_update_lock) {
+		return false;
+	}
+
 	if (!e.e.all_of<ObjComp::Ephemeral::File::ActionTransferAccept>()) {
 		return false;
 	}
@@ -637,10 +641,17 @@ bool SHA1_NGCFT1::onEvent(const ObjectStore::Events::ObjectUpdate& e) {
 		// not ready to load yet, skip
 		return false;
 	}
+
+	if (e.e.all_of<Components::FT1ChunkSHA1Cache>()) {
+		// now we update on recv_done, which included info
+		std::cerr << "SHA1_NGCFT1 warning: accepted but already has FT1ChunkSHA1Cache\n";
+		return false;
+	}
+
+	_object_update_lock = true;
+
 	assert(!e.e.all_of<ObjComp::F::TagLocalHaveAll>());
-	assert(!e.e.all_of<Components::FT1ChunkSHA1Cache>());
 	assert(!e.e.all_of<Components::FT1File2>());
-	//accept(e.e, e.e.get<Message::Components::Transfer::ActionAccept>().save_to_path);
 
 	// first, open file for write(+readback)
 	std::string full_file_path{e.e.get<ObjComp::Ephemeral::File::ActionTransferAccept>().save_to_path};
@@ -665,6 +676,7 @@ bool SHA1_NGCFT1::onEvent(const ObjectStore::Events::ObjectUpdate& e) {
 		std::cerr << "SHA1_NGCFT1 error: failed opening file '" << full_file_path << "'!\n";
 		// we failed opening that filepath, so we should offer the user the oportunity to save it differently
 		e.e.remove<ObjComp::Ephemeral::File::ActionTransferAccept>(); // stop
+		_object_update_lock = false;
 		return false;
 	}
 
@@ -743,6 +755,7 @@ bool SHA1_NGCFT1::onEvent(const ObjectStore::Events::ObjectUpdate& e) {
 
 	updateMessages(e.e);
 
+	_object_update_lock = false;
 	return false; // ?
 }
 
@@ -1111,11 +1124,13 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCFT1_recv_done& e) {
 
 		o.emplace_or_replace<ObjComp::Ephemeral::File::TagTransferPaused>();
 
+		_os.throwEventUpdate(o);
+
 		updateMessages(o);
 	} else if (transfer.isChunk()) {
 		auto o = transfer.getChunk().content;
 		const auto& info = o.get<Components::FT1InfoSHA1>();
-		auto& cc = o.get<Components::FT1ChunkSHA1Cache>();
+		auto& cc = o.get<Components::FT1ChunkSHA1Cache>(); // is this assumption save?
 
 		// HACK: only check first chunk (they *should* all be the same)
 		const auto chunk_index = transfer.getChunk().chunk_indices.front();
@@ -1222,6 +1237,8 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCFT1_recv_done& e) {
 		for (const auto it : transfer.getChunk().chunk_indices) {
 			o.get_or_emplace<Components::FT1ChunkSHA1Requested>().chunks.erase(it);
 		}
+
+		_os.throwEventUpdate(o);
 
 		updateMessages(o); // mostly for received bytes
 	}
