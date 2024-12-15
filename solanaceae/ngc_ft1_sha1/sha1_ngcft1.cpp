@@ -1256,10 +1256,14 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCFT1_send_done& e) {
 	auto& transfer = _sending_transfers.getTransfer(e.group_number, e.peer_number, e.transfer_id);
 
 	if (transfer.isChunk()) {
+		// we could cheat here and assume remote has chunk now
+		_os.throwEventUpdate(transfer.getChunk().content);
+
 		updateMessages(transfer.getChunk().content); // mostly for sent bytes
-	}
+	} // ignore info transfer for now
 
 	_sending_transfers.removePeerTransfer(e.group_number, e.peer_number, e.transfer_id);
+
 
 	return true;
 }
@@ -1403,8 +1407,8 @@ bool SHA1_NGCFT1::onToxEvent(const Tox_Event_Group_Peer_Exit* e) {
 		for (const auto& [_, o] : _info_to_content) {
 			removeParticipation(c, o);
 
-			if (o.all_of<Components::RemoteHaveBitset>()) {
-				o.get<Components::RemoteHaveBitset>().others.erase(c);
+			if (o.all_of<ObjComp::F::RemoteHaveBitset>()) {
+				o.get<ObjComp::F::RemoteHaveBitset>().others.erase(c);
 			}
 		}
 	}
@@ -1463,17 +1467,13 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCEXT_ft1_have& e) {
 
 	const size_t num_total_chunks = o.get<Components::FT1InfoSHA1>().chunks.size();
 
-	auto& remote_have = o.get_or_emplace<Components::RemoteHaveBitset>().others;
+	auto& remote_have = o.get_or_emplace<ObjComp::F::RemoteHaveBitset>().others;
 	if (!remote_have.contains(c)) {
 		// init
-		remote_have.emplace(c, Components::RemoteHaveBitset::Entry{false, num_total_chunks});
+		remote_have.emplace(c, ObjComp::F::RemoteHaveBitset::Entry{false, num_total_chunks});
 
 		// new have? nice
 		//c.emplace_or_replace<ChunkPickerUpdateTag>();
-	}
-
-	if (o.all_of<ObjComp::F::TagLocalHaveAll>()) {
-		return true; // we dont care beyond this point
 	}
 
 	auto& remote_have_peer = remote_have.at(c);
@@ -1496,11 +1496,6 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCEXT_ft1_have& e) {
 		a_valid_change = true;
 	}
 
-	if (a_valid_change) {
-		// new have? nice
-		c.emplace_or_replace<ChunkPickerUpdateTag>();
-	}
-
 	// check for completion?
 	// TODO: optimize
 	bool test_all {true};
@@ -1515,6 +1510,15 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCEXT_ft1_have& e) {
 		// optimize
 		remote_have_peer.have_all = true;
 		remote_have_peer.have = BitSet{};
+	}
+
+	if (o.all_of<ObjComp::F::TagLocalHaveAll>()) {
+		return true; // we dont care beyond this point
+	}
+
+	if (a_valid_change) {
+		// new have? nice
+		c.emplace_or_replace<ChunkPickerUpdateTag>();
 	}
 
 	return true;
@@ -1566,15 +1570,16 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCEXT_ft1_bitset& e) {
 		return false;
 	}
 
-	auto& remote_have = o.get_or_emplace<Components::RemoteHaveBitset>().others;
+	auto& remote_have = o.get_or_emplace<ObjComp::F::RemoteHaveBitset>().others;
 	if (!remote_have.contains(c)) {
 		// init
-		remote_have.emplace(c, Components::RemoteHaveBitset::Entry{false, num_total_chunks});
+		remote_have.emplace(c, ObjComp::F::RemoteHaveBitset::Entry{false, num_total_chunks});
 	}
 
 	auto& remote_have_peer = remote_have.at(c);
 	if (!remote_have_peer.have_all) { // TODO: maybe unset with bitset?
 		BitSet event_bitset{e.chunk_bitset};
+		// TODO: range replace instead
 		remote_have_peer.have.merge(event_bitset, e.start_chunk);
 
 		// check for completion?
@@ -1629,8 +1634,8 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCEXT_ft1_have_all& e) {
 	// we might not know yet
 	addParticipation(c, o);
 
-	auto& remote_have = o.get_or_emplace<Components::RemoteHaveBitset>().others;
-	remote_have[c] = Components::RemoteHaveBitset::Entry{true, {}};
+	auto& remote_have = o.get_or_emplace<ObjComp::F::RemoteHaveBitset>().others;
+	remote_have[c] = ObjComp::F::RemoteHaveBitset::Entry{true, {}};
 
 	// new have? nice
 	c.emplace_or_replace<ChunkPickerUpdateTag>();

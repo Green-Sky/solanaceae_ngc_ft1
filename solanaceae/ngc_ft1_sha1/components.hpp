@@ -70,14 +70,6 @@ namespace Components {
 		entt::dense_set<Contact3> participants;
 	};
 
-	struct RemoteHaveBitset {
-		struct Entry {
-			bool have_all {false};
-			BitSet have;
-		};
-		entt::dense_map<Contact3, Entry> others;
-	};
-
 	struct ReRequestInfoTimer {
 		float timer {0.f};
 	};

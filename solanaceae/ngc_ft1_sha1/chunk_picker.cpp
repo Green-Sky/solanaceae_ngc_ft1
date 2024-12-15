@@ -272,7 +272,7 @@ std::vector<ChunkPicker::ContentChunkR> ChunkPicker::updateChunkRequests(
 		ObjectHandle o {objreg, it->first};
 
 		// intersect self have with other have
-		if (!o.all_of<Components::RemoteHaveBitset, Components::FT1ChunkSHA1Cache, Components::FT1InfoSHA1>()) {
+		if (!o.all_of<ObjComp::F::RemoteHaveBitset, Components::FT1ChunkSHA1Cache, Components::FT1InfoSHA1>()) {
 			// rare case where no one else has anything
 			continue;
 		}
@@ -284,7 +284,7 @@ std::vector<ChunkPicker::ContentChunkR> ChunkPicker::updateChunkRequests(
 
 		//const auto& cc = o.get<Components::FT1ChunkSHA1Cache>();
 
-		const auto& others_have = o.get<Components::RemoteHaveBitset>().others;
+		const auto& others_have = o.get<ObjComp::F::RemoteHaveBitset>().others;
 		auto other_it = others_have.find(c);
 		if (other_it == others_have.end()) {
 			// rare case where the other is participating but has nothing
