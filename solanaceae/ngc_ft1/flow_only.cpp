@@ -7,7 +7,9 @@
 
 float FlowOnly::getCurrentDelay(void) const {
 	// below 1ms is useless
-	return std::clamp(_rtt_ema, 0.001f, RTT_MAX);
+	//return std::clamp(_rtt_ema, 0.001f, RTT_MAX);
+	// the current iterate rate min is 5ms
+	return std::clamp(_rtt_ema, 0.005f, RTT_MAX);
 }
 
 void FlowOnly::addRTT(float new_delay) {

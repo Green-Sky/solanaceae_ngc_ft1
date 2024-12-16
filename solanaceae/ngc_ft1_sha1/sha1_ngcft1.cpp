@@ -467,9 +467,9 @@ float SHA1_NGCFT1::iterate(float delta) {
 	if (_peer_open_requests.empty()) {
 		return 2.f;
 	} else {
-		// pretty conservative and should be ajusted on a per peer, per delay basis
-		// seems to do the trick
-		return 0.05f;
+		// ft1 will go lower for us, if we have unresolved info,
+		// we dont want to be stuck in a high tickrate
+		return 0.5f;
 	}
 }
 
