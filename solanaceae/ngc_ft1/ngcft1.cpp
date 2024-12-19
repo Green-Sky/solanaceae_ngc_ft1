@@ -575,6 +575,7 @@ bool NGCFT1::onEvent(const Events::NGCEXT_ft1_data& e) {
 	}
 
 	auto& transfer = peer.recv_transfers[e.transfer_id].value();
+	transfer.timer = 0.f;
 
 	// do reassembly, ignore dups
 	transfer.rsb.add(e.sequence_id, std::vector<uint8_t>(e.data)); // TODO: ugly explicit copy for what should just be a move
