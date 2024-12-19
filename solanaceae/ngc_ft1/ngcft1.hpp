@@ -156,16 +156,17 @@ class NGCFT1 : public ToxEventI, public NGCEXTEventI, public NGCFT1EventProvider
 				std::vector<uint8_t> file_id;
 
 				enum class State {
-					INITED, //init acked, but no data received yet (might be dropped)
-					RECV, // receiving data
-					FINISHING, // got all the data, but we wait for 2*delay, since its likely there is data still arriving
+					INITED,		// init acked, but no data received yet (might be dropped)
+					RECV,		// receiving data
+					FINISHING,	// got all the data, but we wait for 2*delay, since its likely there is data still arriving
 				} state;
 
 				uint64_t file_size {0};
 				uint64_t file_size_current {0};
 
+				// if state INITED or RECV, time since last activity
 				// if state FINISHING and it reaches 0, delete
-				float finishing_timer {0.f};
+				float timer {0.f};
 
 				// sequence id based reassembly
 				RecvSequenceBuffer rsb;
@@ -209,7 +210,7 @@ class NGCFT1 : public ToxEventI, public NGCEXTEventI, public NGCFT1EventProvider
 
 	protected:
 		void updateSendTransfer(float time_delta, uint32_t group_number, uint32_t peer_number, Group::Peer& peer, size_t idx, std::set<CCAI::SeqIDType>& timeouts_set, int64_t& can_packet_size);
-		void iteratePeer(float time_delta, uint32_t group_number, uint32_t peer_number, Group::Peer& peer);
+		bool iteratePeer(float time_delta, uint32_t group_number, uint32_t peer_number, Group::Peer& peer);
 
 		const CCAI* getPeerCCA(uint32_t group_number, uint32_t peer_number) const;
 

@@ -171,7 +171,7 @@ void NGCFT1::updateSendTransfer(float time_delta, uint32_t group_number, uint32_
 	}
 }
 
-void NGCFT1::iteratePeer(float time_delta, uint32_t group_number, uint32_t peer_number, Group::Peer& peer) {
+bool NGCFT1::iteratePeer(float time_delta, uint32_t group_number, uint32_t peer_number, Group::Peer& peer) {
 	if (peer.cca) {
 		auto timeouts = peer.cca->getTimeouts();
 		std::set<CCAI::SeqIDType> timeouts_set{timeouts.cbegin(), timeouts.cend()};
@@ -202,6 +202,7 @@ void NGCFT1::iteratePeer(float time_delta, uint32_t group_number, uint32_t peer_
 		}
 	}
 
+	bool recv_activity {false};
 	for (size_t idx = 0; idx < peer.recv_transfers.size(); idx++) {
 		if (!peer.recv_transfers.at(idx).has_value()) {
 			continue;
@@ -211,20 +212,21 @@ void NGCFT1::iteratePeer(float time_delta, uint32_t group_number, uint32_t peer_
 
 		// proper switch case?
 		if (transfer.state == Group::Peer::RecvTransfer::State::FINISHING) {
-			transfer.finishing_timer -= time_delta;
-			if (transfer.finishing_timer <= 0.f) {
-				//dispatch(
-				//    NGCFT1_Event::recv_done,
-				//    Events::NGCFT1_recv_done{
-				//        group_number, peer_number,
-				//        uint8_t(idx)
-				//    }
-				//);
-
+			transfer.timer -= time_delta;
+			if (transfer.timer <= 0.f) {
 				peer.recv_transfers.at(idx).reset();
+			}
+			recv_activity = true; // count as activity, not sure we need this
+		} else {
+			transfer.timer += time_delta;
+			if (transfer.timer < 0.5f) {
+				// back off when no activity
+				recv_activity = true;
 			}
 		}
 	}
+
+	return peer.active_send_transfers > 0 || recv_activity;
 }
 
 const CCAI* NGCFT1::getPeerCCA(
@@ -270,37 +272,61 @@ NGCFT1::NGCFT1(
 
 float NGCFT1::iterate(float time_delta) {
 	_time_since_activity += time_delta;
-	bool transfer_in_progress {false};
+	bool transfer_activity {false};
 	for (auto& [group_number, group] : groups) {
 		for (auto& [peer_number, peer] : group.peers) {
-			iteratePeer(time_delta, group_number, peer_number, peer);
+			transfer_activity = transfer_activity || iteratePeer(time_delta, group_number, peer_number, peer);
 
+#if 0
 			// find any active transfer
-			if (!transfer_in_progress) {
+			if (!transfer_activity) {
 				for (const auto& t : peer.send_transfers) {
 					if (t.has_value()) {
-						transfer_in_progress = true;
+						transfer_activity = true;
+#if 0
+						std::cout
+							<< "--- active send transfer "
+							<< group_number << ":" << peer_number
+							<< "(" << std::get<0>(_t.toxGroupPeerGetName(group_number, peer_number)).value_or("<unk>") << ")"
+							<< " fk:" << t.value().file_kind
+							<< " state:" << (int)t.value().state
+							<< " tsa:" << t.value().time_since_activity
+							<< "\n"
+						;
+#endif
 						break;
 					}
 				}
 			}
-			if (!transfer_in_progress) {
+			if (!transfer_activity) {
 				for (const auto& t : peer.recv_transfers) {
 					if (t.has_value()) {
-						transfer_in_progress = true;
+						transfer_activity = true;
+#if 0
+						std::cout
+							<< "--- active recv transfer "
+							<< group_number << ":" << peer_number
+							<< "(" << std::get<0>(_t.toxGroupPeerGetName(group_number, peer_number)).value_or("<unk>") << ")"
+							<< " fk:" << t.value().file_kind
+							<< " state:" << (int)t.value().state
+							<< " ft:" << t.value().finishing_timer
+							<< "\n"
+						;
+#endif
 						break;
 					}
 				}
 			}
+#endif
 		}
 	}
 
-	if (transfer_in_progress) {
+	if (transfer_activity) {
 		_time_since_activity = 0.f;
 		// ~15ms for up to 1mb/s
 		// ~5ms for up to 4mb/s
 		return 0.005f; // 5ms
-	} else if (_time_since_activity < 0.5f) {
+	} else if (_time_since_activity < 1.0f) {
 		// bc of temporality
 		return 0.025f;
 	} else {
@@ -457,44 +483,6 @@ bool NGCFT1::onEvent(const Events::NGCEXT_ft1_init& e) {
 //#if !NDEBUG
 	std::cout << "NGCFT1: got FT1_INIT fk:" << e.file_kind << " fs:" << e.file_size << " tid:" << int(e.transfer_id) << " [" << bin2hex(e.file_id) << "]\n";
 //#endif
-#if 0
-	bool accept = false;
-	dispatch(
-		NGCFT1_Event::recv_init,
-		Events::NGCFT1_recv_init{
-			e.group_number, e.peer_number,
-			static_cast<NGCFT1_file_kind>(e.file_kind),
-			e.file_id.data(), static_cast<uint32_t>(e.file_id.size()),
-			e.transfer_id,
-			e.file_size,
-			accept
-		}
-	);
-
-	if (!accept) {
-		std::cout << "NGCFT1: rejected init\n";
-		return true; // return true?
-	}
-
-	_neep.send_ft1_init_ack(e.group_number, e.peer_number, e.transfer_id);
-
-	std::cout << "NGCFT1: accepted init\n";
-
-	auto& peer = groups[e.group_number].peers[e.peer_number];
-	if (peer.recv_transfers[e.transfer_id].has_value()) {
-		std::cerr << "NGCFT1 warning: overwriting existing recv_transfer " << int(e.transfer_id) << ", other peer started new transfer on preexising\n";
-	}
-
-	peer.recv_transfers[e.transfer_id] = Group::Peer::RecvTransfer{
-		e.file_kind,
-		e.file_id,
-		Group::Peer::RecvTransfer::State::INITED,
-		e.file_size,
-		0u,
-		{} // rsb
-	};
-	return true;
-#else
 	// HACK: simply forward to init2 hanlder
 	return onEvent(Events::NGCEXT_ft1_init2{
 		e.group_number,
@@ -505,12 +493,11 @@ bool NGCFT1::onEvent(const Events::NGCEXT_ft1_init& e) {
 		0x00, // non set
 		e.file_id, // sadly a copy, wont matter in the future
 	});
-#endif
 }
 
 bool NGCFT1::onEvent(const Events::NGCEXT_ft1_init_ack& e) {
 //#if !NDEBUG
-	std::cout << "NGCFT1: got FT1_INIT_ACK mds:" << e.max_lossy_data_size << "\n";
+	std::cout << "NGCFT1: got FT1_INIT_ACK " << e.group_number << ":" << e.peer_number << " mds:" << e.max_lossy_data_size << "\n";
 //#endif
 
 	// we now should start sending data
@@ -626,8 +613,8 @@ bool NGCFT1::onEvent(const Events::NGCEXT_ft1_data& e) {
 
 		// TODO: keep around for remote timeout + delay + offset, so we can be sure all acks where received
 		// or implement a dedicated finished that needs to be acked
-		//transfer.finishing_timer = 0.75f; // TODO: we are receiving, we dont know delay
-		transfer.finishing_timer = FlowOnly::RTT_MAX;
+		//transfer.timer = 0.75f; // TODO: we are receiving, we dont know delay
+		transfer.timer = FlowOnly::RTT_MAX;
 
 		dispatch(
 			NGCFT1_Event::recv_done,
