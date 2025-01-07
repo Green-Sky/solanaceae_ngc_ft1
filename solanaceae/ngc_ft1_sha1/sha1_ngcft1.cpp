@@ -1,6 +1,7 @@
 #include "./sha1_ngcft1.hpp"
 
 #include <solanaceae/util/utils.hpp>
+#include <solanaceae/util/time.hpp>
 
 #include <solanaceae/contact/components.hpp>
 #include <solanaceae/tox_contacts/components.hpp>
@@ -1280,7 +1281,7 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCFT1_recv_message& e) {
 		return false; // return true?
 	}
 
-	uint64_t ts = Message::getTimeMS();
+	uint64_t ts = getTimeMS();
 
 	const auto c = _tcm.getContactGroupPeer(e.group_number, e.peer_number);
 	_tox_peer_to_contact[combine_ids(e.group_number, e.peer_number)] = c; // workaround
@@ -1355,7 +1356,7 @@ bool SHA1_NGCFT1::sendFilePath(const Contact3 c, std::string_view file_name, std
 	}
 
 	// get current time unix epoch utc
-	uint64_t ts = Message::getTimeMS();
+	uint64_t ts = getTimeMS();
 
 	_mfb.newFromFile(
 		file_name, file_path,

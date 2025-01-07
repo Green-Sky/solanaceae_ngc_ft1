@@ -13,6 +13,7 @@
 #include <solanaceae/ngc_ft1_sha1/util.hpp>
 
 #include <solanaceae/util/span.hpp>
+#include <solanaceae/util/time.hpp>
 
 #include <entt/entity/entity.hpp>
 
@@ -127,7 +128,7 @@ float NGCHS2Rizzler::iterate(float delta) {
 		const auto [group_number, peer_number] = c.get<Contact::Components::ToxGroupPeerEphemeral>();
 
 		// now in sec
-		const uint64_t ts_now = Message::getTimeMS()/1000;
+		const uint64_t ts_now = getTimeMS()/1000;
 
 		const uint64_t ts_start = ts_now;
 		const uint64_t ts_end = ts_now-(60*60*48);
@@ -194,7 +195,7 @@ void NGCHS2Rizzler::handleMsgPack(Contact3Handle sync_by_c, const std::vector<ui
 
 	Message3Registry& reg = *reg_ptr;
 
-	uint64_t now_ts = Message::getTimeMS();
+	uint64_t now_ts = getTimeMS();
 
 	std::cout << "NGCHS2Rizzler: start parsing msgpack chatlog from " << entt::to_integral(sync_by_c.entity()) << "\n";
 	try {
