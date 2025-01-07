@@ -224,6 +224,13 @@ void NGCHS2Sigma::handleTimeRange(Contact3Handle c, const Events::NGCFT1_recv_re
 		return;
 	}
 
+	if (!c.all_of<Contact::Components::TagSelfWeak>()) {
+		// make sure we dont sync past the peers first appearance
+		if (const auto first_seen_ptr = c.try_get<Contact::Components::FirstSeen>(); first_seen_ptr != nullptr) {
+			ts_start = std::max(ts_start, first_seen_ptr->ts);
+		}
+	}
+
 	// dedupe insert into queue
 	// how much overlap do we allow?
 	c.get_or_emplace<Components::IncommingTimeRangeRequestQueue>().queueRequest(
