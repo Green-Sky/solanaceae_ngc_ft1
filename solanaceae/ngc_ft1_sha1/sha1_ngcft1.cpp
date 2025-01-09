@@ -989,7 +989,16 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCFT1_recv_data& e) {
 			}
 		}
 
-		auto c = _tcm.getContactGroupPeer(e.group_number, e.peer_number);
+		Contact3Handle c;
+		const auto tpcc_it = _tox_peer_to_contact.find(combine_ids(e.group_number, e.peer_number));
+		if (tpcc_it != _tox_peer_to_contact.cend()) {
+			c = tpcc_it->second;
+		} else {
+			c = _tcm.getContactGroupPeer(e.group_number, e.peer_number);
+			if (static_cast<bool>(c)) {
+				_tox_peer_to_contact[combine_ids(e.group_number, e.peer_number)] = c;
+			}
+		}
 		if (static_cast<bool>(c)) {
 			o.get_or_emplace<Components::TransferStatsTally>()
 				.tally[c]
