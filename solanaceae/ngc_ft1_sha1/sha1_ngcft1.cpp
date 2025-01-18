@@ -28,6 +28,7 @@
 #include "./re_announce_systems.hpp"
 #include "./chunk_picker_systems.hpp"
 #include "./transfer_stats_systems.hpp"
+#include "solanaceae/object_store/object_store.hpp"
 
 #include <iostream>
 #include <filesystem>
@@ -168,7 +169,7 @@ File2I* SHA1_NGCFT1::objGetFile2Write(ObjectHandle o) {
 	auto* file2_comp_ptr = o.try_get<Components::FT1File2>();
 	if (file2_comp_ptr == nullptr || !file2_comp_ptr->file || !file2_comp_ptr->file->can_write || !file2_comp_ptr->file->isGood()) {
 		// (re)request file2 from backend
-		auto new_file = _mfb.file2(o, StorageBackendI::FILE2_WRITE);
+		auto new_file = _mfb.file2(o, StorageBackendIFile2::FILE2_WRITE);
 		if (!new_file || !new_file->can_write || !new_file->isGood()) {
 			std::cerr << "SHA1_NGCFT1 error: failed to open object for writing\n";
 			return nullptr; // early out
@@ -185,7 +186,7 @@ File2I* SHA1_NGCFT1::objGetFile2Read(ObjectHandle o) {
 	auto* file2_comp_ptr = o.try_get<Components::FT1File2>();
 	if (file2_comp_ptr == nullptr || !file2_comp_ptr->file || !file2_comp_ptr->file->can_read || !file2_comp_ptr->file->isGood()) {
 		// (re)request file2 from backend
-		auto new_file = _mfb.file2(o, StorageBackendI::FILE2_READ);
+		auto new_file = _mfb.file2(o, StorageBackendIFile2::FILE2_READ);
 		if (!new_file || !new_file->can_read || !new_file->isGood()) {
 			std::cerr << "SHA1_NGCFT1 error: failed to open object for reading\n";
 			return nullptr; // early out
@@ -744,7 +745,7 @@ bool SHA1_NGCFT1::onEvent(const ObjectStore::Events::ObjectUpdate& e) {
 
 	// start requesting from all participants
 	if (e.e.all_of<Components::SuspectedParticipants>()) {
-		std::cout << "accepted ft has " << e.e.get<Components::SuspectedParticipants>().participants.size() << " sp\n";
+		std::cout << "SHA1_NGCFT1: accepted ft has " << e.e.get<Components::SuspectedParticipants>().participants.size() << " sp\n";
 		for (const auto cv : e.e.get<Components::SuspectedParticipants>().participants) {
 			_cr.emplace_or_replace<ChunkPickerUpdateTag>(cv);
 		}

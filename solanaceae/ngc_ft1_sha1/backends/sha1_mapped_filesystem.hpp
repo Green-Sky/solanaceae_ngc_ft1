@@ -11,7 +11,8 @@ namespace Backends {
 // fwd to hide the threading headers
 struct SHA1MappedFilesystem_InfoBuilderState;
 
-struct SHA1MappedFilesystem : public StorageBackendI {
+struct SHA1MappedFilesystem : public StorageBackendIMeta, public StorageBackendIFile2 {
+	ObjectStore2& _os;
 	std::unique_ptr<SHA1MappedFilesystem_InfoBuilderState> _ibs;
 
 	SHA1MappedFilesystem(
@@ -23,7 +24,7 @@ struct SHA1MappedFilesystem : public StorageBackendI {
 	// call from main thread (os thread?) often
 	void tick(void);
 
-	ObjectHandle newObject(ByteSpan id) override;
+	ObjectHandle newObject(ByteSpan id, bool throw_construct = true) override;
 
 	// performs async file hashing
 	// create message in cb

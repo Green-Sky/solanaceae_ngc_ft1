@@ -25,7 +25,7 @@ bool RecvSequenceBuffer::canPop(void) const {
 
 std::vector<uint8_t> RecvSequenceBuffer::pop(void) {
 	assert(canPop());
-	auto tmp_data = entries.at(next_seq_id).data;
+	auto tmp_data = std::move(entries.at(next_seq_id).data);
 	erase(next_seq_id);
 	next_seq_id++;
 	return tmp_data;

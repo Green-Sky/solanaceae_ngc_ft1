@@ -28,7 +28,7 @@ struct SHA1MappedFilesystem_InfoBuilderState {
 
 SHA1MappedFilesystem::SHA1MappedFilesystem(
 	ObjectStore2& os
-) : StorageBackendI::StorageBackendI(os), _ibs(std::make_unique<SHA1MappedFilesystem_InfoBuilderState>()) {
+) : _os(os), _ibs(std::make_unique<SHA1MappedFilesystem_InfoBuilderState>()) {
 }
 
 SHA1MappedFilesystem::~SHA1MappedFilesystem(void) {
@@ -46,10 +46,11 @@ void SHA1MappedFilesystem::tick(void) {
 	}
 }
 
-ObjectHandle SHA1MappedFilesystem::newObject(ByteSpan id) {
+ObjectHandle SHA1MappedFilesystem::newObject(ByteSpan id, bool throw_construct) {
 	ObjectHandle o{_os.registry(), _os.registry().create()};
 
-	o.emplace<ObjComp::Ephemeral::Backend>(this);
+	o.emplace<ObjComp::Ephemeral::BackendMeta>(this);
+	o.emplace<ObjComp::Ephemeral::BackendFile2>(this);
 	o.emplace<ObjComp::ID>(std::vector<uint8_t>{id});
 	//o.emplace<ObjComp::Ephemeral::FilePath>(object_file_path.generic_u8string());
 
