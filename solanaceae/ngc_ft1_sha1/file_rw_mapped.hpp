@@ -24,8 +24,18 @@ struct File2RWMapped : public File2I {
 
 		_file_size = std::filesystem::file_size(native_file_path);
 		if (file_size >= 0 && _file_size != file_size) {
-			_file_size = file_size;
-			std::filesystem::resize_file(native_file_path, file_size); // ensure size, usually sparse
+			try {
+				std::filesystem::resize_file(native_file_path, file_size); // ensure size, usually sparse
+			} catch (...) {
+				std::cerr << "FileRWMapped error: resizing file failed\n";
+				return;
+			}
+
+			_file_size = std::filesystem::file_size(native_file_path);
+			if (_file_size != file_size) {
+				std::cerr << "FileRWMapped error: resizing file failed (size mismatch)\n";
+				return;
+			}
 		}
 
 		std::error_code err;
