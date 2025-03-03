@@ -43,7 +43,7 @@ struct File2RWMapped : public File2I {
 		_file_map.map(native_file_path.u8string(), 0, _file_size, err);
 
 		if (err) {
-			std::cerr << "FileRWMapped error: mapping file failed " << err << "\n";
+			std::cerr << "FileRWMapped error: mapping file failed: " << err.message() << " (" << err << ")\n";
 			return;
 		}
 	}
