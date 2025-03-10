@@ -1,5 +1,6 @@
 #include "./ngc_hs2_rizzler.hpp"
 
+#include <solanaceae/contact/contact_store_i.hpp>
 #include <solanaceae/contact/components.hpp>
 #include <solanaceae/tox_contacts/components.hpp>
 #include <solanaceae/tox_contacts/tox_contact_model2.hpp>
@@ -67,27 +68,15 @@ namespace Components {
 
 } // Components
 
-// TODO: move to contact reg?
-static Contact3 findContactByID(Contact3Registry& cr, const std::vector<uint8_t>& id) {
-	// TODO: id lookup table, this is very inefficent
-	for (const auto& [c_it, id_it] : cr.view<Contact::Components::ID>().each()) {
-		if (id == id_it.data) {
-			return c_it;
-		}
-	}
-
-	return entt::null;
-}
-
 NGCHS2Rizzler::NGCHS2Rizzler(
-	Contact3Registry& cr,
+	ContactStore4I& cs,
 	RegistryMessageModelI& rmm,
 	ToxContactModel2& tcm,
 	NGCFT1& nft,
 	ToxEventProviderI& tep,
 	SHA1_NGCFT1& sha1_nft
 ) :
-	_cr(cr),
+	_cs(cs),
 	_rmm(rmm),
 	_tcm(tcm),
 	_nft(nft),
@@ -117,7 +106,7 @@ float NGCHS2Rizzler::iterate(float delta) {
 			continue;
 		}
 
-		const Contact3Handle c {_cr, it->first};
+		const ContactHandle4 c = _cs.contactHandle(it->first);
 
 		if (!c.all_of<Contact::Components::ToxGroupPeerEphemeral>()) {
 			// peer nolonger online
@@ -184,7 +173,7 @@ bool NGCHS2Rizzler::sendRequest(
 	);
 }
 
-void NGCHS2Rizzler::handleMsgPack(Contact3Handle sync_by_c, const std::vector<uint8_t>& data) {
+void NGCHS2Rizzler::handleMsgPack(ContactHandle4 sync_by_c, const std::vector<uint8_t>& data) {
 	assert(sync_by_c);
 
 	auto* reg_ptr = _rmm.get(sync_by_c);
@@ -227,7 +216,7 @@ void NGCHS2Rizzler::handleMsgPack(Contact3Handle sync_by_c, const std::vector<ui
 					continue;
 				}
 
-				Contact3 from_c{entt::null};
+				Contact4 from_c{entt::null};
 				{ // from_c
 					std::vector<uint8_t> id;
 					if (j_ppk.is_binary()) {
@@ -236,15 +225,21 @@ void NGCHS2Rizzler::handleMsgPack(Contact3Handle sync_by_c, const std::vector<ui
 						j_ppk.at("bytes").get_to(id);
 					}
 
-					from_c = findContactByID(_cr, id);
+					const auto parent = sync_by_c.get<Contact::Components::Parent>().parent;
 
-					if (!_cr.valid(from_c)) {
+					from_c = _cs.getOneContactByID(parent, ByteSpan{id});
+
+					auto& cr = _cs.registry();
+
+					if (!cr.valid(from_c)) {
 						// create sparse contact with id only
-						from_c = _cr.create();
-						_cr.emplace_or_replace<Contact::Components::ID>(from_c, id);
+						from_c = cr.create();
+						cr.emplace_or_replace<Contact::Components::ID>(from_c, id);
 
 						// TODO: only if public message
-						_cr.emplace_or_replace<Contact::Components::Parent>(from_c, sync_by_c.get<Contact::Components::Parent>().parent);
+						cr.emplace_or_replace<Contact::Components::Parent>(from_c, parent);
+
+						_cs.throwEventConstruct(from_c);
 					}
 				}
 
@@ -319,7 +314,7 @@ void NGCHS2Rizzler::handleMsgPack(Contact3Handle sync_by_c, const std::vector<ui
 				Message3Handle dup_msg{};
 				{ // check preexisting
 					// get comparator from contact
-					const Contact3Handle reg_c {_cr, reg.ctx().get<Contact3>()};
+					const ContactHandle4 reg_c = _cs.contactHandle(reg.ctx().get<Contact4>());
 					if (reg_c.all_of<Contact::Components::MessageIsSame>()) {
 						auto& comp = reg_c.get<Contact::Components::MessageIsSame>().comp;
 						// walking EVERY existing message OOF

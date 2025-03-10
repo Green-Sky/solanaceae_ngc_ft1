@@ -5,7 +5,7 @@
 
 #include <iostream>
 
-bool addParticipation(Contact3Handle c, ObjectHandle o) {
+bool addParticipation(ContactHandle4 c, ObjectHandle o) {
 	bool was_new {false};
 	assert(static_cast<bool>(o));
 	assert(static_cast<bool>(c));
@@ -25,7 +25,7 @@ bool addParticipation(Contact3Handle c, ObjectHandle o) {
 	return was_new;
 }
 
-void removeParticipation(Contact3Handle c, ObjectHandle o) {
+void removeParticipation(ContactHandle4 c, ObjectHandle o) {
 	assert(static_cast<bool>(o));
 	assert(static_cast<bool>(c));
 

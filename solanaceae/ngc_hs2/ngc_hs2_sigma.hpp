@@ -2,7 +2,7 @@
 
 #include <solanaceae/toxcore/tox_event_interface.hpp>
 
-#include <solanaceae/contact/contact_model3.hpp>
+#include <solanaceae/contact/fwd.hpp>
 #include <solanaceae/message3/registry_message_model.hpp>
 
 #include <solanaceae/ngc_ft1/ngcft1.hpp>
@@ -24,7 +24,7 @@ struct TimeRangeRequest {
 };
 
 class NGCHS2Sigma : public RegistryMessageModelEventI, public NGCFT1EventI {
-	Contact3Registry& _cr;
+	ContactStore4I& _cs;
 	RegistryMessageModelI& _rmm;
 	ToxContactModel2& _tcm;
 	NGCFT1& _nft;
@@ -49,11 +49,11 @@ class NGCHS2Sigma : public RegistryMessageModelEventI, public NGCFT1EventI {
 
 	// FIXME: workaround missing contact events
 	// only used on peer exit (no, also used to quicken lookups)
-	entt::dense_map<uint64_t, Contact3Handle> _tox_peer_to_contact;
+	entt::dense_map<uint64_t, ContactHandle4> _tox_peer_to_contact;
 
 	public:
 		NGCHS2Sigma(
-			Contact3Registry& cr,
+			ContactStore4I& cs,
 			RegistryMessageModelI& rmm,
 			ToxContactModel2& tcm,
 			NGCFT1& nft
@@ -63,11 +63,11 @@ class NGCHS2Sigma : public RegistryMessageModelEventI, public NGCFT1EventI {
 
 		float iterate(float delta);
 
-		void handleTimeRange(Contact3Handle c, const Events::NGCFT1_recv_request&);
+		void handleTimeRange(ContactHandle4 c, const Events::NGCFT1_recv_request&);
 
 		// msg reg contact
 		// time ranges
-		[[nodiscard]] std::vector<uint8_t> buildChatLogFileRange(Contact3Handle c, uint64_t ts_start, uint64_t ts_end);
+		[[nodiscard]] std::vector<uint8_t> buildChatLogFileRange(ContactHandle4 c, uint64_t ts_start, uint64_t ts_end);
 
 	protected:
 		bool onEvent(const Message::Events::MessageConstruct&) override;

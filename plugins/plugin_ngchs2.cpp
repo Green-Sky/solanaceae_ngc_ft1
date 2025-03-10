@@ -40,7 +40,7 @@ SOLANA_PLUGIN_EXPORT uint32_t solana_plugin_start(struct SolanaAPI* solana_api) 
 	try {
 		//auto* tox_i = PLUG_RESOLVE_INSTANCE(ToxI);
 		auto* tox_event_provider_i = PLUG_RESOLVE_INSTANCE(ToxEventProviderI);
-		auto* cr = PLUG_RESOLVE_INSTANCE_VERSIONED(Contact3Registry, "1");
+		auto* cs = PLUG_RESOLVE_INSTANCE(ContactStore4I);
 		auto* rmm = PLUG_RESOLVE_INSTANCE(RegistryMessageModelI);
 		auto* tcm = PLUG_RESOLVE_INSTANCE(ToxContactModel2);
 		auto* ngcft1 = PLUG_RESOLVE_INSTANCE(NGCFT1);
@@ -48,8 +48,8 @@ SOLANA_PLUGIN_EXPORT uint32_t solana_plugin_start(struct SolanaAPI* solana_api) 
 
 		// static store, could be anywhere tho
 		// construct with fetched dependencies
-		g_ngchs2s = std::make_unique<NGCHS2Sigma>(*cr, *rmm, *tcm, *ngcft1);
-		g_ngchs2r = std::make_unique<NGCHS2Rizzler>(*cr, *rmm, *tcm, *ngcft1, *tox_event_provider_i, *sha1_ngcft1);
+		g_ngchs2s = std::make_unique<NGCHS2Sigma>(*cs, *rmm, *tcm, *ngcft1);
+		g_ngchs2r = std::make_unique<NGCHS2Rizzler>(*cs, *rmm, *tcm, *ngcft1, *tox_event_provider_i, *sha1_ngcft1);
 
 		// register types
 		PLUG_PROVIDE_INSTANCE(NGCHS2Sigma, plugin_name, g_ngchs2s.get());

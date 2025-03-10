@@ -60,14 +60,14 @@ namespace Components {
 		// requested chunks with a timer since last request
 		struct Entry {
 			float timer {0.f};
-			Contact3 c {entt::null};
+			Contact4 c {entt::null};
 		};
 		entt::dense_map<size_t, Entry> chunks;
 	};
 
 	// TODO: once announce is shipped, remove the "Suspected"
 	struct SuspectedParticipants {
-		entt::dense_set<Contact3> participants;
+		entt::dense_set<Contact4> participants;
 	};
 
 	struct ReRequestInfoTimer {
@@ -75,7 +75,7 @@ namespace Components {
 	};
 
 	struct AnnounceTargets {
-		entt::dense_set<Contact3> targets;
+		entt::dense_set<Contact4> targets;
 	};
 
 	struct ReAnnounceTimer {
@@ -92,7 +92,7 @@ namespace Components {
 	};
 
 	struct TransferStatsSeparated {
-		entt::dense_map<Contact3, ObjComp::Ephemeral::File::TransferStats> stats;
+		entt::dense_map<Contact4, ObjComp::Ephemeral::File::TransferStats> stats;
 	};
 
 	// used to populate stats
@@ -111,7 +111,7 @@ namespace Components {
 			void trimSent(const float time_now);
 			void trimReceived(const float time_now);
 		};
-		entt::dense_map<Contact3, Peer> tally;
+		entt::dense_map<Contact4, Peer> tally;
 	};
 
 } // Components

@@ -123,7 +123,7 @@ static constexpr size_t flowWindowToRequestCount(size_t flow_window) {
 }
 
 void ChunkPicker::updateParticipation(
-	Contact3Handle c,
+	ContactHandle4 c,
 	ObjectRegistry& objreg
 ) {
 	if (!c.all_of<Contact::Components::FT1Participation>()) {
@@ -211,7 +211,7 @@ void ChunkPicker::updateParticipation(
 }
 
 std::vector<ChunkPicker::ContentChunkR> ChunkPicker::updateChunkRequests(
-	Contact3Handle c,
+	ContactHandle4 c,
 	ObjectRegistry& objreg,
 	const ReceivingTransfers& rt,
 	const size_t open_requests

@@ -2,6 +2,7 @@
 
 #include "./components.hpp"
 #include <solanaceae/object_store/meta_components_file.hpp>
+#include <solanaceae/contact/contact_store_i.hpp>
 #include <solanaceae/tox_contacts/components.hpp>
 #include <solanaceae/ngc_ft1/ngcft1_file_kind.hpp>
 #include <vector>
@@ -11,12 +12,12 @@ namespace Systems {
 
 void re_announce(
 	ObjectRegistry& os_reg,
-	Contact3Registry& cr,
+	ContactStore4I& cs,
 	NGCEXTEventProvider& neep,
 	const float delta
 ) {
 	std::vector<Object> to_remove;
-	os_reg.view<Components::ReAnnounceTimer>().each([&os_reg, &cr, &neep, &to_remove, delta](Object ov, Components::ReAnnounceTimer& rat) {
+	os_reg.view<Components::ReAnnounceTimer>().each([&os_reg, &cr = cs.registry(), &neep, &to_remove, delta](Object ov, Components::ReAnnounceTimer& rat) {
 		ObjectHandle o{os_reg, ov};
 		// if no known targets, or no hash, remove
 		if (!o.all_of<Components::AnnounceTargets, Components::FT1InfoSHA1Hash>()) {

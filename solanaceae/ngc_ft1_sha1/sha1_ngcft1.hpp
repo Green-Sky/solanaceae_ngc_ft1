@@ -3,7 +3,7 @@
 // solanaceae port of sha1 fts for NGCFT1
 
 #include <solanaceae/object_store/object_store.hpp>
-#include <solanaceae/contact/contact_model3.hpp>
+#include <solanaceae/contact/fwd.hpp>
 #include <solanaceae/message3/registry_message_model.hpp>
 #include <solanaceae/tox_contacts/tox_contact_model2.hpp>
 
@@ -24,7 +24,7 @@ class SHA1_NGCFT1 : public ToxEventI, public RegistryMessageModelEventI, public 
 	ObjectStore2& _os;
 	ObjectStore2::SubscriptionReference _os_sr;
 	// TODO: backend abstraction
-	Contact3Registry& _cr;
+	ContactStore4I& _cs;
 	RegistryMessageModelI& _rmm;
 	RegistryMessageModelI::SubscriptionReference _rmm_sr;
 	NGCFT1& _nft;
@@ -67,23 +67,23 @@ class SHA1_NGCFT1 : public ToxEventI, public RegistryMessageModelEventI, public 
 	std::deque<ObjectHandle> _queue_content_want_info;
 
 	struct QBitsetEntry {
-		Contact3Handle c;
+		ContactHandle4 c;
 		ObjectHandle o;
 	};
 	std::deque<QBitsetEntry> _queue_send_bitset;
 
 	// FIXME: workaround missing contact events
 	// only used on peer exit (no, also used to quicken lookups)
-	entt::dense_map<uint64_t, Contact3Handle> _tox_peer_to_contact;
+	entt::dense_map<uint64_t, ContactHandle4> _tox_peer_to_contact;
 
 	// reset every iterate; kept here as an allocation optimization
-	entt::dense_map<Contact3, size_t> _peer_open_requests;
+	entt::dense_map<Contact4, size_t> _peer_open_requests;
 
 	void updateMessages(ObjectHandle ce);
 
 	std::optional<std::pair<uint32_t, uint32_t>> selectPeerForRequest(ObjectHandle ce);
 
-	void queueBitsetSendFull(Contact3Handle c, ObjectHandle o);
+	void queueBitsetSendFull(ContactHandle4 c, ObjectHandle o);
 
 	File2I* objGetFile2Write(ObjectHandle o);
 	File2I* objGetFile2Read(ObjectHandle o);
@@ -97,7 +97,7 @@ class SHA1_NGCFT1 : public ToxEventI, public RegistryMessageModelEventI, public 
 	public:
 		SHA1_NGCFT1(
 			ObjectStore2& os,
-			Contact3Registry& cr,
+			ContactStore4I& cs,
 			RegistryMessageModelI& rmm,
 			NGCFT1& nft,
 			ToxContactModel2& tcm,
@@ -107,13 +107,13 @@ class SHA1_NGCFT1 : public ToxEventI, public RegistryMessageModelEventI, public 
 
 		float iterate(float delta);
 
-		void onSendFileHashFinished(ObjectHandle o, Message3Registry* reg_ptr, Contact3 c, uint64_t ts);
+		void onSendFileHashFinished(ObjectHandle o, Message3Registry* reg_ptr, Contact4 c, uint64_t ts);
 
 		// construct the file part in a partially constructed message
 		ObjectHandle constructFileMessageInPlace(Message3Handle msg, NGCFT1_file_kind file_kind, ByteSpan file_id);
 
 	protected: // rmm events (actions)
-		bool sendFilePath(const Contact3 c, std::string_view file_name, std::string_view file_path) override;
+		bool sendFilePath(const Contact4 c, std::string_view file_name, std::string_view file_path) override;
 
 	protected: // os events (actions)
 		bool onEvent(const ObjectStore::Events::ObjectUpdate&) override;

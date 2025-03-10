@@ -2,6 +2,7 @@
 
 #include <solanaceae/util/span.hpp>
 
+#include <solanaceae/contact/contact_store_i.hpp>
 #include <solanaceae/tox_contacts/tox_contact_model2.hpp>
 
 #include <solanaceae/contact/components.hpp>
@@ -71,12 +72,12 @@ namespace Components {
 
 
 NGCHS2Sigma::NGCHS2Sigma(
-	Contact3Registry& cr,
+	ContactStore4I& cs,
 	RegistryMessageModelI& rmm,
 	ToxContactModel2& tcm,
 	NGCFT1& nft
 ) :
-	_cr(cr),
+	_cs(cs),
 	_rmm(rmm),
 	_tcm(tcm),
 	_nft(nft),
@@ -111,7 +112,7 @@ float NGCHS2Sigma::iterate(float delta) {
 				continue;
 			}
 
-			Contact3Handle c{_cr, cv};
+			ContactHandle4 c = _cs.contactHandle(cv);
 			auto& iirr = c.get_or_emplace<Components::IncommingTimeRangeRequestRunning>();
 
 			// dedup queued from running
@@ -129,7 +130,7 @@ float NGCHS2Sigma::iterate(float delta) {
 				iirq._queue.pop_front();
 				continue; // how
 			}
-			const Contact3Handle group_c = {*c.registry(), c.get<Contact::Components::Parent>().parent};
+			const ContactHandle4 group_c = {*c.registry(), c.get<Contact::Components::Parent>().parent};
 			if (!c.all_of<Contact::Components::ToxGroupPeerEphemeral>()) {
 				iirq._queue.pop_front();
 				continue;
@@ -166,15 +167,17 @@ float NGCHS2Sigma::iterate(float delta) {
 		}
 	};
 
+	auto& cr = _cs.registry();
+
 	// first handle range requests on weak self
-	fn_iirq(_cr.view<Components::IncommingTimeRangeRequestQueue, Contact::Components::TagSelfWeak>());
+	fn_iirq(cr.view<Components::IncommingTimeRangeRequestQueue, Contact::Components::TagSelfWeak>());
 
 	// we could stop here, if too much is already running
 
 	// then range on others
-	fn_iirq(_cr.view<Components::IncommingTimeRangeRequestQueue>(entt::exclude_t<Contact::Components::TagSelfWeak>{}));
+	fn_iirq(cr.view<Components::IncommingTimeRangeRequestQueue>(entt::exclude_t<Contact::Components::TagSelfWeak>{}));
 
-	_cr.view<Components::IncommingTimeRangeRequestRunning>().each(
+	cr.view<Components::IncommingTimeRangeRequestRunning>().each(
 		[delta](const auto cv, Components::IncommingTimeRangeRequestRunning& irr) {
 			std::vector<uint8_t> to_remove;
 			for (auto&& [ft_id, entry] : irr._list) {
@@ -195,7 +198,7 @@ float NGCHS2Sigma::iterate(float delta) {
 	return 1000.f;
 }
 
-void NGCHS2Sigma::handleTimeRange(Contact3Handle c, const Events::NGCFT1_recv_request& e) {
+void NGCHS2Sigma::handleTimeRange(ContactHandle4 c, const Events::NGCFT1_recv_request& e) {
 	ByteSpan fid{e.file_id, e.file_id_size};
 	// TODO: better size check
 	if (fid.size != sizeof(uint64_t)+sizeof(uint64_t)) {
@@ -239,7 +242,7 @@ void NGCHS2Sigma::handleTimeRange(Contact3Handle c, const Events::NGCFT1_recv_re
 	);
 }
 
-std::vector<uint8_t> NGCHS2Sigma::buildChatLogFileRange(Contact3Handle c, uint64_t ts_start, uint64_t ts_end) {
+std::vector<uint8_t> NGCHS2Sigma::buildChatLogFileRange(ContactHandle4 c, uint64_t ts_start, uint64_t ts_end) {
 	const Message3Registry* reg_ptr = static_cast<const RegistryMessageModelI&>(_rmm).get(c);
 	if (reg_ptr == nullptr) {
 		return {};
@@ -305,11 +308,11 @@ std::vector<uint8_t> NGCHS2Sigma::buildChatLogFileRange(Contact3Handle c, uint64
 			continue;
 		}
 
-		if (!_cr.valid(c_from_c.c)) {
+		ContactHandle4 c_from = _cs.contactHandle(c_from_c.c);
+
+		if (!static_cast<bool>(c_from)) {
 			continue; // ???
 		}
-
-		Contact3Handle c_from{_cr, c_from_c.c};
 
 		if (!c_from.all_of<Contact::Components::ToxGroupPeerPersistent>()) {
 			continue; // ???

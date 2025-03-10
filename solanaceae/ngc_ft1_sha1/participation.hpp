@@ -1,8 +1,8 @@
 #pragma once
 
 #include <solanaceae/object_store/object_store.hpp>
-#include <solanaceae/contact/contact_model3.hpp>
+#include <solanaceae/contact/fwd.hpp>
 
-bool addParticipation(Contact3Handle c, ObjectHandle o);
-void removeParticipation(Contact3Handle c, ObjectHandle o);
+bool addParticipation(ContactHandle4 c, ObjectHandle o);
+void removeParticipation(ContactHandle4 c, ObjectHandle o);
 

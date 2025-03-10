@@ -3,6 +3,8 @@
 #include <solanaceae/util/utils.hpp>
 #include <solanaceae/util/time.hpp>
 
+#include <solanaceae/contact/contact_store_i.hpp>
+
 #include <solanaceae/contact/components.hpp>
 #include <solanaceae/tox_contacts/components.hpp>
 #include <solanaceae/message3/components.hpp>
@@ -90,6 +92,8 @@ std::optional<std::pair<uint32_t, uint32_t>> SHA1_NGCFT1::selectPeerForRequest(O
 	// get a list of peers we can request this file from
 	std::vector<std::pair<uint32_t, uint32_t>> tox_peers;
 
+	const auto& cr = _cs.registry();
+
 	// 1 in 20 chance to ask random peer instead
 	// also works well for empty SuspectedParticipants
 	if ((_rng()%20) == 0) {
@@ -102,17 +106,17 @@ std::optional<std::pair<uint32_t, uint32_t>> SHA1_NGCFT1::selectPeerForRequest(O
 		}
 
 		for (const auto& target : ce.get<Components::AnnounceTargets>().targets) {
-			for (const auto child : _cr.get<Contact::Components::ParentOf>(target).subs) {
-				if (const auto* cs = _cr.try_get<Contact::Components::ConnectionState>(child); cs == nullptr || cs->state == Contact::Components::ConnectionState::State::disconnected) {
+			for (const auto child : cr.get<Contact::Components::ParentOf>(target).subs) {
+				if (const auto* cs = cr.try_get<Contact::Components::ConnectionState>(child); cs == nullptr || cs->state == Contact::Components::ConnectionState::State::disconnected) {
 					continue;
 				}
 
-				if (_cr.all_of<Contact::Components::TagSelfStrong>(child)) {
+				if (cr.all_of<Contact::Components::TagSelfStrong>(child)) {
 					continue; // skip self
 				}
 
-				if (_cr.all_of<Contact::Components::ToxGroupPeerEphemeral>(child)) {
-					const auto& tgpe = _cr.get<Contact::Components::ToxGroupPeerEphemeral>(child);
+				if (cr.all_of<Contact::Components::ToxGroupPeerEphemeral>(child)) {
+					const auto& tgpe = cr.get<Contact::Components::ToxGroupPeerEphemeral>(child);
 					tox_peers.push_back({tgpe.group_number, tgpe.peer_number});
 				}
 			}
@@ -122,17 +126,17 @@ std::optional<std::pair<uint32_t, uint32_t>> SHA1_NGCFT1::selectPeerForRequest(O
 		for (const auto c : ce.get<Components::SuspectedParticipants>().participants) {
 			// TODO: sort by con state?
 			// prio to direct?
-			if (const auto* cs = _cr.try_get<Contact::Components::ConnectionState>(c); cs == nullptr || cs->state == Contact::Components::ConnectionState::State::disconnected) {
+			if (const auto* cs = cr.try_get<Contact::Components::ConnectionState>(c); cs == nullptr || cs->state == Contact::Components::ConnectionState::State::disconnected) {
 				continue;
 			}
 
-			if (_cr.all_of<Contact::Components::TagSelfStrong>(c)) {
+			if (cr.all_of<Contact::Components::TagSelfStrong>(c)) {
 				// FIXME: how did we select ourselfs to be a suspected participant
 				continue;
 			}
 
-			if (_cr.all_of<Contact::Components::ToxGroupPeerEphemeral>(c)) {
-				const auto& tgpe = _cr.get<Contact::Components::ToxGroupPeerEphemeral>(c);
+			if (cr.all_of<Contact::Components::ToxGroupPeerEphemeral>(c)) {
+				const auto& tgpe = cr.get<Contact::Components::ToxGroupPeerEphemeral>(c);
 				tox_peers.push_back({tgpe.group_number, tgpe.peer_number});
 			}
 		}
@@ -148,7 +152,7 @@ std::optional<std::pair<uint32_t, uint32_t>> SHA1_NGCFT1::selectPeerForRequest(O
 	return std::make_pair(group_number, peer_number);
 }
 
-void SHA1_NGCFT1::queueBitsetSendFull(Contact3Handle c, ObjectHandle o) {
+void SHA1_NGCFT1::queueBitsetSendFull(ContactHandle4 c, ObjectHandle o) {
 	if (!static_cast<bool>(c) || !static_cast<bool>(o)) {
 		assert(false);
 		return;
@@ -201,7 +205,7 @@ File2I* SHA1_NGCFT1::objGetFile2Read(ObjectHandle o) {
 
 SHA1_NGCFT1::SHA1_NGCFT1(
 	ObjectStore2& os,
-	Contact3Registry& cr,
+	ContactStore4I& cs,
 	RegistryMessageModelI& rmm,
 	NGCFT1& nft,
 	ToxContactModel2& tcm,
@@ -210,7 +214,7 @@ SHA1_NGCFT1::SHA1_NGCFT1(
 ) :
 	_os(os),
 	_os_sr(_os.newSubRef(this)),
-	_cr(cr),
+	_cs(cs),
 	_rmm(rmm),
 	_rmm_sr(_rmm.newSubRef(this)),
 	_nft(nft),
@@ -321,7 +325,7 @@ float SHA1_NGCFT1::iterate(float delta) {
 		}
 	}
 
-	Systems::re_announce(_os.registry(), _cr, _neep, delta);
+	Systems::re_announce(_os.registry(), _cs, _neep, delta);
 
 	{ // send out bitsets
 		// currently 1 per tick
@@ -455,7 +459,7 @@ float SHA1_NGCFT1::iterate(float delta) {
 	// new chunk picker code
 	// TODO: need to either split up or remove some things here
 	Systems::chunk_picker_updates(
-		_cr,
+		_cs,
 		_os.registry(),
 		_peer_open_requests,
 		_receiving_transfers,
@@ -476,7 +480,7 @@ float SHA1_NGCFT1::iterate(float delta) {
 }
 
 // gets called back on main thread after a "new" file info got built on a different thread
-void SHA1_NGCFT1::onSendFileHashFinished(ObjectHandle o, Message3Registry* reg_ptr, Contact3 c, uint64_t ts) {
+void SHA1_NGCFT1::onSendFileHashFinished(ObjectHandle o, Message3Registry* reg_ptr, Contact4 c, uint64_t ts) {
 	// sanity
 	if (!o.all_of<Components::FT1InfoSHA1, Components::FT1InfoSHA1Hash>()) {
 		assert(false);
@@ -505,7 +509,7 @@ void SHA1_NGCFT1::onSendFileHashFinished(ObjectHandle o, Message3Registry* reg_p
 	// something happend, update all chunk pickers
 	if (o.all_of<Components::SuspectedParticipants>()) {
 		for (const auto& pcv : o.get<Components::SuspectedParticipants>().participants) {
-			Contact3Handle pch{_cr, pcv};
+			ContactHandle4 pch = _cs.contactHandle(pcv);
 			assert(static_cast<bool>(pch));
 			pch.emplace_or_replace<ChunkPickerUpdateTag>();
 		}
@@ -514,9 +518,11 @@ void SHA1_NGCFT1::onSendFileHashFinished(ObjectHandle o, Message3Registry* reg_p
 	// in both cases, private and public, c (contact to) is the target
 	o.get_or_emplace<Components::AnnounceTargets>().targets.emplace(c);
 
+	const auto& cr = _cs.registry();
+
 	// create message
-	const auto c_self = _cr.get<Contact::Components::Self>(c).self;
-	if (!_cr.valid(c_self)) {
+	const auto c_self = cr.get<Contact::Components::Self>(c).self;
+	if (!cr.valid(c_self)) {
 		std::cerr << "SHA1_NGCFT1 error: failed to get self!\n";
 		return;
 	}
@@ -537,8 +543,8 @@ void SHA1_NGCFT1::onSendFileHashFinished(ObjectHandle o, Message3Registry* reg_p
 	// file id would be sha1_info hash or something
 	//reg_ptr->emplace<Message::Components::Transfer::FileID>(e, file_id);
 
-	if (_cr.any_of<Contact::Components::ToxGroupEphemeral>(c)) {
-		const uint32_t group_number = _cr.get<Contact::Components::ToxGroupEphemeral>(c).group_number;
+	if (cr.any_of<Contact::Components::ToxGroupEphemeral>(c)) {
+		const uint32_t group_number = cr.get<Contact::Components::ToxGroupEphemeral>(c).group_number;
 		uint32_t message_id = 0;
 
 		// TODO: check return
@@ -546,7 +552,7 @@ void SHA1_NGCFT1::onSendFileHashFinished(ObjectHandle o, Message3Registry* reg_p
 		reg_ptr->emplace<Message::Components::ToxGroupMessageID>(msg_e, message_id);
 	} else if (
 		// non online group
-		_cr.any_of<Contact::Components::ToxGroupPersistent>(c)
+		cr.any_of<Contact::Components::ToxGroupPersistent>(c)
 	) {
 		// create msg_id
 		const uint32_t message_id = randombytes_random();
@@ -584,8 +590,8 @@ ObjectHandle SHA1_NGCFT1::constructFileMessageInPlace(Message3Handle msg, NGCFT1
 	msg.emplace_or_replace<Message::Components::MessageFileObject>(o);
 
 	// TODO: use to_c instead?
-	if (const auto* from_c_comp = msg.try_get<Message::Components::ContactFrom>(); from_c_comp != nullptr && _cr.valid(from_c_comp->c)) {
-		Contact3Handle c{_cr, from_c_comp->c};
+	if (const auto* from_c_comp = msg.try_get<Message::Components::ContactFrom>(); from_c_comp != nullptr && _cs.registry().valid(from_c_comp->c)) {
+		ContactHandle4 c = _cs.contactHandle(from_c_comp->c);
 
 		// TODO: check if public
 		// since public
@@ -747,7 +753,7 @@ bool SHA1_NGCFT1::onEvent(const ObjectStore::Events::ObjectUpdate& e) {
 	if (e.e.all_of<Components::SuspectedParticipants>()) {
 		std::cout << "SHA1_NGCFT1: accepted ft has " << e.e.get<Components::SuspectedParticipants>().participants.size() << " sp\n";
 		for (const auto cv : e.e.get<Components::SuspectedParticipants>().participants) {
-			_cr.emplace_or_replace<ChunkPickerUpdateTag>(cv);
+			_cs.registry().emplace_or_replace<ChunkPickerUpdateTag>(cv);
 		}
 	} else {
 		std::cout << "accepted ft has NO sp!\n";
@@ -990,7 +996,7 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCFT1_recv_data& e) {
 			}
 		}
 
-		Contact3Handle c;
+		ContactHandle4 c;
 		const auto tpcc_it = _tox_peer_to_contact.find(combine_ids(e.group_number, e.peer_number));
 		if (tpcc_it != _tox_peer_to_contact.cend()) {
 			c = tpcc_it->second;
@@ -1057,7 +1063,7 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCFT1_send_data& e) {
 		// TODO: add event to propergate to messages
 		//_rmm.throwEventUpdate(transfer); // should we?
 
-		Contact3Handle c;
+		ContactHandle4 c;
 		const auto tpcc_it = _tox_peer_to_contact.find(combine_ids(e.group_number, e.peer_number));
 		if (tpcc_it != _tox_peer_to_contact.cend()) {
 			c = tpcc_it->second;
@@ -1202,14 +1208,16 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCFT1_recv_done& e) {
 					o.remove<ObjComp::F::LocalHaveBitset>(); // save space
 				}
 
+				const auto& cr = _cs.registry();
+
 				// queue chunk have for all participants
 				// HACK: send immediatly to all participants
 				for (const auto c_part : o.get<Components::SuspectedParticipants>().participants) {
-					if (!_cr.all_of<Contact::Components::ToxGroupPeerEphemeral>(c_part)) {
+					if (!cr.all_of<Contact::Components::ToxGroupPeerEphemeral>(c_part)) {
 						continue;
 					}
 
-					const auto [part_group_number, part_peer_number] = _cr.get<Contact::Components::ToxGroupPeerEphemeral>(c_part);
+					const auto [part_group_number, part_peer_number] = cr.get<Contact::Components::ToxGroupPeerEphemeral>(c_part);
 
 					const auto& info_hash = o.get<Components::FT1InfoSHA1Hash>().hash;
 
@@ -1350,10 +1358,10 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCFT1_recv_message& e) {
 	return true; // false?
 }
 
-bool SHA1_NGCFT1::sendFilePath(const Contact3 c, std::string_view file_name, std::string_view file_path) {
+bool SHA1_NGCFT1::sendFilePath(const Contact4 c, std::string_view file_name, std::string_view file_path) {
 	if (
 		// TODO: add support of offline queuing
-		!_cr.all_of<Contact::Components::ToxGroupEphemeral>(c)
+		!_cs.registry().all_of<Contact::Components::ToxGroupEphemeral>(c)
 	) {
 		return false;
 	}

@@ -1,5 +1,7 @@
 #include "./chunk_picker_systems.hpp"
 
+#include <solanaceae/contact/contact_store_i.hpp>
+
 #include <solanaceae/ngc_ft1/ngcft1_file_kind.hpp>
 
 #include "./components.hpp"
@@ -12,17 +14,19 @@
 namespace Systems {
 
 void chunk_picker_updates(
-	Contact3Registry& cr,
+	ContactStore4I& cs,
 	ObjectRegistry& os_reg,
-	const entt::dense_map<Contact3, size_t>& peer_open_requests,
+	const entt::dense_map<Contact4, size_t>& peer_open_requests,
 	const ReceivingTransfers& receiving_transfers,
 	NGCFT1& nft, // TODO: remove this somehow
 	const float delta
 ) {
-	std::vector<Contact3Handle> cp_to_remove;
+	std::vector<ContactHandle4> cp_to_remove;
+
+	auto& cr = cs.registry();
 
 	// first, update timers
-	cr.view<ChunkPickerTimer>().each([&cr, delta](const Contact3 cv, ChunkPickerTimer& cpt) {
+	cr.view<ChunkPickerTimer>().each([&cr, delta](const Contact4 cv, ChunkPickerTimer& cpt) {
 		cpt.timer -= delta;
 		if (cpt.timer <= 0.f) {
 			cr.emplace_or_replace<ChunkPickerUpdateTag>(cv);
@@ -33,8 +37,8 @@ void chunk_picker_updates(
 
 	// now check for potentially missing cp
 	auto cput_view = cr.view<ChunkPickerUpdateTag>();
-	cput_view.each([&cr, &cp_to_remove](const Contact3 cv) {
-		Contact3Handle c{cr, cv};
+	cput_view.each([&cr, &cp_to_remove](const Contact4 cv) {
+		ContactHandle4 c{cr, cv};
 
 		//std::cout << "cput :)\n";
 
@@ -52,8 +56,8 @@ void chunk_picker_updates(
 	});
 
 	// now update all cp that are tagged
-	cr.view<ChunkPicker, ChunkPickerUpdateTag>().each([&cr, &os_reg, &peer_open_requests, &receiving_transfers, &nft, &cp_to_remove](const Contact3 cv, ChunkPicker& cp) {
-		Contact3Handle c{cr, cv};
+	cr.view<ChunkPicker, ChunkPickerUpdateTag>().each([&cr, &os_reg, &peer_open_requests, &receiving_transfers, &nft, &cp_to_remove](const Contact4 cv, ChunkPicker& cp) {
+		ContactHandle4 c{cr, cv};
 
 		if (!c.all_of<Contact::Components::ToxGroupPeerEphemeral, Contact::Components::FT1Participation>()) {
 			cp_to_remove.push_back(c);

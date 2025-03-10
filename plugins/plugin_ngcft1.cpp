@@ -38,7 +38,7 @@ SOLANA_PLUGIN_EXPORT uint32_t solana_plugin_start(struct SolanaAPI* solana_api) 
 		auto* os = PLUG_RESOLVE_INSTANCE(ObjectStore2);
 		auto* tox_i = PLUG_RESOLVE_INSTANCE(ToxI);
 		auto* tox_event_provider_i = PLUG_RESOLVE_INSTANCE(ToxEventProviderI);
-		auto* cr = PLUG_RESOLVE_INSTANCE_VERSIONED(Contact3Registry, "1");
+		auto* cs = PLUG_RESOLVE_INSTANCE(ContactStore4I);
 		auto* rmm = PLUG_RESOLVE_INSTANCE(RegistryMessageModelI);
 		auto* tcm = PLUG_RESOLVE_INSTANCE(ToxContactModel2);
 
@@ -46,7 +46,7 @@ SOLANA_PLUGIN_EXPORT uint32_t solana_plugin_start(struct SolanaAPI* solana_api) 
 		// construct with fetched dependencies
 		g_ngcextep = std::make_unique<NGCEXTEventProvider>(*tox_i, *tox_event_provider_i);
 		g_ngcft1 = std::make_unique<NGCFT1>(*tox_i, *tox_event_provider_i, *g_ngcextep.get());
-		g_sha1_ngcft1 = std::make_unique<SHA1_NGCFT1>(*os, *cr, *rmm, *g_ngcft1.get(), *tcm, *tox_event_provider_i, *g_ngcextep.get());
+		g_sha1_ngcft1 = std::make_unique<SHA1_NGCFT1>(*os, *cs, *rmm, *g_ngcft1.get(), *tcm, *tox_event_provider_i, *g_ngcextep.get());
 
 		// register types
 		PLUG_PROVIDE_INSTANCE(NGCEXTEventProviderI, plugin_name, g_ngcextep.get());

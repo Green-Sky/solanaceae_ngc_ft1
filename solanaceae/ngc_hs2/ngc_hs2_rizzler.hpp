@@ -1,6 +1,6 @@
 #pragma once
 
-#include <solanaceae/contact/contact_model3.hpp>
+#include <solanaceae/contact/fwd.hpp>
 #include <solanaceae/toxcore/tox_event_interface.hpp>
 
 #include <solanaceae/ngc_ft1/ngcft1.hpp>
@@ -12,7 +12,7 @@ class RegistryMessageModelI;
 
 
 class NGCHS2Rizzler : public ToxEventI, public NGCFT1EventI {
-	Contact3Registry& _cr;
+	ContactStore4I& _cs;
 	RegistryMessageModelI& _rmm;
 	ToxContactModel2& _tcm;
 	NGCFT1& _nft;
@@ -34,15 +34,15 @@ class NGCHS2Rizzler : public ToxEventI, public NGCFT1EventI {
 	};
 	// request queue
 	// c -> delay, timer
-	std::map<Contact3, RequestQueueInfo> _request_queue;
+	std::map<Contact4, RequestQueueInfo> _request_queue;
 
 	// FIXME: workaround missing contact events
 	// only used on peer exit (no, also used to quicken lookups)
-	entt::dense_map<uint64_t, Contact3Handle> _tox_peer_to_contact;
+	entt::dense_map<uint64_t, ContactHandle4> _tox_peer_to_contact;
 
 	public:
 		NGCHS2Rizzler(
-			Contact3Registry& cr,
+			ContactStore4I& cs,
 			RegistryMessageModelI& rmm,
 			ToxContactModel2& tcm,
 			NGCFT1& nft,
@@ -60,7 +60,7 @@ class NGCHS2Rizzler : public ToxEventI, public NGCFT1EventI {
 			uint64_t ts_start, uint64_t ts_end
 		);
 
-		void handleMsgPack(Contact3Handle c, const std::vector<uint8_t>& data);
+		void handleMsgPack(ContactHandle4 c, const std::vector<uint8_t>& data);
 
 	protected:
 		bool onEvent(const Events::NGCFT1_recv_init&) override;

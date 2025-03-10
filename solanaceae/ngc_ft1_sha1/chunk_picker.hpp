@@ -1,6 +1,6 @@
 #pragma once
 
-#include <solanaceae/contact/contact_model3.hpp>
+#include <solanaceae/contact/fwd.hpp>
 #include <solanaceae/object_store/object_store.hpp>
 
 #include "./components.hpp"
@@ -50,7 +50,7 @@ struct ChunkPicker {
 	private: // TODO: properly sort
 	// updates participating_unfinished
 	void updateParticipation(
-		Contact3Handle c,
+		ContactHandle4 c,
 		ObjectRegistry& objreg
 	);
 	public:
@@ -66,7 +66,7 @@ struct ChunkPicker {
 	};
 	// returns list of chunks to request
 	[[nodiscard]] std::vector<ContentChunkR> updateChunkRequests(
-		Contact3Handle c,
+		ContactHandle4 c,
 		ObjectRegistry& objreg,
 		const ReceivingTransfers& rt,
 		const size_t open_requests

@@ -12,7 +12,7 @@ void transfer_tally_update(ObjectRegistry& os_reg, const float time_now) {
 	// for each tally -> stats separated
 	os_reg.view<Components::TransferStatsTally>().each([&os_reg, time_now, &tally_to_remove](const auto ov, Components::TransferStatsTally& tally_comp) {
 		// for each peer
-		std::vector<Contact3> to_remove;
+		std::vector<Contact4> to_remove;
 		for (auto&& [peer_c, peer] : tally_comp.tally) {
 			auto& tss = os_reg.get_or_emplace<Components::TransferStatsSeparated>(ov).stats;
 
