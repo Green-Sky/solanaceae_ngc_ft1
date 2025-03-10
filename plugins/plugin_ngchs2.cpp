@@ -1,5 +1,6 @@
 #include <solanaceae/plugin/solana_plugin_v1.h>
 
+#include <solanaceae/contact/contact_store_i.hpp>
 #include <solanaceae/tox_contacts/tox_contact_model2.hpp>
 
 #include <solanaceae/ngc_ft1/ngcft1.hpp>

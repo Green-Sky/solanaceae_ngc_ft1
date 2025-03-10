@@ -1,5 +1,7 @@
 #include <solanaceae/plugin/solana_plugin_v1.h>
 
+#include <solanaceae/contact/contact_store_i.hpp>
+
 #include <solanaceae/ngc_ext/ngcext.hpp>
 #include <solanaceae/ngc_ft1/ngcft1.hpp>
 #include <solanaceae/ngc_ft1_sha1/sha1_ngcft1.hpp>
