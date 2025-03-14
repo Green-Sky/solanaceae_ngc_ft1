@@ -19,7 +19,7 @@ struct SendingTransfers {
 		};
 
 		struct Chunk {
-			ObjectHandle content;
+			ObjectHandle o;
 			size_t chunk_index; // <.< remove offset_into_file
 			//uint64_t offset_into_file;
 			// or data?

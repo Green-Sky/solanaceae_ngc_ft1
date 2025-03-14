@@ -22,7 +22,7 @@ struct SHA1MappedFilesystem : public StorageBackendIMeta, public StorageBackendI
 
 	// pull from info builder queue
 	// call from main thread (os thread?) often
-	void tick(void);
+	void tick(float current_time);
 
 	ObjectHandle newObject(ByteSpan id, bool throw_construct = true) override;
 

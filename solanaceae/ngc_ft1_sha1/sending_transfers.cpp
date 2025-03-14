@@ -37,7 +37,7 @@ SendingTransfers::Entry& SendingTransfers::emplaceInfo(uint32_t group_number, ui
 }
 
 SendingTransfers::Entry& SendingTransfers::emplaceChunk(uint32_t group_number, uint32_t peer_number, uint8_t transfer_id, const Entry::Chunk& chunk) {
-	assert(!containsPeerChunk(group_number, peer_number, chunk.content, chunk.chunk_index));
+	assert(!containsPeerChunk(group_number, peer_number, chunk.o, chunk.chunk_index));
 	auto& ent = _data[combine_ids(group_number, peer_number)][transfer_id];
 	ent.v = chunk;
 	return ent;
@@ -60,7 +60,7 @@ bool SendingTransfers::containsChunk(ObjectHandle o, size_t chunk_idx) const {
 			}
 
 			const auto& c = v.getChunk();
-			if (c.content != o) {
+			if (c.o != o) {
 				continue;
 			}
 
@@ -85,7 +85,7 @@ bool SendingTransfers::containsPeerChunk(uint32_t group_number, uint32_t peer_nu
 		}
 
 		const auto& c = v.getChunk();
-		if (c.content != o) {
+		if (c.o != o) {
 			continue;
 		}
 

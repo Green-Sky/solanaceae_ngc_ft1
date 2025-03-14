@@ -22,7 +22,7 @@ namespace Backends {
 struct SHA1MappedFilesystem_InfoBuilderState {
 	std::atomic_bool info_builder_dirty {false};
 	std::mutex info_builder_queue_mutex;
-	using InfoBuilderEntry = std::function<void(void)>;
+	using InfoBuilderEntry = std::function<void(float)>;
 	std::list<InfoBuilderEntry> info_builder_queue;
 };
 
@@ -34,13 +34,13 @@ SHA1MappedFilesystem::SHA1MappedFilesystem(
 SHA1MappedFilesystem::~SHA1MappedFilesystem(void) {
 }
 
-void SHA1MappedFilesystem::tick(void) {
+void SHA1MappedFilesystem::tick(float current_time) {
 	if (_ibs->info_builder_dirty) {
 		std::lock_guard l{_ibs->info_builder_queue_mutex};
 		_ibs->info_builder_dirty = false; // set while holding lock
 
 		for (auto& it : _ibs->info_builder_queue) {
-			it();
+			it(current_time);
 		}
 		_ibs->info_builder_queue.clear();
 	}
@@ -72,7 +72,7 @@ void SHA1MappedFilesystem::newFromFile(std::string_view file_name, std::string_v
 		if (!file_impl->isGood()) {
 			{
 				std::lock_guard l{ibs->info_builder_queue_mutex};
-				ibs->info_builder_queue.push_back([file_path_](){
+				ibs->info_builder_queue.push_back([file_path_](float){
 					// back on iterate thread
 
 					std::cerr << "SHA1MF error: failed opening file '" << file_path_ << "'!\n";
@@ -120,7 +120,7 @@ void SHA1MappedFilesystem::newFromFile(std::string_view file_name, std::string_v
 			file_path_,
 			sha1_info = std::move(sha1_info),
 			cb = std::move(cb)
-		]() mutable { //
+		](float current_time) mutable { //
 			// executed on iterate thread
 
 			// reopen, cant move, since std::function needs to be copy consturctable (meh)
@@ -196,7 +196,7 @@ void SHA1MappedFilesystem::newFromFile(std::string_view file_name, std::string_v
 				o.emplace_or_replace<ObjComp::Ephemeral::FilePath>(file_path_); // ?
 			}
 
-			o.emplace_or_replace<Components::FT1File2>(std::move(file_impl));
+			o.emplace_or_replace<Components::FT1File2>(std::move(file_impl), current_time);
 
 			if (!o.all_of<ObjComp::Ephemeral::File::TransferStats>()) {
 				o.emplace<ObjComp::Ephemeral::File::TransferStats>();

@@ -30,6 +30,7 @@
 #include "./re_announce_systems.hpp"
 #include "./chunk_picker_systems.hpp"
 #include "./transfer_stats_systems.hpp"
+#include "./file_inactivity_system.hpp"
 
 #include <iostream>
 #include <filesystem>
@@ -177,10 +178,12 @@ File2I* SHA1_NGCFT1::objGetFile2Write(ObjectHandle o) {
 			std::cerr << "SHA1_NGCFT1 error: failed to open object for writing\n";
 			return nullptr; // early out
 		}
-		file2_comp_ptr = &o.emplace_or_replace<Components::FT1File2>(std::move(new_file));
+		file2_comp_ptr = &o.emplace_or_replace<Components::FT1File2>(std::move(new_file), getTimeNow());
 	}
 	assert(file2_comp_ptr != nullptr);
 	assert(static_cast<bool>(file2_comp_ptr->file));
+
+	file2_comp_ptr->last_activity_ts = getTimeNow();
 
 	return file2_comp_ptr->file.get();
 }
@@ -195,10 +198,12 @@ File2I* SHA1_NGCFT1::objGetFile2Read(ObjectHandle o) {
 			std::cerr << "SHA1_NGCFT1 error: failed to open object for reading\n";
 			return nullptr; // early out
 		}
-		file2_comp_ptr = &o.emplace_or_replace<Components::FT1File2>(std::move(new_file));
+		file2_comp_ptr = &o.emplace_or_replace<Components::FT1File2>(std::move(new_file), getTimeNow());
 	}
 	assert(file2_comp_ptr != nullptr);
 	assert(static_cast<bool>(file2_comp_ptr->file));
+
+	file2_comp_ptr->last_activity_ts = getTimeNow();
 
 	return file2_comp_ptr->file.get();
 }
@@ -259,7 +264,7 @@ SHA1_NGCFT1::SHA1_NGCFT1(
 }
 
 float SHA1_NGCFT1::iterate(float delta) {
-	_mfb.tick(); // does not need to be called as often, once every sec would be enough, but the pointer deref + atomic bool should be very fast
+	_mfb.tick(getTimeNow()); // does not need to be called as often, once every sec would be enough, but the pointer deref + atomic bool should be very fast
 
 	_peer_open_requests.clear();
 
@@ -466,6 +471,12 @@ float SHA1_NGCFT1::iterate(float delta) {
 		_nft,
 		delta
 	);
+
+	_file_inactivity_timer += delta;
+	if (_file_inactivity_timer >= 21.554f) {
+		_file_inactivity_timer = 0.f;
+		Systems::file_inactivity(_os.registry(), getTimeNow());
+	}
 
 	// transfer statistics systems
 	Systems::transfer_tally_update(_os.registry(), getTimeNow());
@@ -742,7 +753,7 @@ bool SHA1_NGCFT1::onEvent(const ObjectStore::Events::ObjectUpdate& e) {
 		}
 	}
 
-	e.e.emplace_or_replace<Components::FT1File2>(std::move(file_impl));
+	e.e.emplace_or_replace<Components::FT1File2>(std::move(file_impl), getTimeNow());
 
 	// queue announce that we are participating
 	e.e.get_or_emplace<Components::ReAnnounceTimer>(0.1f, 60.f*(_rng()%5120) / 1024.f).timer = (_rng()%512) / 1024.f;
@@ -1042,9 +1053,9 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCFT1_send_data& e) {
 		}
 	} else if (transfer.isChunk()) {
 		auto& chunk_transfer = transfer.getChunk();
-		const auto& info = chunk_transfer.content.get<Components::FT1InfoSHA1>();
+		const auto& info = chunk_transfer.o.get<Components::FT1InfoSHA1>();
 
-		auto* file2 = objGetFile2Read(chunk_transfer.content);
+		auto* file2 = objGetFile2Read(chunk_transfer.o);
 		if (file2 == nullptr) {
 			// return true?
 			return false; // early out
@@ -1074,7 +1085,7 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCFT1_send_data& e) {
 			}
 		}
 		if (static_cast<bool>(c)) {
-			chunk_transfer.content.get_or_emplace<Components::TransferStatsTally>()
+			chunk_transfer.o.get_or_emplace<Components::TransferStatsTally>()
 				.tally[c]
 				.recently_sent
 				.push_back(
@@ -1195,11 +1206,6 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCFT1_recv_done& e) {
 
 							o.emplace_or_replace<ObjComp::F::TagLocalHaveAll>();
 							std::cout << "SHA1_NGCFT1: got all chunks for \n" << info << "\n";
-
-							// HACK: close file2, to clear ram
-							// TODO: just add a lastActivity comp and close files every x minutes based on that
-							file2 = nullptr; // making sure we dont have a stale ptr
-							o.remove<Components::FT1File2>(); // will be recreated on demand
 							break;
 						}
 					}
@@ -1276,9 +1282,9 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCFT1_send_done& e) {
 
 	if (transfer.isChunk()) {
 		// we could cheat here and assume remote has chunk now
-		_os.throwEventUpdate(transfer.getChunk().content);
+		_os.throwEventUpdate(transfer.getChunk().o);
 
-		updateMessages(transfer.getChunk().content); // mostly for sent bytes
+		updateMessages(transfer.getChunk().o); // mostly for sent bytes
 	} // ignore info transfer for now
 
 	_sending_transfers.removePeerTransfer(e.group_number, e.peer_number, e.transfer_id);

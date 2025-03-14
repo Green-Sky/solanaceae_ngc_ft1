@@ -54,6 +54,9 @@ namespace Components {
 		// the cached file2 for faster access
 		// should be destroyed when no activity and recreated on demand
 		std::unique_ptr<File2I> file;
+
+		// set to current time on init, read, write
+		float last_activity_ts {0.f};
 	};
 
 	struct FT1ChunkSHA1Requested {

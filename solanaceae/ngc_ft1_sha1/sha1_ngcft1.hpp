@@ -88,6 +88,8 @@ class SHA1_NGCFT1 : public ToxEventI, public RegistryMessageModelEventI, public 
 	File2I* objGetFile2Write(ObjectHandle o);
 	File2I* objGetFile2Read(ObjectHandle o);
 
+	float _file_inactivity_timer {0.f};
+
 	public: // TODO: config
 		bool _udp_only {false};
 
