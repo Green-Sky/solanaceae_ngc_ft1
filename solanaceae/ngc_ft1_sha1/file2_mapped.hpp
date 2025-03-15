@@ -48,7 +48,8 @@ struct File2RWMapped : public File2I {
 		}
 	}
 
-	virtual ~File2RWMapped(void) override {}
+	virtual ~File2RWMapped(void) {
+	}
 
 	bool isGood(void) override {
 		return _file_map.is_mapped();
@@ -91,3 +92,55 @@ struct File2RWMapped : public File2I {
 	}
 };
 
+struct File2RMapped : public File2I {
+	mio::ummap_source _file_map;
+
+	File2RMapped(std::string_view file_path) : File2I(false, true) {
+		std::filesystem::path native_file_path{file_path};
+
+		if (!std::filesystem::exists(native_file_path)) {
+			std::cerr << "FileRMapped error: file does not exist\n";
+			return;
+		}
+
+		_file_size = std::filesystem::file_size(native_file_path);
+
+		std::error_code err;
+		_file_map.map(native_file_path.u8string(), err);
+
+		if (err) {
+			std::cerr << "FileRMapped error: mapping file failed: " << err.message() << " (" << err << ")\n";
+			return;
+		}
+
+		if (_file_size != _file_map.length()) {
+			std::cerr << "FileRMapped warning: file size and mapped file size mismatch.\n";
+			_file_size = _file_map.length();
+		}
+	}
+
+	virtual ~File2RMapped(void) {
+	}
+
+	bool isGood(void) override {
+		return _file_map.is_mapped();
+	}
+
+	bool write(const ByteSpan, int64_t = -1) override { return false; }
+
+	ByteSpanWithOwnership read(uint64_t size, int64_t pos = -1) override {
+		// TODO: support streaming read
+		if (pos < 0) {
+			assert(false && "streaming not implemented");
+			return ByteSpan{};
+		}
+
+		if (pos+size > _file_size) {
+			assert(false && "read past end");
+			return ByteSpan{};
+		}
+
+		// return non-owning
+		return ByteSpan{_file_map.data()+pos, size};
+	}
+};

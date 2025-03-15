@@ -68,7 +68,7 @@ void SHA1MappedFilesystem::newFromFile(std::string_view file_name, std::string_v
 		file_path_ = std::string(file_path)
 	]() mutable {
 		// 0. open and fail
-		std::unique_ptr<File2I> file_impl = construct_file2_rw_mapped(file_path_, -1);
+		std::unique_ptr<File2I> file_impl = construct_file2_r_mapped(file_path_);
 		if (!file_impl->isGood()) {
 			{
 				std::lock_guard l{ibs->info_builder_queue_mutex};
@@ -124,7 +124,8 @@ void SHA1MappedFilesystem::newFromFile(std::string_view file_name, std::string_v
 			// executed on iterate thread
 
 			// reopen, cant move, since std::function needs to be copy consturctable (meh)
-			std::unique_ptr<File2I> file_impl = construct_file2_rw_mapped(file_path_, sha1_info.file_size);
+			std::unique_ptr<File2I> file_impl = construct_file2_r_mapped(file_path_);
+			//std::unique_ptr<File2I> file_impl = construct_file2_rw_mapped(file_path_, sha1_info.file_size);
 			if (!file_impl->isGood()) {
 				std::cerr << "SHA1MF error: failed opening file '" << file_path_ << "'!\n";
 				return;
@@ -234,15 +235,22 @@ std::unique_ptr<File2I> SHA1MappedFilesystem::file2(Object ov, FILE2_FLAGS flags
 		return nullptr;
 	}
 
-	// TODO: read-only one too
 	// since they are mapped, is this efficent to have multiple?
-	auto res = construct_file2_rw_mapped(file_path, -1);
-	if (!res || !res->isGood()) {
-		std::cerr << "SHA1MF error: failed constructing mapped file '" << file_path << "'\n";
-		return nullptr;
+	if (flags & FILE2_WRITE) {
+		auto res = construct_file2_rw_mapped(file_path, -1);
+		if (!res || !res->isGood()) {
+			std::cerr << "SHA1MF error: failed constructing mapped RW file '" << file_path << "'\n";
+			return nullptr;
+		}
+		return res;
+	} else { // read
+		auto res = construct_file2_r_mapped(file_path);
+		if (!res || !res->isGood()) {
+			std::cerr << "SHA1MF error: failed constructing mapped R file '" << file_path << "'\n";
+			return nullptr;
+		}
+		return res;
 	}
-
-	return res;
 }
 
 } // Backends
