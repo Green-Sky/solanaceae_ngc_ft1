@@ -1206,6 +1206,10 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCFT1_recv_done& e) {
 
 							o.emplace_or_replace<ObjComp::F::TagLocalHaveAll>();
 							std::cout << "SHA1_NGCFT1: got all chunks for \n" << info << "\n";
+
+							// close file, as we likely no longer needs the write access we likely had
+							file2 = nullptr;
+							o.remove<Components::FT1File2>();
 							break;
 						}
 					}
