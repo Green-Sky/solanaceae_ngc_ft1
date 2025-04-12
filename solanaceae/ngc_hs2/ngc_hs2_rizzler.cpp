@@ -204,6 +204,12 @@ void NGCHS2Rizzler::handleMsgPack(ContactHandle4 sync_by_c, const std::vector<ui
 
 				ts *= 100; // convert to ms
 
+				const uint64_t max_future_ms = 1u*60u*1000u; // accept up to 1 minute into the future
+				if (ts - max_future_ms > now_ts) {
+					// message is too far into the future
+					continue;
+				}
+
 				const auto& j_ppk = j_entry.at("ppk");
 
 				uint32_t mid = j_entry.at("mid");
