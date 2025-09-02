@@ -33,7 +33,7 @@ void FlowOnly::updateWindow(void) {
 
 void FlowOnly::updateCongestion(void) {
 	updateWindow();
-	const auto tmp_window = getWindow();
+	const auto tmp_window = FlowOnly::getWindow();
 	// packet window * 0.3
 	// but atleast 4
 	int32_t max_consecutive_events = std::clamp<int32_t>(

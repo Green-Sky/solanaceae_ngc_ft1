@@ -52,7 +52,7 @@ struct FlowOnly : public CCAI {
 		float getCurrentDelay(void) const override;
 
 		// call updateWindow() to update this value
-		float getWindow(void) const override;
+		virtual float getWindow(void) const override;
 
 		void addRTT(float new_delay);
 

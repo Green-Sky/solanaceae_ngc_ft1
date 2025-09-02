@@ -246,6 +246,12 @@ void NGCHS2Rizzler::handleMsgPack(ContactHandle4 sync_by_c, const std::vector<ui
 						cr.emplace_or_replace<Contact::Components::Parent>(from_c, parent);
 
 						_cs.throwEventConstruct(from_c);
+					} else if (!cr.all_of<Contact::Components::Parent>(from_c)) {
+						std::cerr << "NGCHS2Rizzler warning: from contact missing parent, assuming and force constructing! find and fix the cause!\n";
+						// TODO: only if public message
+						// we require this for file messages
+						cr.emplace_or_replace<Contact::Components::Parent>(from_c, parent);
+						_cs.throwEventUpdate(from_c);
 					}
 				}
 

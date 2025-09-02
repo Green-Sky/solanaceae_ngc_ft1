@@ -29,9 +29,8 @@ struct CUBIC : public FlowOnly {
 
 		float getWindow(void) const override;
 
-		// TODO: api for how much data we should send
-		// take time since last sent into account
-		// respect max_byterate_allowed
+		// takes time since last sent into account
+		// respects max_byterate_allowed
 		int64_t canSend(float time_delta) override;
 };
 
