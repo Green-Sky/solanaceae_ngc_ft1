@@ -94,8 +94,7 @@ int64_t CUBIC::canSend(float time_delta) {
 
 	const auto window = getCWnD();
 	int64_t cspace_bytes = window - _in_flight_bytes;
-	if (cspace_bytes < MAXIMUM_SEGMENT_DATA_SIZE) {
-		//std::cerr << "CUBIC: cspace < seg size\n";
+	if (cspace_bytes < MAXIMUM_SEGMENT_SIZE) {
 		return 0u;
 	}
 
@@ -108,8 +107,9 @@ int64_t CUBIC::canSend(float time_delta) {
 	cspace_bytes = std::min<int64_t>(cspace_bytes, max_bytes_per_tick);
 
 	// limit to whole packets
-	int64_t cspace_pkgs = (cspace_bytes / MAXIMUM_SEGMENT_DATA_SIZE) * MAXIMUM_SEGMENT_DATA_SIZE;
+	int64_t cspace_pkgs = (cspace_bytes / MAXIMUM_SEGMENT_SIZE) * MAXIMUM_SEGMENT_SIZE;
 
+	//std::cerr << "CUBIC: space " << std::min(cspace_pkgs, fspace_pkgs) << "\n";
 	return std::min(cspace_pkgs, fspace_pkgs);
 }
 
