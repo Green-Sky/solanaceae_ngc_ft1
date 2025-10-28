@@ -172,6 +172,30 @@ void NGCFT1::updateSendTransfer(float time_delta, uint32_t group_number, uint32_
 }
 
 bool NGCFT1::iteratePeer(float time_delta, uint32_t group_number, uint32_t peer_number, Group::Peer& peer) {
+	bool recv_activity {false};
+	for (size_t idx = 0; idx < peer.recv_transfers.size(); idx++) {
+		if (!peer.recv_transfers.at(idx).has_value()) {
+			continue;
+		}
+
+		auto& transfer = peer.recv_transfers.at(idx).value();
+
+		// proper switch case?
+		if (transfer.state == Group::Peer::RecvTransfer::State::FINISHING) {
+			transfer.timer -= time_delta;
+			if (transfer.timer <= 0.f) {
+				peer.recv_transfers.at(idx).reset();
+			}
+			recv_activity = true; // count as activity, not sure we need this
+		} else {
+			transfer.timer += time_delta;
+			if (transfer.timer < 0.5f) {
+				// back off when no activity
+				recv_activity = true;
+			}
+		}
+	}
+
 	if (peer.cca) {
 		auto timeouts = peer.cca->getTimeouts();
 		std::set<CCAI::SeqIDType> timeouts_set{timeouts.cbegin(), timeouts.cend()};
@@ -198,30 +222,6 @@ bool NGCFT1::iteratePeer(float time_delta, uint32_t group_number, uint32_t peer_
 					last_send_found = true; // only set once
 				}
 				updateSendTransfer(time_delta, group_number, peer_number, peer, idx, timeouts_set, can_packet_size);
-			}
-		}
-	}
-
-	bool recv_activity {false};
-	for (size_t idx = 0; idx < peer.recv_transfers.size(); idx++) {
-		if (!peer.recv_transfers.at(idx).has_value()) {
-			continue;
-		}
-
-		auto& transfer = peer.recv_transfers.at(idx).value();
-
-		// proper switch case?
-		if (transfer.state == Group::Peer::RecvTransfer::State::FINISHING) {
-			transfer.timer -= time_delta;
-			if (transfer.timer <= 0.f) {
-				peer.recv_transfers.at(idx).reset();
-			}
-			recv_activity = true; // count as activity, not sure we need this
-		} else {
-			transfer.timer += time_delta;
-			if (transfer.timer < 0.5f) {
-				// back off when no activity
-				recv_activity = true;
 			}
 		}
 	}
@@ -275,7 +275,7 @@ float NGCFT1::iterate(float time_delta) {
 	bool transfer_activity {false};
 	for (auto& [group_number, group] : groups) {
 		for (auto& [peer_number, peer] : group.peers) {
-			transfer_activity = transfer_activity || iteratePeer(time_delta, group_number, peer_number, peer);
+			transfer_activity = iteratePeer(time_delta, group_number, peer_number, peer) || transfer_activity;
 
 #if 0
 			// find any active transfer
