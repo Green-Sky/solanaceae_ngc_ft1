@@ -49,7 +49,7 @@ void NGCFT1::updateSendTransfer(float time_delta, uint32_t group_number, uint32_
 		case State::FINISHING: // we still have unacked packets
 			tf.ssb.for_each(time_delta, [&](uint16_t id, const std::vector<uint8_t>& data, float& time_since_activity) {
 				if (timeouts_set.count({idx, id})) {
-					if (can_packet_size >= data.size()) {
+					if (can_packet_size >= int64_t(data.size())) {
 						_neep.send_ft1_data(group_number, peer_number, idx, id, data.data(), data.size());
 						peer.cca->onLoss({idx, id}, false);
 						time_since_activity = 0.f;
@@ -109,7 +109,7 @@ void NGCFT1::updateSendTransfer(float time_delta, uint32_t group_number, uint32_
 
 				// do resends
 				tf.ssb.for_each(time_delta, [&](uint16_t id, const std::vector<uint8_t>& data, float& time_since_activity) {
-					if (can_packet_size >= data.size() && time_since_activity >= peer.cca->getCurrentDelay() && timeouts_set.count({idx, id})) {
+					if (can_packet_size >= int64_t(data.size()) && time_since_activity >= peer.cca->getCurrentDelay() && timeouts_set.count({idx, id})) {
 						// TODO: can fail
 						_neep.send_ft1_data(group_number, peer_number, idx, id, data.data(), data.size());
 						peer.cca->onLoss({idx, id}, false);
