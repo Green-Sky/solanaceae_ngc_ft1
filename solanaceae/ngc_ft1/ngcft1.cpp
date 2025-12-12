@@ -153,8 +153,7 @@ void NGCFT1::updateSendTransfer(float time_delta, uint32_t group_number, uint32_
 						peer.cca->onSent({idx, seq_id}, chunk_size);
 					} else {
 						std::cerr << "NGCFT1: failed to send packet (queue full?) --------------\n";
-						peer.cca->onLoss({idx, seq_id}, false); // HACK: fake congestion event
-						// TODO: onCongestion
+						peer.cca->onCongestion();
 						can_packet_size = 0;
 					}
 
