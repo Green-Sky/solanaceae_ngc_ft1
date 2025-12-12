@@ -131,7 +131,7 @@ void LEDBAT::onAck(std::vector<SeqIDType> seqs) {
 	updateWindows();
 }
 
-void LEDBAT::onLoss(SeqIDType seq, bool discard) {
+bool LEDBAT::onLoss(SeqIDType seq, bool discard) {
 	auto it = std::find_if(_in_flight.begin(), _in_flight.end(), [seq](const auto& v) -> bool {
 		assert(!std::isnan(std::get<1>(v)));
 		return std::get<0>(v) == seq;
@@ -139,7 +139,7 @@ void LEDBAT::onLoss(SeqIDType seq, bool discard) {
 
 	if (it == _in_flight.end()) {
 		// error
-		return; // not found, ignore ??
+		return false; // not found, ignore ??
 	}
 
 	if (PLOTTING) {
@@ -165,6 +165,8 @@ void LEDBAT::onLoss(SeqIDType seq, bool discard) {
 #endif
 
 	updateWindows();
+
+	return true;
 }
 
 float LEDBAT::getCurrentDelay(void) const {
