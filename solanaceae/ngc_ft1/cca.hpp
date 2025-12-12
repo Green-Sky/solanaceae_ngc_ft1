@@ -70,5 +70,8 @@ struct CCAI {
 
 		// if discard, not resent, not inflight
 		virtual void onLoss(SeqIDType seq, bool discard) = 0;
+
+		// signal congestion externally (eg. send queue is full)
+		virtual void onCongestion(void) {};
 };
 

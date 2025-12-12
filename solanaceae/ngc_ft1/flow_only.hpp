@@ -58,8 +58,6 @@ struct FlowOnly : public CCAI {
 
 		void updateWindow(void);
 
-		virtual void onCongestion(void) {};
-
 		// internal logic, calls the onCongestion() event
 		void updateCongestion(void);
 
