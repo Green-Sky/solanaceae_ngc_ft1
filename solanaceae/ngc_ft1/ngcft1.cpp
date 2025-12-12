@@ -189,7 +189,7 @@ bool NGCFT1::iteratePeer(float time_delta, uint32_t group_number, uint32_t peer_
 			recv_activity = true; // count as activity, not sure we need this
 		} else {
 			transfer.timer += time_delta;
-			if (transfer.timer < 0.5f) {
+			if (transfer.timer < 2.f) {
 				// back off when no activity
 				recv_activity = true;
 			}
@@ -669,6 +669,7 @@ bool NGCFT1::onEvent(const Events::NGCEXT_ft1_data_ack& e) {
 	}
 
 	// delete if all packets acked
+	// TODO: check for FINISHING state?
 	if (transfer.file_size == transfer.file_size_current && transfer.ssb.size() == 0) {
 		std::cout << "NGCFT1: " << int(e.transfer_id) << " done. wnd:" << peer.cca->getWindow() << "\n";
 		dispatch(
@@ -678,7 +679,6 @@ bool NGCFT1::onEvent(const Events::NGCEXT_ft1_data_ack& e) {
 				e.transfer_id,
 			}
 		);
-		// TODO: check for FINISHING state
 		peer.send_transfers[e.transfer_id].reset();
 	}
 
