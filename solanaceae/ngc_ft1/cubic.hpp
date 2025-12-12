@@ -8,11 +8,10 @@ struct CUBIC : public FlowOnly {
 		static constexpr float SCALING_CONSTANT {0.4f};
 
 	private:
-		// window size before last reduciton
-		double _window_max {2.f * MAXIMUM_SEGMENT_SIZE}; // start with mss*2
-		//double _window_last_max {2.f * MAXIMUM_SEGMENT_SIZE};
+		// window size before last reduction
+		double _window_max {double(MAXIMUM_SEGMENT_SIZE)}; // start with mss
 
-		double _time_since_reduction {12.f}; // warm start
+		double _time_since_reduction {28.f}; // warm start
 
 	private:
 		void updateReductionTimer(float time_delta);
