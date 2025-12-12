@@ -27,7 +27,10 @@ struct FlowOnly : public CCAI {
 			float timestamp;
 			size_t bytes;
 
-			// set to true if counted as ce or resent due to timeout
+			// unset if it does not count torwards _in_flight_bytes
+			bool accounted {true};
+
+			// set if counted as ce or resent due to timeout
 			bool ignore {false};
 		};
 		std::vector<FlyingBunch> _in_flight;
@@ -58,8 +61,6 @@ struct FlowOnly : public CCAI {
 
 		void updateWindow(void);
 
-		virtual void onCongestion(void) {};
-
 		// internal logic, calls the onCongestion() event
 		void updateCongestion(void);
 
@@ -73,7 +74,7 @@ struct FlowOnly : public CCAI {
 		int64_t canSend(float time_delta) override;
 
 		// get the list of timed out seq_ids
-		std::vector<SeqIDType> getTimeouts(void) const override;
+		std::vector<SeqIDType> getTimeouts(void) override;
 
 		int64_t inFlightCount(void) const override;
 		int64_t inFlightBytes(void) const override;
@@ -85,6 +86,6 @@ struct FlowOnly : public CCAI {
 		void onAck(std::vector<SeqIDType> seqs) override;
 
 		// if discard, not resent, not inflight
-		void onLoss(SeqIDType seq, bool discard) override;
+		bool onLoss(SeqIDType seq, bool discard) override;
 };
 

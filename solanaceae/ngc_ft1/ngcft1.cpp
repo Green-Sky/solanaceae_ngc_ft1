@@ -15,7 +15,52 @@
 #include <cassert>
 #include <vector>
 
-void NGCFT1::updateSendTransfer(float time_delta, uint32_t group_number, uint32_t peer_number, Group::Peer& peer, size_t idx, std::set<CCAI::SeqIDType>& timeouts_set, int64_t& can_packet_size) {
+void NGCFT1::resendSendTransfer(float time_delta, uint32_t group_number, uint32_t peer_number, Group::Peer& peer, size_t idx, std::set<CCAI::SeqIDType>& timeouts_set, int64_t& can_packet_size) {
+	using State = Group::Peer::SendTransfer::State;
+	auto& tf_opt = peer.send_transfers.at(idx);
+	assert(tf_opt.has_value());
+	auto& tf = tf_opt.value();
+
+	tf.ssb.for_each(time_delta, [&](uint16_t id, const std::vector<uint8_t>& data, float& time_since_activity) {
+		time_since_activity += time_delta;
+
+		if (tf.state != State::FINISHING && tf.state != State::SENDING) {
+			return;
+		}
+
+		if (
+			time_since_activity >= peer.cca->getCurrentDelay()*20 || // TODO: reset
+			timeouts_set.count({idx, id})
+		) {
+			if (can_packet_size >= int64_t(data.size() /*+ peer.cca->SEGMENT_OVERHEAD*/)) {
+				if (_neep.send_ft1_data(group_number, peer_number, idx, id, data.data(), data.size())) {
+					if (!peer.cca->onLoss({idx, id}, false)) { // might not be in cca
+						peer.cca->onSent({idx, id}, data.size() /*+ peer.cca->SEGMENT_OVERHEAD*/);
+					}
+
+					time_since_activity = 0.f;
+					timeouts_set.erase({idx, id});
+					can_packet_size -= data.size() /*+ peer.cca->SEGMENT_OVERHEAD*/;
+
+					return; // succ
+				} else {
+					std::cerr << "NGCFT1 warning: failed to re-send packet (send queue full?)\n";
+				}
+			} else {
+#if 0
+				std::cerr << "NGCFT1 warning: no space to resend timed-out\n";
+#endif
+			}
+
+			// did not fit into send buffer, discard so it no longer counts as bytes in transit
+			//peer.cca->onLoss({idx, id}, true);
+			//time_since_activity = 0.f; // TODO: maybe not?
+			timeouts_set.erase({idx, id}); // treat it handled this tick
+		}
+	});
+}
+
+void NGCFT1::updateSendTransfer(float time_delta, uint32_t group_number, uint32_t peer_number, Group::Peer& peer, size_t idx, int64_t& can_packet_size) {
 	auto& tf_opt = peer.send_transfers.at(idx);
 	assert(tf_opt.has_value());
 	auto& tf = tf_opt.value();
@@ -47,21 +92,6 @@ void NGCFT1::updateSendTransfer(float time_delta, uint32_t group_number, uint32_
 			}
 			break;
 		case State::FINISHING: // we still have unacked packets
-			tf.ssb.for_each(time_delta, [&](uint16_t id, const std::vector<uint8_t>& data, float& time_since_activity) {
-				if (timeouts_set.count({idx, id})) {
-					if (can_packet_size >= int64_t(data.size())) {
-						_neep.send_ft1_data(group_number, peer_number, idx, id, data.data(), data.size());
-						peer.cca->onLoss({idx, id}, false);
-						time_since_activity = 0.f;
-						timeouts_set.erase({idx, id});
-						can_packet_size -= data.size();
-					} else {
-#if 0 // too spammy
-						std::cerr << "NGCFT1 warning: no space to resend timedout\n";
-#endif
-					}
-				}
-			});
 			if (tf.time_since_activity >= (sending_give_up_after * peer.active_send_transfers)) {
 				// no ack after 30sec, close ft
 				std::cerr << "NGCFT1 warning: sending ft finishing timed out, deleting\n";
@@ -76,91 +106,77 @@ void NGCFT1::updateSendTransfer(float time_delta, uint32_t group_number, uint32_
 				// clean up cca
 				tf.ssb.for_each(time_delta, [&](uint16_t id, const std::vector<uint8_t>& data, float& time_since_activity) {
 					peer.cca->onLoss({idx, id}, true);
-					timeouts_set.erase({idx, id});
+					//timeouts_set.erase({idx, id});
 				});
 
 				tf_opt.reset();
 			}
 			break;
-		case State::SENDING: {
-				// first handle overall timeout (could otherwise do resends directly before, which is useless)
-				// timeout increases with active transfers (otherwise we could starve them)
-				if (tf.time_since_activity >= (sending_give_up_after * peer.active_send_transfers)) {
-					// no ack after 30sec, close ft
-					std::cerr << "NGCFT1 warning: sending ft in progress timed out, deleting (ifc:" << peer.cca->inFlightCount() << ")\n";
-					dispatch(
-						NGCFT1_Event::send_done,
-						Events::NGCFT1_send_done{
-							group_number, peer_number,
-							static_cast<uint8_t>(idx),
-						}
-					);
-
-					// clean up cca
-					tf.ssb.for_each(time_delta, [&](uint16_t id, const std::vector<uint8_t>& data, float& time_since_activity) {
-						peer.cca->onLoss({idx, id}, true);
-						timeouts_set.erase({idx, id});
-					});
-
-					tf_opt.reset();
-					//continue; // dangerous control flow
-					return;
-				}
-
-				// do resends
-				tf.ssb.for_each(time_delta, [&](uint16_t id, const std::vector<uint8_t>& data, float& time_since_activity) {
-					if (can_packet_size >= int64_t(data.size()) && time_since_activity >= peer.cca->getCurrentDelay() && timeouts_set.count({idx, id})) {
-						// TODO: can fail
-						_neep.send_ft1_data(group_number, peer_number, idx, id, data.data(), data.size());
-						peer.cca->onLoss({idx, id}, false);
-						time_since_activity = 0.f;
-						timeouts_set.erase({idx, id});
-						can_packet_size -= data.size();
+		case State::SENDING:
+			// TODO: first handle overall timeout (could otherwise do resends directly before, which is useless)
+			// timeout increases with active transfers (otherwise we could starve them)
+			if (tf.time_since_activity >= (sending_give_up_after * peer.active_send_transfers)) {
+				// no ack after 30sec, close ft
+				std::cerr << "NGCFT1 warning: sending ft in progress timed out, deleting (ifc:" << peer.cca->inFlightCount() << ")\n";
+				dispatch(
+					NGCFT1_Event::send_done,
+					Events::NGCFT1_send_done{
+						group_number, peer_number,
+						static_cast<uint8_t>(idx),
 					}
+				);
+
+				// clean up cca
+				tf.ssb.for_each(time_delta, [&](uint16_t id, const std::vector<uint8_t>& data, float& time_since_activity) {
+					peer.cca->onLoss({idx, id}, true);
+					//timeouts_set.erase({idx, id});
 				});
 
-				// if chunks in flight < window size (2)
-				while (can_packet_size > 0 && tf.file_size > 0) {
-					std::vector<uint8_t> new_data;
+				tf_opt.reset();
+				break;
+			}
 
-					size_t chunk_size = std::min<size_t>({
-						peer.cca->MAXIMUM_SEGMENT_DATA_SIZE,
-						static_cast<size_t>(can_packet_size),
-						static_cast<size_t>(tf.file_size - tf.file_size_current),
-					});
-					if (chunk_size == 0) {
-						tf.state = State::FINISHING;
-						break; // we done
-					}
 
-					new_data.resize(chunk_size);
+			// if chunks in flight < window size (2)
+			while (can_packet_size > 0 /*int64_t(peer.cca->SEGMENT_OVERHEAD)*/ && tf.file_size > 0) {
+				std::vector<uint8_t> new_data;
 
-					assert(idx <= 0xffu);
-					// TODO: check return value
-					dispatch(
-						NGCFT1_Event::send_data,
-						Events::NGCFT1_send_data{
-							group_number, peer_number,
-							static_cast<uint8_t>(idx),
-							tf.file_size_current,
-							new_data.data(), static_cast<uint32_t>(new_data.size()),
-						}
-					);
-
-					uint16_t seq_id = tf.ssb.add(std::move(new_data));
-					const bool sent = _neep.send_ft1_data(group_number, peer_number, idx, seq_id, tf.ssb.entries.at(seq_id).data.data(), tf.ssb.entries.at(seq_id).data.size());
-					if (sent) {
-						peer.cca->onSent({idx, seq_id}, chunk_size);
-					} else {
-						std::cerr << "NGCFT1: failed to send packet (queue full?) --------------\n";
-						peer.cca->onLoss({idx, seq_id}, false); // HACK: fake congestion event
-						// TODO: onCongestion
-						can_packet_size = 0;
-					}
-
-					tf.file_size_current += chunk_size;
-					can_packet_size -= chunk_size;
+				size_t chunk_size = std::min<size_t>({
+					peer.cca->MAXIMUM_SEGMENT_DATA_SIZE,
+					static_cast<size_t>(can_packet_size /*- peer.cca->SEGMENT_OVERHEAD*/),
+					static_cast<size_t>(tf.file_size - tf.file_size_current),
+				});
+				if (chunk_size == 0) {
+					tf.state = State::FINISHING;
+					break; // we done
 				}
+
+				new_data.resize(chunk_size);
+
+				assert(idx <= 0xffu);
+				// TODO: check return value
+				dispatch(
+					NGCFT1_Event::send_data,
+					Events::NGCFT1_send_data{
+						group_number, peer_number,
+						static_cast<uint8_t>(idx),
+						tf.file_size_current,
+						new_data.data(), static_cast<uint32_t>(new_data.size()),
+					}
+				);
+
+				uint16_t seq_id = tf.ssb.add(std::move(new_data));
+				const bool sent = _neep.send_ft1_data(group_number, peer_number, idx, seq_id, tf.ssb.entries.at(seq_id).data.data(), tf.ssb.entries.at(seq_id).data.size());
+				if (sent) {
+					peer.cca->onSent({idx, seq_id}, chunk_size);
+				} else {
+					std::cerr << "NGCFT1 warn: failed to send packet (send queue full?)\n";
+					peer.cca->onCongestion();
+					can_packet_size = 0;
+				}
+
+				tf.file_size_current += chunk_size;
+				can_packet_size -= chunk_size /*+ peer.cca->SEGMENT_OVERHEAD*/;
 			}
 			break;
 		default: // invalid state, delete
@@ -189,7 +205,7 @@ bool NGCFT1::iteratePeer(float time_delta, uint32_t group_number, uint32_t peer_
 			recv_activity = true; // count as activity, not sure we need this
 		} else {
 			transfer.timer += time_delta;
-			if (transfer.timer < 0.5f) {
+			if (transfer.timer < 2.f) {
 				// back off when no activity
 				recv_activity = true;
 			}
@@ -202,26 +218,34 @@ bool NGCFT1::iteratePeer(float time_delta, uint32_t group_number, uint32_t peer_
 
 		int64_t can_packet_size {peer.cca->canSend(time_delta)}; // might get more space while iterating (time)
 
-		// get number current running transfers TODO: improve
+		// resend and get number current running transfers
 		peer.active_send_transfers = 0;
-		for (const auto& it : peer.send_transfers) {
-			if (it.has_value()) {
-				peer.active_send_transfers++;
+		for (size_t idx = 0; idx < peer.send_transfers.size(); idx++) {
+			if (!peer.send_transfers.at(idx).has_value()) {
+				continue;
 			}
+			peer.active_send_transfers++;
+
+
+			// TODO: rename to update
+			resendSendTransfer(time_delta, group_number, peer_number, peer, idx, timeouts_set, can_packet_size);
 		}
 
-		// change iterate start position to not starve transfers in the back
-		size_t iterated_count = 0;
-		bool last_send_found = false;
-		for (size_t idx = peer.next_send_transfer_send_idx; iterated_count < peer.send_transfers.size(); idx++, iterated_count++) {
-			idx = idx % peer.send_transfers.size();
+		if (can_packet_size > 0) {
+			// change iterate start position to not starve transfers in the back
+			size_t iterated_count = 0;
+			bool last_send_found = false;
+			for (size_t idx = peer.next_send_transfer_send_idx; iterated_count < peer.send_transfers.size(); idx++, iterated_count++) {
+				idx = idx % peer.send_transfers.size();
 
-			if (peer.send_transfers.at(idx).has_value()) {
-				if (!last_send_found && can_packet_size <= 0) {
-					peer.next_send_transfer_send_idx = idx;
-					last_send_found = true; // only set once
+				if (peer.send_transfers.at(idx).has_value()) {
+					if (!last_send_found && can_packet_size <= 0) {
+						peer.next_send_transfer_send_idx = idx;
+						last_send_found = true; // only set once
+					}
+					// TODO: rename to send (or phase2?)
+					updateSendTransfer(time_delta, group_number, peer_number, peer, idx, can_packet_size);
 				}
-				updateSendTransfer(time_delta, group_number, peer_number, peer, idx, timeouts_set, can_packet_size);
 			}
 		}
 	}
@@ -669,6 +693,7 @@ bool NGCFT1::onEvent(const Events::NGCEXT_ft1_data_ack& e) {
 	}
 
 	// delete if all packets acked
+	// TODO: check for FINISHING state?
 	if (transfer.file_size == transfer.file_size_current && transfer.ssb.size() == 0) {
 		std::cout << "NGCFT1: " << int(e.transfer_id) << " done. wnd:" << peer.cca->getWindow() << "\n";
 		dispatch(
@@ -678,7 +703,6 @@ bool NGCFT1::onEvent(const Events::NGCEXT_ft1_data_ack& e) {
 				e.transfer_id,
 			}
 		);
-		// TODO: check for FINISHING state
 		peer.send_transfers[e.transfer_id].reset();
 	}
 

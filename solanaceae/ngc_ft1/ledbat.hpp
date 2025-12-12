@@ -63,7 +63,7 @@ struct LEDBAT : public CCAI {
 		int64_t canSend(float time_delta) override;
 
 		// get the list of timed out seq_ids
-		std::vector<SeqIDType> getTimeouts(void) const override;
+		std::vector<SeqIDType> getTimeouts(void) override;
 
 	public: // callbacks
 		// data size is without overhead
@@ -72,7 +72,7 @@ struct LEDBAT : public CCAI {
 		void onAck(std::vector<SeqIDType> seqs) override;
 
 		// if discard, not resent, not inflight
-		void onLoss(SeqIDType seq, bool discard) override;
+		bool onLoss(SeqIDType seq, bool discard) override;
 
 	private:
 		using clock = std::chrono::steady_clock;

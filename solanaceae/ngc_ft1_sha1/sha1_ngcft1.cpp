@@ -611,6 +611,7 @@ ObjectHandle SHA1_NGCFT1::constructFileMessageInPlace(Message3Handle msg, NGCFT1
 			o.get_or_emplace<Components::AnnounceTargets>().targets.emplace(c.get<Contact::Components::Parent>().parent);
 		} else {
 			std::cerr << "SHA1_NGCFT1 warning: from contact has no parent, cant add to AnnounceTargets\n";
+			assert(false && "how did you get here?");
 		}
 		// TODO: if private, add c directly
 	}
