@@ -47,7 +47,7 @@ int64_t LEDBAT::canSend(float time_delta) {
 	return std::ceil(std::min<float>(cspace, fspace) / MAXIMUM_SEGMENT_DATA_SIZE) * MAXIMUM_SEGMENT_DATA_SIZE;
 }
 
-std::vector<LEDBAT::SeqIDType> LEDBAT::getTimeouts(void) const {
+std::vector<LEDBAT::SeqIDType> LEDBAT::getTimeouts(void) {
 	std::vector<LEDBAT::SeqIDType> list;
 
 	// after 2 delays we trigger timeout

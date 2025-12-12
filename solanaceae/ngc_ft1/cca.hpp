@@ -53,7 +53,7 @@ struct CCAI {
 		virtual int64_t canSend(float time_delta) = 0;
 
 		// get the list of timed out seq_ids
-		virtual std::vector<SeqIDType> getTimeouts(void) const = 0;
+		virtual std::vector<SeqIDType> getTimeouts(void) = 0;
 
 		// returns -1 if not implemented, can return 0
 		virtual int64_t inFlightCount(void) const { return -1; }

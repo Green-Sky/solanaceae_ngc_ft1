@@ -63,7 +63,7 @@ struct LEDBAT : public CCAI {
 		int64_t canSend(float time_delta) override;
 
 		// get the list of timed out seq_ids
-		std::vector<SeqIDType> getTimeouts(void) const override;
+		std::vector<SeqIDType> getTimeouts(void) override;
 
 	public: // callbacks
 		// data size is without overhead

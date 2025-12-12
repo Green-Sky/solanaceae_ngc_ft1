@@ -86,15 +86,21 @@ int64_t FlowOnly::canSend(float time_delta) {
 	return (fspace / MAXIMUM_SEGMENT_DATA_SIZE) * MAXIMUM_SEGMENT_DATA_SIZE;
 }
 
-std::vector<FlowOnly::SeqIDType> FlowOnly::getTimeouts(void) const {
+std::vector<FlowOnly::SeqIDType> FlowOnly::getTimeouts(void) {
 	std::vector<SeqIDType> list;
 	list.reserve(_in_flight.size()/3); // we dont know, so we just guess
 
 	// after 3 rtt delay, we trigger timeout
 	const auto now_adjusted = getTimeNow() - getCurrentDelay()*3.f;
 
-	for (const auto& [seq, time_stamp, size, _] : _in_flight) {
+	for (auto& [seq, time_stamp, size, acc, _] : _in_flight) {
 		if (now_adjusted > time_stamp) {
+			// make it so timed out packets no longer count as in-flight
+			if (acc) {
+				acc = false;
+				_in_flight_bytes -= size;
+				assert(_in_flight_bytes >= 0);
+			}
 			list.push_back(seq);
 		}
 	}
@@ -115,7 +121,9 @@ void FlowOnly::onSent(SeqIDType seq, size_t data_size) {
 		size_t sum {0u};
 		for (const auto& it : _in_flight) {
 			assert(it.id != seq);
-			sum += it.bytes;
+			if (it.accounted) {
+				sum += it.bytes;
+			}
 		}
 		assert(_in_flight_bytes == sum);
 	}
@@ -125,6 +133,7 @@ void FlowOnly::onSent(SeqIDType seq, size_t data_size) {
 			seq,
 			static_cast<float>(getTimeNow()),
 			data_size + SEGMENT_OVERHEAD,
+			true,
 			false
 		}
 	);
@@ -184,8 +193,10 @@ void FlowOnly::onAck(std::vector<SeqIDType> seqs) {
 			continue; // not found, ignore
 		} else {
 			//most_recent = std::max(most_recent, std::get<1>(*it));
-			_in_flight_bytes -= it->bytes;
-			assert(_in_flight_bytes >= 0);
+			if (it->accounted) {
+				_in_flight_bytes -= it->bytes;
+				assert(_in_flight_bytes >= 0);
+			}
 			//_recently_acked_data += std::get<2>(*it);
 			_in_flight.erase(it);
 		}
@@ -207,9 +218,14 @@ void FlowOnly::onLoss(SeqIDType seq, bool discard) {
 
 	// "if data lost is not to be retransmitted"
 	if (discard) {
-		_in_flight_bytes -= it->bytes;
-		assert(_in_flight_bytes >= 0);
+		if (it->accounted) {
+			_in_flight_bytes -= it->bytes;
+			assert(_in_flight_bytes >= 0);
+		}
 		_in_flight.erase(it);
+		if (_in_flight.empty()) {
+			assert(_in_flight_bytes == 0);
+		}
 	} else {
 		// and not take into rtt
 		it->timestamp = getTimeNow();
