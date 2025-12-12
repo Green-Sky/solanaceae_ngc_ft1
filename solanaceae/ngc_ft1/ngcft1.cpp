@@ -62,7 +62,7 @@ void NGCFT1::updateSendTransfer(float time_delta, uint32_t group_number, uint32_
 					}
 				}
 			});
-			if (tf.time_since_activity >= sending_give_up_after) {
+			if (tf.time_since_activity >= (sending_give_up_after * peer.active_send_transfers)) {
 				// no ack after 30sec, close ft
 				std::cerr << "NGCFT1 warning: sending ft finishing timed out, deleting\n";
 				dispatch(
