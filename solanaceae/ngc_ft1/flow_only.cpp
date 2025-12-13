@@ -211,15 +211,18 @@ void FlowOnly::onAck(std::vector<SeqIDType> seqs) {
 	}
 }
 
-void FlowOnly::onLoss(SeqIDType seq, bool discard) {
+bool FlowOnly::onLoss(SeqIDType seq, bool discard) {
 	auto it = std::find_if(_in_flight.begin(), _in_flight.end(), [seq](const auto& v) -> bool {
 		assert(!std::isnan(v.timestamp));
 		return v.id == seq;
 	});
 
+	// we care about it still being there, when we do not discard
 	if (it == _in_flight.end()) {
-		// error
-		return; // not found, ignore ??
+		if (!discard) {
+			std::cerr << "FLOW seq not found!\n";
+		}
+		return false; // not found, ignore ??
 	}
 
 	//std::cerr << "FLOW loss\n";
@@ -249,5 +252,7 @@ void FlowOnly::onLoss(SeqIDType seq, bool discard) {
 		// this is usually a safe indicator for congestion/maxed connection
 		onCongestion();
 	}
+
+	return true;
 }
 

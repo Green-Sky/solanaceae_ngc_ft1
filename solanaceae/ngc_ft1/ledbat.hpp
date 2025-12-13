@@ -72,7 +72,7 @@ struct LEDBAT : public CCAI {
 		void onAck(std::vector<SeqIDType> seqs) override;
 
 		// if discard, not resent, not inflight
-		void onLoss(SeqIDType seq, bool discard) override;
+		bool onLoss(SeqIDType seq, bool discard) override;
 
 	private:
 		using clock = std::chrono::steady_clock;

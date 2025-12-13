@@ -69,7 +69,8 @@ struct CCAI {
 		virtual void onAck(std::vector<SeqIDType> seqs) = 0;
 
 		// if discard, not resent, not inflight
-		virtual void onLoss(SeqIDType seq, bool discard) = 0;
+		// return if found
+		virtual bool onLoss(SeqIDType seq, bool discard) = 0;
 
 		// signal congestion externally (eg. send queue is full)
 		virtual void onCongestion(void) {};
