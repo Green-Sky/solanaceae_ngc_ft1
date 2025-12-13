@@ -26,7 +26,6 @@ struct SendSequenceBuffer {
 	template<typename FN>
 	void for_each(float time_delta, FN&& fn) {
 		for (auto& [id, entry] : entries) {
-			entry.time_since_activity += time_delta;
 			fn(id, entry.data, entry.time_since_activity);
 		}
 	}

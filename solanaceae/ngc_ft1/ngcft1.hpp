@@ -209,7 +209,11 @@ class NGCFT1 : public ToxEventI, public NGCEXTEventI, public NGCFT1EventProvider
 	std::map<uint32_t, Group> groups;
 
 	protected:
-		void updateSendTransfer(float time_delta, uint32_t group_number, uint32_t peer_number, Group::Peer& peer, size_t idx, std::set<CCAI::SeqIDType>& timeouts_set, int64_t& can_packet_size);
+		// general update with timeouts and resending
+		void updateSendTransferPhase1(float time_delta, uint32_t group_number, uint32_t peer_number, Group::Peer& peer, size_t idx, std::set<CCAI::SeqIDType>& timeouts_set, int64_t& can_packet_size);
+		// does sending new data
+		void updateSendTransferPhase2(float time_delta, uint32_t group_number, uint32_t peer_number, Group::Peer& peer, size_t idx, int64_t& can_packet_size);
+
 		bool iteratePeer(float time_delta, uint32_t group_number, uint32_t peer_number, Group::Peer& peer);
 
 		const CCAI* getPeerCCA(uint32_t group_number, uint32_t peer_number) const;
