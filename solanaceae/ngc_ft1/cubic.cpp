@@ -102,6 +102,8 @@ int64_t CUBIC::canSend(float time_delta) {
 	// this is mostly to prevent spikes on empty windows
 	const auto rate = window / getCurrentDelay();
 
+	// TODO: time slicing alla flow
+
 	// we dont want this limit to fall below atleast 1 segment
 	const int64_t max_bytes_per_tick = std::max<int64_t>(rate * time_delta + 0.5f, MAXIMUM_SEGMENT_SIZE);
 	cspace_bytes = std::min<int64_t>(cspace_bytes, max_bytes_per_tick);

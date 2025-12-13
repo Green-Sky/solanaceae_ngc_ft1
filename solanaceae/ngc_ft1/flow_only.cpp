@@ -80,7 +80,15 @@ int64_t FlowOnly::canSend(float time_delta) {
 
 	// also limit to max sendrate per tick, which is usually smaller than window
 	// this is mostly to prevent spikes on empty windows
-	fspace = std::min<int64_t>(fspace, max_byterate_allowed * time_delta + 0.5f);
+	fspace = std::min<int64_t>({
+		fspace,
+
+		// slice window into time time_delta sized chunks and only allow 1.5 chunks sized per tick
+		int64_t((1.5f * _fwnd) / time_delta + 0.5f),
+
+		// similar, but without current delay in the equation (fallback)
+		int64_t(1.2f * max_byterate_allowed * time_delta + 0.5f),
+	});
 
 	// limit to whole packets
 	return (fspace / MAXIMUM_SEGMENT_DATA_SIZE) * MAXIMUM_SEGMENT_DATA_SIZE;
