@@ -170,7 +170,7 @@ void FlowOnly::onAck(std::vector<SeqIDType> seqs) {
 			// find first non ignore, it should be the expected
 			auto first_it = std::find_if_not(_in_flight.cbegin(), _in_flight.cend(), [](const auto& v) -> bool { return v.ignore; });
 
-			if (first_it != _in_flight.cend() && it != first_it) {
+			if (first_it != _in_flight.cend() && it != first_it && !it->ignore) {
 				// not next expected seq -> skip detected
 
 				_consecutive_events++;
