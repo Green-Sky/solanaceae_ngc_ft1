@@ -168,13 +168,15 @@ void FlowOnly::onAck(std::vector<SeqIDType> seqs) {
 		});
 		if (it != _in_flight.end() && !it->ignore) {
 			// find first non ignore, it should be the expected
-			auto first_it = std::find_if_not(_in_flight.cbegin(), _in_flight.cend(), [](const auto& v) -> bool { return v.ignore; });
+			auto first_it = std::find_if_not(_in_flight.begin(), _in_flight.end(), [](const auto& v) -> bool { return v.ignore; });
 
-			if (first_it != _in_flight.cend() && it != first_it && !it->ignore) {
+			if (first_it != _in_flight.cend() && it != first_it && !first_it->ignore) {
 				// not next expected seq -> skip detected
 
 				_consecutive_events++;
-				it->ignore = true; // only handle once
+				// only handle once
+				it->ignore = true;
+				first_it->ignore = true;
 
 				updateCongestion();
 			} else {
