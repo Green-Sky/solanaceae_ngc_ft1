@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.8)
+cmake_minimum_required(VERSION 3.18...3.24)
 
 project(sha1 LANGUAGES C)
 
