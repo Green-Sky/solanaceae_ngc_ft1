@@ -3,7 +3,7 @@
 #include "./contact_components.hpp"
 #include "./chunk_picker.hpp"
 
-#include <iostream>
+//#include <iostream>
 
 bool addParticipation(ContactHandle4 c, ObjectHandle o) {
 	bool was_new {false};

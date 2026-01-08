@@ -517,14 +517,22 @@ void SHA1_NGCFT1::onSendFileHashFinished(ObjectHandle o, Message3Registry* reg_p
 	// TODO: we dont want chunks anymore
 	// TODO: make sure to abort every receiving transfer (sending info and chunk should be fine, info uses copy and chunk handle)
 
-	// something happend, update all chunk pickers
+	// queue a send bitset (have all) to all participants
 	if (o.all_of<Components::SuspectedParticipants>()) {
-		for (const auto& pcv : o.get<Components::SuspectedParticipants>().participants) {
-			ContactHandle4 pch = _cs.contactHandle(pcv);
-			assert(static_cast<bool>(pch));
-			pch.emplace_or_replace<ChunkPickerUpdateTag>();
+		for (const auto cv : o.get<Components::SuspectedParticipants>().participants) {
+			queueBitsetSendFull(_cs.contactHandle(cv), o);
 		}
 	}
+
+	// something happend, update all chunk pickers
+	// wtf why, we now have the full file, no? why update the receiving
+	//if (o.all_of<Components::SuspectedParticipants>()) {
+	//    for (const auto& pcv : o.get<Components::SuspectedParticipants>().participants) {
+	//        ContactHandle4 pch = _cs.contactHandle(pcv);
+	//        assert(static_cast<bool>(pch));
+	//        pch.emplace_or_replace<ChunkPickerUpdateTag>();
+	//    }
+	//}
 
 	// in both cases, private and public, c (contact to) is the target
 	o.get_or_emplace<Components::AnnounceTargets>().targets.emplace(c);
