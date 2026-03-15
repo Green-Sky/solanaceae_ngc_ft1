@@ -84,6 +84,9 @@ add_library(solanaceae_sha1_ngcft1
 	./solanaceae/ngc_ft1_sha1/participation.hpp
 	./solanaceae/ngc_ft1_sha1/participation.cpp
 
+	./solanaceae/ngc_ft1_sha1/contact_components_to_string.hpp
+	./solanaceae/ngc_ft1_sha1/contact_components_to_string.cpp
+
 	./solanaceae/ngc_ft1_sha1/file_inactivity_system.hpp
 	./solanaceae/ngc_ft1_sha1/file_inactivity_system.cpp
 

@@ -5,6 +5,7 @@
 #include <solanaceae/ngc_ext/ngcext.hpp>
 #include <solanaceae/ngc_ft1/ngcft1.hpp>
 #include <solanaceae/ngc_ft1_sha1/sha1_ngcft1.hpp>
+#include <solanaceae/ngc_ft1_sha1/contact_components_to_string.hpp>
 
 #include <entt/entt.hpp>
 #include <entt/fwd.hpp>
@@ -16,6 +17,7 @@ static std::unique_ptr<NGCEXTEventProvider> g_ngcextep = nullptr;
 // TODO: make sep plug
 static std::unique_ptr<NGCFT1> g_ngcft1 = nullptr;
 static std::unique_ptr<SHA1_NGCFT1> g_sha1_ngcft1 = nullptr;
+static ContactStore4I* g_cs_ptr = nullptr;
 
 constexpr const char* plugin_name = "NGCEXT";
 
@@ -40,7 +42,7 @@ SOLANA_PLUGIN_EXPORT uint32_t solana_plugin_start(struct SolanaAPI* solana_api) 
 		auto* os = PLUG_RESOLVE_INSTANCE(ObjectStore2);
 		auto* tox_i = PLUG_RESOLVE_INSTANCE(ToxI);
 		auto* tox_event_provider_i = PLUG_RESOLVE_INSTANCE(ToxEventProviderI);
-		auto* cs = PLUG_RESOLVE_INSTANCE(ContactStore4I);
+		g_cs_ptr = PLUG_RESOLVE_INSTANCE(ContactStore4I);
 		auto* rmm = PLUG_RESOLVE_INSTANCE(RegistryMessageModelI);
 		auto* tcm = PLUG_RESOLVE_INSTANCE(ToxContactModel2);
 
@@ -48,7 +50,7 @@ SOLANA_PLUGIN_EXPORT uint32_t solana_plugin_start(struct SolanaAPI* solana_api) 
 		// construct with fetched dependencies
 		g_ngcextep = std::make_unique<NGCEXTEventProvider>(*tox_i, *tox_event_provider_i);
 		g_ngcft1 = std::make_unique<NGCFT1>(*tox_i, *tox_event_provider_i, *g_ngcextep.get());
-		g_sha1_ngcft1 = std::make_unique<SHA1_NGCFT1>(*os, *cs, *rmm, *g_ngcft1.get(), *tcm, *tox_event_provider_i, *g_ngcextep.get());
+		g_sha1_ngcft1 = std::make_unique<SHA1_NGCFT1>(*os, *g_cs_ptr, *rmm, *g_ngcft1.get(), *tcm, *tox_event_provider_i, *g_ngcextep.get());
 
 		// register types
 		PLUG_PROVIDE_INSTANCE(NGCEXTEventProviderI, plugin_name, g_ngcextep.get());
@@ -57,6 +59,8 @@ SOLANA_PLUGIN_EXPORT uint32_t solana_plugin_start(struct SolanaAPI* solana_api) 
 		PLUG_PROVIDE_INSTANCE(NGCFT1, plugin_name, g_ngcft1.get());
 
 		PLUG_PROVIDE_INSTANCE(SHA1_NGCFT1, plugin_name, g_sha1_ngcft1.get());
+
+		Contact::registerNGCFT1SHA1Components2Str(*g_cs_ptr);
 	} catch (const ResolveException& e) {
 		std::cerr << "PLUGIN " << plugin_name << " " << e.what << "\n";
 		return 2;
@@ -67,6 +71,8 @@ SOLANA_PLUGIN_EXPORT uint32_t solana_plugin_start(struct SolanaAPI* solana_api) 
 
 SOLANA_PLUGIN_EXPORT void solana_plugin_stop(void) {
 	std::cout << "PLUGIN " << plugin_name << " STOP()\n";
+
+	Contact::unregisterNGCFT1SHA1Components2Str(*g_cs_ptr);
 
 	g_sha1_ngcft1.reset();
 	g_ngcft1.reset();
