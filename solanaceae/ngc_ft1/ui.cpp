@@ -139,7 +139,7 @@ void NGCFT1UI::renderTabGroup(ContactHandle4 c) {
 					cca->inFlightCount(),
 					cca->getCurrentDelay(),
 					cca->getWindow(),
-					(cca->getWindow()/cca->getCurrentDelay())/1024/2 // rtt is double the time
+					(cca->getWindow()/cca->getCurrentDelay())/1024
 				);
 				ImGui::Unindent();
 			}
