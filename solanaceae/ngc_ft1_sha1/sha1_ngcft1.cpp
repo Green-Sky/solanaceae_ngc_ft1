@@ -650,7 +650,9 @@ ObjectHandle SHA1_NGCFT1::constructFileMessageInPlace(Message3Handle msg, NGCFT1
 		}
 	}
 
+	_object_update_lock = true;
 	_os.throwEventUpdate(o);
+	_object_update_lock = false;
 
 	return o;
 }
