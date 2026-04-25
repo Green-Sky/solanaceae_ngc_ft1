@@ -4,8 +4,11 @@
 
 #include <solanaceae/ngc_ext/ngcext.hpp>
 #include <solanaceae/ngc_ft1/ngcft1.hpp>
+#include <solanaceae/ngc_ft1/ui.hpp>
 #include <solanaceae/ngc_ft1_sha1/sha1_ngcft1.hpp>
 #include <solanaceae/ngc_ft1_sha1/contact_components_to_string.hpp>
+
+#include <imgui.h>
 
 #include <entt/entt.hpp>
 #include <entt/fwd.hpp>
@@ -16,6 +19,7 @@
 static std::unique_ptr<NGCEXTEventProvider> g_ngcextep = nullptr;
 // TODO: make sep plug
 static std::unique_ptr<NGCFT1> g_ngcft1 = nullptr;
+static std::unique_ptr<NGCFT1UI> g_ngcft1ui = nullptr;
 static std::unique_ptr<SHA1_NGCFT1> g_sha1_ngcft1 = nullptr;
 static ContactStore4I* g_cs_ptr = nullptr;
 
@@ -61,6 +65,22 @@ SOLANA_PLUGIN_EXPORT uint32_t solana_plugin_start(struct SolanaAPI* solana_api) 
 		PLUG_PROVIDE_INSTANCE(SHA1_NGCFT1, plugin_name, g_sha1_ngcft1.get());
 
 		Contact::registerNGCFT1SHA1Components2Str(*g_cs_ptr);
+
+		// optinally add imgui
+
+		auto* imguic = PLUG_RESOLVE_INSTANCE_VERSIONED_OPT(ImGuiContext, ImGui::GetVersion());
+		auto* imguimemaf = PLUG_RESOLVE_INSTANCE_VERSIONED_OPT(ImGuiMemAllocFunc, ImGui::GetVersion());
+		auto* imguimemff = PLUG_RESOLVE_INSTANCE_VERSIONED_OPT(ImGuiMemFreeFunc, ImGui::GetVersion());
+		// meh
+		auto* imguimemud = plug_resolveInstanceOptional<void*>(solana_api, "ImGuiMemUserData", ImGui::GetVersion());
+
+		if (imguic != nullptr && imguimemaf != nullptr && imguimemff != nullptr) {
+			ImGui::SetCurrentContext(imguic);
+			ImGui::SetAllocatorFunctions(imguimemaf, imguimemff, imguimemud);
+
+			g_ngcft1ui = std::make_unique<NGCFT1UI>(*g_ngcft1, *g_cs_ptr, *tcm);
+			std::cout << "PLUGIN " << plugin_name << " ngcft1 ui loaded\n";
+		}
 	} catch (const ResolveException& e) {
 		std::cerr << "PLUGIN " << plugin_name << " " << e.what << "\n";
 		return 2;
@@ -75,6 +95,7 @@ SOLANA_PLUGIN_EXPORT void solana_plugin_stop(void) {
 	Contact::unregisterNGCFT1SHA1Components2Str(*g_cs_ptr);
 
 	g_sha1_ngcft1.reset();
+	g_ngcft1ui.reset();
 	g_ngcft1.reset();
 	g_ngcextep.reset();
 }
@@ -83,6 +104,13 @@ SOLANA_PLUGIN_EXPORT float solana_plugin_tick(float delta) {
 	const float ft_interval = g_ngcft1->iterate(delta);
 	const float sha_interval = g_sha1_ngcft1->iterate(delta);
 	return std::min<float>(ft_interval, sha_interval);
+}
+
+SOLANA_PLUGIN_EXPORT float solana_plugin_render(float delta) {
+	if (g_ngcft1ui) {
+		g_ngcft1ui->render(delta);
+	}
+	return std::numeric_limits<float>::max();
 }
 
 } // extern C

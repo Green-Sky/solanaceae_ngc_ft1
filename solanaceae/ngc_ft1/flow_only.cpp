@@ -248,9 +248,7 @@ bool FlowOnly::onLoss(SeqIDType seq, bool discard) {
 	// usually after data arrived out-of-order/duplicate
 	if (!it->ignore) {
 		it->ignore = true; // only handle once
-		//_consecutive_events++;
 
-		//updateCongestion();
 		// this is usually a safe indicator for congestion/maxed connection
 		onCongestion();
 	}

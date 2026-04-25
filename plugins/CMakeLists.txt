@@ -14,6 +14,7 @@ target_link_libraries(plugin_ngcft1 PUBLIC
 	solanaceae_plugin
 	solanaceae_ngcext
 	solanaceae_ngcft1
+	solanaceae_ngcft1_imgui
 	solanaceae_sha1_ngcft1
 )
 

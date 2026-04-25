@@ -130,6 +130,7 @@ struct NGCFT1EventI {
 using NGCFT1EventProviderI = EventProviderI<NGCFT1EventI>;
 
 class NGCFT1 : public ToxEventI, public NGCEXTEventI, public NGCFT1EventProviderI {
+	friend class NGCFT1UI;
 	ToxI& _t;
 	ToxEventProviderI& _tep;
 	ToxEventProviderI::SubscriptionReference _tep_sr;

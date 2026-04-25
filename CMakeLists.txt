@@ -55,6 +55,20 @@ target_link_libraries(solanaceae_ngcft1 PUBLIC
 
 ########################################
 
+add_library(solanaceae_ngcft1_imgui
+	./solanaceae/ngc_ft1/ui.hpp
+	./solanaceae/ngc_ft1/ui.cpp
+)
+target_include_directories(solanaceae_ngcft1_imgui PUBLIC .)
+target_compile_features(solanaceae_ngcft1_imgui PUBLIC cxx_std_17)
+target_link_libraries(solanaceae_ngcft1_imgui PUBLIC
+	solanaceae_ngcft1
+	solanaceae_tox_contacts
+	imgui
+)
+
+########################################
+
 add_library(solanaceae_sha1_ngcft1
 	# hacky deps
 	./solanaceae/ngc_ft1_sha1/mio.hpp
