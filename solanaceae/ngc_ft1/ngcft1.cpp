@@ -46,7 +46,7 @@ void NGCFT1::updateSendTransferPhase1(float time_delta, uint32_t group_number, u
 		}
 		return;
 	} else if (tf.state == State::FINISHING || tf.state == State::SENDING) {
-		// timeout increases with active transfers (otherwise we could starve them)
+		// timeout increases with active transfers (otherwise we can starve them)
 		if (tf.time_since_activity >= (sending_give_up_after * peer.active_send_transfers)) {
 			// no ack after Xsec, close ft
 			if (tf.state == State::FINISHING) {
@@ -572,6 +572,9 @@ bool NGCFT1::onEvent(const Events::NGCEXT_ft1_data& e) {
 
 	auto& transfer = peer.recv_transfers[e.transfer_id].value();
 	transfer.timer = 0.f;
+	if (transfer.state == Group::Peer::RecvTransfer::State::INITED) {
+		transfer.state = Group::Peer::RecvTransfer::State::RECV;
+	}
 
 	// do reassembly, ignore dups
 	transfer.rsb.add(e.sequence_id, std::vector<uint8_t>(e.data)); // TODO: ugly explicit copy for what should just be a move
