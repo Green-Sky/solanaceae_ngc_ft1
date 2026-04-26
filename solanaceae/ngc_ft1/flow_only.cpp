@@ -98,8 +98,8 @@ std::vector<FlowOnly::SeqIDType> FlowOnly::getTimeouts(void) {
 	std::vector<SeqIDType> list;
 	list.reserve(_in_flight.size()/3); // we dont know, so we just guess
 
-	// after 3 rtt delay, we trigger timeout
-	const auto now_adjusted = getTimeNow() - getCurrentDelay()*3.f;
+	// after 2.5 rtt delay, we trigger timeout
+	const auto now_adjusted = getTimeNow() - getCurrentDelay()*2.5f;
 
 	for (auto& [seq, time_stamp, size, acc, _] : _in_flight) {
 		if (now_adjusted > time_stamp) {
@@ -208,7 +208,7 @@ void FlowOnly::onAck(std::vector<SeqIDType> seqs) {
 				assert(_in_flight_bytes >= 0);
 			}
 			//_recently_acked_data += std::get<2>(*it);
-			_in_flight.erase(it);
+			_in_flight.erase(it); // TODO: bundle using remove
 		}
 	}
 }
@@ -239,10 +239,10 @@ bool FlowOnly::onLoss(SeqIDType seq, bool discard) {
 		if (_in_flight.empty()) {
 			assert(_in_flight_bytes == 0);
 		}
+		return true;
 	} else {
 		// and not take into rtt
 		it->timestamp = getTimeNow();
-		it->ignore = true;
 	}
 
 	// usually after data arrived out-of-order/duplicate

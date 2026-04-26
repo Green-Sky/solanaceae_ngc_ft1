@@ -91,7 +91,6 @@ void NGCFT1UI::renderTabGroup(ContactHandle4 c) {
 
 				const bool color_red = transfer.timer > 1.5f && transfer.state != NGCFT1::Group::Peer::RecvTransfer::State::FINISHING;
 				const bool color_yellow = transfer.state == NGCFT1::Group::Peer::RecvTransfer::State::FINISHING;
-
 				if (color_red) {
 					ImGui::PushStyleColor(ImGuiCol_Text, {1.f, 0.5f, 0.5f, 1.f});
 				} else if (color_yellow) {
@@ -130,18 +129,15 @@ void NGCFT1UI::renderTabGroup(ContactHandle4 c) {
 
 			const auto* cca = peer.cca.get();
 			if (cca) {
-				ImGui::TextUnformatted("cca:");
-				ImGui::Indent();
 				// TODO: human readable bytes
 				// TODO: graphs
-				ImGui::Text("iFB: %ld iFC: %ld delay: %.3f window: %.1f w/d: %.3fKiB/s",
+				ImGui::Text("cca: iFB: %ld iFC: %ld delay: %.3f window: %.1f w/d: %.3fKiB/s",
 					cca->inFlightBytes(),
 					cca->inFlightCount(),
 					cca->getCurrentDelay(),
 					cca->getWindow(),
 					(cca->getWindow()/cca->getCurrentDelay())/1024
 				);
-				ImGui::Unindent();
 			}
 
 			ImGui::Text("transfers:");
@@ -153,6 +149,14 @@ void NGCFT1UI::renderTabGroup(ContactHandle4 c) {
 				}
 				const auto& transfer = transfer_opt.value();
 
+				const bool color_red = transfer.time_since_activity > 1.5f && transfer.state != NGCFT1::Group::Peer::SendTransfer::State::FINISHING;
+				const bool color_yellow = transfer.state == NGCFT1::Group::Peer::SendTransfer::State::FINISHING;
+				if (color_red) {
+					ImGui::PushStyleColor(ImGuiCol_Text, {1.f, 0.5f, 0.5f, 1.f});
+				} else if (color_yellow) {
+					ImGui::PushStyleColor(ImGuiCol_Text, {1.f, 1.0f, 0.5f, 1.f});
+				}
+
 				ImGui::Text("%zu %s kind:%u (%lu/%lu Bytes) t:%.3f",
 					i,
 					transfer.state == NGCFT1::Group::Peer::SendTransfer::State::INIT_SENT ? "INIT_SENT" : (transfer.state == NGCFT1::Group::Peer::SendTransfer::State::SENDING ? "SENDING" : "FINISHING"),
@@ -161,6 +165,10 @@ void NGCFT1UI::renderTabGroup(ContactHandle4 c) {
 					transfer.file_size,
 					transfer.time_since_activity
 				);
+
+				if (color_red || color_yellow) {
+					ImGui::PopStyleColor();
+				}
 			}
 			ImGui::Unindent();
 

@@ -72,40 +72,43 @@ void NGCFT1::updateSendTransferPhase1(float time_delta, uint32_t group_number, u
 		return;
 	}
 
+	if (tf.state == State::INIT_SENT) {
+		return;
+	}
+
 	// do send buffer and resending
 	tf.ssb.for_each(time_delta, [&](uint16_t id, const std::vector<uint8_t>& data, float& time_since_activity) {
 		time_since_activity += time_delta;
 
-		if (tf.state != State::FINISHING && tf.state != State::SENDING) {
-			return;
-		}
-
 		if (
-			time_since_activity >= peer.cca->getCurrentDelay() && // TODO: use OR instead?
+			//time_since_activity >= peer.cca->getCurrentDelay() && // TODO: use OR instead?
 			timeouts_set.count({idx, id})
 		) {
-			if (can_packet_size >= int64_t(data.size() /*+ peer.cca->SEGMENT_OVERHEAD*/)) {
-				if (_neep.send_ft1_data(group_number, peer_number, idx, id, data.data(), data.size())) {
-					if (!peer.cca->onLoss({idx, id}, false)) { // might not be in cca
-						peer.cca->onSent({idx, id}, data.size());
-					}
+			timeouts_set.erase({idx, id});
 
-					time_since_activity = 0.f;
-					can_packet_size -= data.size();
-				} else {
-					std::cerr << "NGCFT1 warning: failed to re-send packet (send queue full?)\n";
-
-					// signal ce (we did not call onLoss()
-					peer.cca->onCongestion();
-					can_packet_size = 0;
-				}
+			if (can_packet_size < int64_t(data.size() /*+ peer.cca->SEGMENT_OVERHEAD*/)) {
+				return;
 #if 0
 			} else {
 				std::cerr << "NGCFT1 warning: no space to resend timed-out\n";
 #endif
 			}
 
-			timeouts_set.erase({idx, id});
+			if (_neep.send_ft1_data(group_number, peer_number, idx, id, data.data(), data.size())) {
+				// !!! has to be in cca when in timeouts_set
+				if (!peer.cca->onLoss({idx, id}, false)) { // might not be in cca
+					peer.cca->onSent({idx, id}, data.size());
+				}
+
+				time_since_activity = 0.f;
+				can_packet_size -= data.size();
+			} else {
+				std::cerr << "NGCFT1 warning: failed to re-send packet (send queue full?)\n";
+
+				// signal ce (we did not call onLoss()
+				peer.cca->onCongestion();
+				can_packet_size = 0;
+			}
 		}
 	});
 }
