@@ -98,8 +98,8 @@ std::vector<FlowOnly::SeqIDType> FlowOnly::getTimeouts(void) {
 	std::vector<SeqIDType> list;
 	list.reserve(_in_flight.size()/3); // we dont know, so we just guess
 
-	// after 2.5 rtt delay, we trigger timeout
-	const auto now_adjusted = getTimeNow() - getCurrentDelay()*2.5f;
+	// after 4 rtt delay, we trigger timeout
+	const auto now_adjusted = getTimeNow() - getCurrentDelay()*4.f;
 
 	for (auto& [seq, time_stamp, size, acc, _] : _in_flight) {
 		if (now_adjusted > time_stamp) {
