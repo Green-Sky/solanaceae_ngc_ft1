@@ -13,13 +13,21 @@ float FlowOnly::getCurrentDelay(void) const {
 }
 
 void FlowOnly::addRTT(float new_delay) {
+	// TODO: move to slowstart, once we have that
+	if (!_first_rtt_received) {
+		_rtt_ema = new_delay;
+		_first_rtt_received = true;
+		std::cerr << "!!!!!!!!!!!!!!!!!!\n!!! inital rtt set to " << new_delay << "\n!!!!!!!!!!!!\n";
+	}
+
+	float ema_alpha = RTT_EMA_ALPHA;
 	if (new_delay > _rtt_ema * RTT_UP_MAX) {
-		// too large a jump up, to be taken into account
-		return;
+		// too large a jump up, lower weight
+		ema_alpha *= 0.1f;
 	}
 
 	// lerp(new_delay, rtt_ema, 0.1)
-	_rtt_ema = RTT_EMA_ALPHA * new_delay + (1.f - RTT_EMA_ALPHA) * _rtt_ema;
+	_rtt_ema = ema_alpha * new_delay + (1.f - ema_alpha) * _rtt_ema;
 }
 
 void FlowOnly::updateWindow(void) {
