@@ -68,12 +68,8 @@ void NGCFT1::updateSendTransferPhase1(float time_delta, uint32_t group_number, u
 			});
 
 			tf_opt.reset();
+			return;
 		}
-		return;
-	}
-
-	if (tf.state == State::INIT_SENT) {
-		return;
 	}
 
 	// do send buffer and resending
@@ -159,6 +155,7 @@ void NGCFT1::updateSendTransferPhase2(float time_delta, uint32_t group_number, u
 			std::cerr << "NGCFT1 warn: failed to send packet (send queue full?)\n";
 			peer.cca->onCongestion();
 			can_packet_size = 0;
+			break;
 		}
 
 		tf.file_size_current += chunk_size;
