@@ -17,7 +17,7 @@ void FlowOnly::addRTT(float new_delay) {
 	if (!_first_rtt_received) {
 		_rtt_ema = new_delay;
 		_first_rtt_received = true;
-		std::cerr << "!!!!!!!!!!!!!!!!!!\n!!! inital rtt set to " << new_delay << "\n!!!!!!!!!!!!\n";
+		//std::cerr << "!!!!!!!!!!!!!!!!!!\n!!! inital rtt set to " << new_delay << "\n!!!!!!!!!!!!\n";
 	}
 
 	float ema_alpha = RTT_EMA_ALPHA;

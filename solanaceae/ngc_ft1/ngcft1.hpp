@@ -259,7 +259,7 @@ class NGCFT1 : public ToxEventI, public NGCEXTEventI, public NGCFT1EventProvider
 
 	public: // cca stuff
 		// rtt/delay
-		// negative on error or no cca
+		// +inf on error or no cca
 		float getPeerRTT(uint32_t group_number, uint32_t peer_number) const;
 
 		// belived possible current window

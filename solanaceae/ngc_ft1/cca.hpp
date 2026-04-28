@@ -42,6 +42,7 @@ struct CCAI {
 		virtual ~CCAI(void) {}
 
 		// returns current rtt/delay
+		// inf on error or uninitialized
 		virtual float getCurrentRTT(void) const = 0;
 
 		// return the current believed window in bytes of how much data can be inflight,

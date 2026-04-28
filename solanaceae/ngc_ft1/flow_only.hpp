@@ -4,6 +4,7 @@
 
 #include <chrono>
 #include <vector>
+#include <limits>
 
 struct FlowOnly : public CCAI {
 	protected:
@@ -19,7 +20,7 @@ struct FlowOnly : public CCAI {
 		float _fwnd {0.01f * max_byterate_allowed}; // in bytes
 
 		// rtt exponental moving average
-		float _rtt_ema {0.1f};
+		float _rtt_ema {std::numeric_limits<float>::infinity()};
 		bool _first_rtt_received {false};
 
 		// list of sequence ids and timestamps of when they where sent (and payload size)
