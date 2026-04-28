@@ -85,7 +85,7 @@ struct LEDBAT : public CCAI {
 
 		// moving avg over the last few delay samples
 		// VERY sensitive to bundling acks
-		float getCurrentDelay(void) const override;
+		float getCurrentRTT(void) const override;
 
 		void addRTT(float new_delay);
 

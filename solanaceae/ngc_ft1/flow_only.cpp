@@ -5,7 +5,7 @@
 #include <iostream>
 #include <algorithm>
 
-float FlowOnly::getCurrentDelay(void) const {
+float FlowOnly::getCurrentRTT(void) const {
 	// below 1ms is useless
 	//return std::clamp(_rtt_ema, 0.001f, RTT_MAX);
 	// the current iterate rate min is 5ms
@@ -31,7 +31,7 @@ void FlowOnly::addRTT(float new_delay) {
 }
 
 void FlowOnly::updateWindow(void) {
-	const float current_delay {getCurrentDelay()};
+	const float current_delay {getCurrentRTT()};
 
 	_fwnd = max_byterate_allowed * current_delay;
 	//_fwnd *= 1.3f; // try do balance conservative algo a bit, current_delay
@@ -107,7 +107,7 @@ std::vector<FlowOnly::SeqIDType> FlowOnly::getTimeouts(void) {
 	list.reserve(_in_flight.size()/3); // we dont know, so we just guess
 
 	// after 4 rtt delay, we trigger timeout
-	const auto now_adjusted = getTimeNow() - getCurrentDelay()*4.f;
+	const auto now_adjusted = getTimeNow() - getCurrentRTT()*4.f;
 
 	for (auto& [seq, time_stamp, size, acc, _] : _in_flight) {
 		if (now_adjusted > time_stamp) {

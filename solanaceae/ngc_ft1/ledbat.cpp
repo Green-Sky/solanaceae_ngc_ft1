@@ -51,7 +51,7 @@ std::vector<LEDBAT::SeqIDType> LEDBAT::getTimeouts(void) {
 	std::vector<LEDBAT::SeqIDType> list;
 
 	// after 2 delays we trigger timeout
-	const auto now_adjusted = getTimeNow() - getCurrentDelay()*2.f;
+	const auto now_adjusted = getTimeNow() - getCurrentRTT()*2.f;
 
 	for (const auto& [seq, time_stamp, size] : _in_flight) {
 		if (now_adjusted > time_stamp) {
@@ -98,7 +98,7 @@ void LEDBAT::onAck(std::vector<SeqIDType> seqs) {
 				if (getTimeNow() >= _last_congestion_event + _last_congestion_rtt) {
 					_recently_lost_data = true;
 					_last_congestion_event = getTimeNow();
-					_last_congestion_rtt = getCurrentDelay();
+					_last_congestion_rtt = getCurrentRTT();
 				}
 			}
 			// TODO: only if newer, triggers double event otherwise (without a timer)
@@ -169,7 +169,7 @@ bool LEDBAT::onLoss(SeqIDType seq, bool discard) {
 	return true;
 }
 
-float LEDBAT::getCurrentDelay(void) const {
+float LEDBAT::getCurrentRTT(void) const {
 	float sum {0.f};
 	size_t count {0};
 	for (size_t i = 0; i < _tmp_rtt_buffer.size(); i++) {
@@ -224,7 +224,7 @@ void LEDBAT::addRTT(float new_delay) {
 void LEDBAT::updateWindows(void) {
 	const auto now {getTimeNow()};
 
-	const float current_delay {getCurrentDelay()};
+	const float current_delay {getCurrentRTT()};
 
 	if (now - _last_cwnd >= current_delay) {
 		const float queuing_delay {current_delay - _base_delay};

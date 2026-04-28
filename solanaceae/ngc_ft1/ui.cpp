@@ -131,14 +131,16 @@ void NGCFT1UI::renderTabGroup(ContactHandle4 c) {
 			if (cca) {
 				// TODO: human readable bytes
 				// TODO: graphs
-				ImGui::Text("cca: iFB: %ld iFC: %ld delay: %.3f window: %.1f w/d: %.3fKiB/s",
+				ImGui::Text("cca: iFB: %ld iFC: %ld rtt: %.3f window: %.1f w/d: %.3fKiB/s",
 					cca->inFlightBytes(),
 					cca->inFlightCount(),
-					cca->getCurrentDelay(),
+					cca->getCurrentRTT(),
 					cca->getWindow(),
-					(cca->getWindow()/cca->getCurrentDelay())/1024
+					(cca->getWindow()/cca->getCurrentRTT())/1024
 				);
 			}
+
+			ImGui::Text("resent: %lu", peer.packets_resent);
 
 			ImGui::Text("transfers:");
 			ImGui::Indent();
@@ -157,12 +159,13 @@ void NGCFT1UI::renderTabGroup(ContactHandle4 c) {
 					ImGui::PushStyleColor(ImGuiCol_Text, {1.f, 1.0f, 0.5f, 1.f});
 				}
 
-				ImGui::Text("%zu %s kind:%u (%lu/%lu Bytes) t:%.3f",
+				ImGui::Text("%zu %s kind:%u (%lu/%lu Bytes) r:%lu t:%.3f",
 					i,
 					transfer.state == NGCFT1::Group::Peer::SendTransfer::State::INIT_SENT ? "INIT_SENT" : (transfer.state == NGCFT1::Group::Peer::SendTransfer::State::SENDING ? "SENDING" : "FINISHING"),
 					transfer.file_kind,
 					transfer.file_size_current,
 					transfer.file_size,
+					transfer.packets_resent,
 					transfer.time_since_activity
 				);
 

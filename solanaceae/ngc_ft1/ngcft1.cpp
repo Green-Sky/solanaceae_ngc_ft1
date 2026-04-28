@@ -98,6 +98,8 @@ void NGCFT1::updateSendTransferPhase1(float time_delta, uint32_t group_number, u
 
 				time_since_activity = 0.f;
 				can_packet_size -= data.size();
+				tf.packets_resent++;
+				peer.packets_resent++;
 			} else {
 				std::cerr << "NGCFT1 warning: failed to re-send packet (send queue full?)\n";
 
@@ -412,14 +414,14 @@ bool NGCFT1::NGC_FT1_send_message_public(
 	return _neep.send_all_ft1_message(group_number, message_id, file_kind, file_id, file_id_size);
 }
 
-float NGCFT1::getPeerDelay(uint32_t group_number, uint32_t peer_number) const {
+float NGCFT1::getPeerRTT(uint32_t group_number, uint32_t peer_number) const {
 	auto* cca_ptr = getPeerCCA(group_number, peer_number);
 
 	if (cca_ptr == nullptr) {
 		return -1.f;
 	}
 
-	return cca_ptr->getCurrentDelay();
+	return cca_ptr->getCurrentRTT();
 }
 
 float NGCFT1::getPeerWindow(uint32_t group_number, uint32_t peer_number) const {
@@ -539,7 +541,7 @@ bool NGCFT1::onEvent(const Events::NGCEXT_ft1_init_ack& e) {
 		//peer.cca = std::make_unique<FlowOnly>(peer.max_packet_data_size);
 		//peer.cca->max_byterate_allowed = 1.f *1024*1024;
 	} else {
-		std::cerr << "NGCFT1: reusing cca. rtt:" << peer.cca->getCurrentDelay() << " w:" << peer.cca->getWindow() << " ifc:" << peer.cca->inFlightCount() << "\n";
+		std::cerr << "NGCFT1: reusing cca. rtt:" << peer.cca->getCurrentRTT() << " w:" << peer.cca->getWindow() << " ifc:" << peer.cca->inFlightCount() << "\n";
 	}
 
 	// iterate will now call NGC_FT1_send_data_cb

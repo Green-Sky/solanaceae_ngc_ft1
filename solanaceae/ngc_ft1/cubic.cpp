@@ -8,8 +8,8 @@ void CUBIC::updateReductionTimer(float time_delta) {
 
 	// only keep updating while the cca interaction is not too long ago
 	// or simply when there are packets in flight
-	// (you need space to resend timedout, which still use up pipe space)
-	if (!_in_flight.empty() || now - _time_point_last_update <= getCurrentDelay()*4.f) {
+	// (you need space to resend timed-out, which still use up pipe space)
+	if (!_in_flight.empty() || now - _time_point_last_update <= getCurrentRTT()*4.f) {
 		_time_since_reduction += time_delta;
 	}
 }
@@ -47,7 +47,7 @@ float CUBIC::getCWnD(void) const {
 
 void CUBIC::onCongestion(void) {
 	// 8 is probably too much (800ms for 100ms rtt)
-	if (_time_since_reduction >= getCurrentDelay()*4.f) {
+	if (_time_since_reduction >= getCurrentRTT()*4.f) {
 		const auto tmp_old_tp = _time_since_reduction;
 
 		const auto current_cwnd = getCWnD(); // TODO: remove, only used by logging?
@@ -71,7 +71,7 @@ void CUBIC::onCongestion(void) {
 			<< " wnd:" << current_wnd
 			<< " cwnd_max:" << _window_max
 			<< " pts:" << tmp_old_tp
-			<< " rtt:" << getCurrentDelay()
+			<< " rtt:" << getCurrentRTT()
 			<< "\n"
 		;
 #endif
@@ -100,7 +100,7 @@ int64_t CUBIC::canSend(float time_delta) {
 
 	// also limit to max sendrate per tick, which is usually smaller than window
 	// this is mostly to prevent spikes on empty windows
-	const auto rate = window / getCurrentDelay();
+	const auto rate = window / getCurrentRTT();
 
 	// TODO: time slicing alla flow
 

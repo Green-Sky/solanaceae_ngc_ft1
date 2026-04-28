@@ -53,7 +53,7 @@ struct FlowOnly : public CCAI {
 
 		// moving avg over the last few delay samples
 		// VERY sensitive to bundling acks
-		float getCurrentDelay(void) const override;
+		float getCurrentRTT(void) const override;
 
 		// call updateWindow() to update this value
 		virtual float getWindow(void) const override;

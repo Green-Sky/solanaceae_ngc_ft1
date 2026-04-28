@@ -159,7 +159,7 @@ class NGCFT1 : public ToxEventI, public NGCEXTEventI, public NGCFT1EventProvider
 				enum class State {
 					INITED,		// init acked, but no data received yet (might be dropped)
 					RECV,		// receiving data
-					FINISHING,	// got all the data, but we wait for 2*delay, since its likely there is data still arriving
+					FINISHING,	// got all the data, but we wait for N sec, since its likely there is data still arriving
 				} state;
 
 				uint64_t file_size {0};
@@ -198,12 +198,16 @@ class NGCFT1 : public ToxEventI, public NGCEXTEventI, public NGCFT1EventProvider
 				// sequence array
 				// list of sent but not acked seq_ids
 				SendSequenceBuffer ssb;
+
+				uint64_t packets_resent {0};
 			};
 			std::array<std::optional<SendTransfer>, 256> send_transfers;
 			size_t next_send_transfer_idx {0}; // next id will be 0
 			size_t next_send_transfer_send_idx {0};
 
 			size_t active_send_transfers {0};
+
+			uint64_t packets_resent {0};
 		};
 		std::map<uint32_t, Peer> peers;
 	};
@@ -256,7 +260,7 @@ class NGCFT1 : public ToxEventI, public NGCEXTEventI, public NGCFT1EventProvider
 	public: // cca stuff
 		// rtt/delay
 		// negative on error or no cca
-		float getPeerDelay(uint32_t group_number, uint32_t peer_number) const;
+		float getPeerRTT(uint32_t group_number, uint32_t peer_number) const;
 
 		// belived possible current window
 		// negative on error or no cca
