@@ -762,46 +762,50 @@ bool NGCFT1::onToxEvent(const Tox_Event_Group_Peer_Exit* e) {
 		return false;
 	}
 
-	auto& peer = group.peers.at(peer_number);
+	{
+		auto& peer = group.peers.at(peer_number);
 
-	for (size_t i = 0; i < peer.send_transfers.size(); i++) {
-		auto& it_opt = peer.send_transfers.at(i);
-		if (!it_opt.has_value()) {
-			continue;
+		for (size_t i = 0; i < peer.send_transfers.size(); i++) {
+			auto& it_opt = peer.send_transfers.at(i);
+			if (!it_opt.has_value()) {
+				continue;
+			}
+
+			std::cout << "NGCFT1: sending " << int(i) << " canceled bc peer offline\n";
+			dispatch(
+				NGCFT1_Event::send_done,
+				Events::NGCFT1_send_done{
+					group_number, peer_number,
+					static_cast<uint8_t>(i),
+				}
+			);
+
+			it_opt.reset();
 		}
 
-		std::cout << "NGCFT1: sending " << int(i) << " canceled bc peer offline\n";
-		dispatch(
-			NGCFT1_Event::send_done,
-			Events::NGCFT1_send_done{
-				group_number, peer_number,
-				static_cast<uint8_t>(i),
+		for (size_t i = 0; i < peer.recv_transfers.size(); i++) {
+			auto& it_opt = peer.recv_transfers.at(i);
+			if (!it_opt.has_value()) {
+				continue;
 			}
-		);
 
-		it_opt.reset();
-	}
+			std::cout << "NGCFT1: receiving " << int(i) << " canceled bc peer offline\n";
+			dispatch(
+				NGCFT1_Event::recv_done,
+				Events::NGCFT1_recv_done{
+					group_number, peer_number,
+					static_cast<uint8_t>(i),
+				}
+			);
 
-	for (size_t i = 0; i < peer.recv_transfers.size(); i++) {
-		auto& it_opt = peer.recv_transfers.at(i);
-		if (!it_opt.has_value()) {
-			continue;
+			it_opt.reset();
 		}
 
-		std::cout << "NGCFT1: receiving " << int(i) << " canceled bc peer offline\n";
-		dispatch(
-			NGCFT1_Event::recv_done,
-			Events::NGCFT1_recv_done{
-				group_number, peer_number,
-				static_cast<uint8_t>(i),
-			}
-		);
-
-		it_opt.reset();
+		// reset cca
+		peer.cca.reset(); // dont actually reallocate
 	}
 
-	// reset cca
-	peer.cca.reset(); // dont actually reallocate
+	group.peers.erase(peer_number);
 
 	return false;
 }
