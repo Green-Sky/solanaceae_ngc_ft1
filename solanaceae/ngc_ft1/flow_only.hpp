@@ -5,6 +5,7 @@
 #include <chrono>
 #include <vector>
 #include <limits>
+#include <random>
 
 struct FlowOnly : public CCAI {
 	protected:
@@ -44,6 +45,9 @@ struct FlowOnly : public CCAI {
 
 		// used to clamp growth rate in the void
 		double _time_point_last_update {getTimeNow()};
+
+		// for packet (size) dithering
+		std::minstd_rand _rng {std::random_device{}()};
 
 	protected:
 		// make values relative to algo start for readability (and precision)

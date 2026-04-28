@@ -81,15 +81,15 @@ int64_t FlowOnly::canSend(float time_delta) {
 
 	updateWindow();
 
-	int64_t fspace = _fwnd - _in_flight_bytes;
-	if (fspace < MAXIMUM_SEGMENT_DATA_SIZE) {
+	int64_t fspace_bytes = _fwnd - _in_flight_bytes;
+	if (fspace_bytes < MAXIMUM_SEGMENT_DATA_SIZE) {
 		return 0u;
 	}
 
 	// also limit to max sendrate per tick, which is usually smaller than window
 	// this is mostly to prevent spikes on empty windows
-	fspace = std::min<int64_t>({
-		fspace,
+	fspace_bytes = std::min<int64_t>({
+		fspace_bytes,
 
 		// slice window into time time_delta sized chunks and only allow 1.5 chunks sized per tick
 		int64_t((1.5f * _fwnd) / time_delta + 0.5f),
@@ -99,7 +99,14 @@ int64_t FlowOnly::canSend(float time_delta) {
 	});
 
 	// limit to whole packets
-	return (fspace / MAXIMUM_SEGMENT_DATA_SIZE) * MAXIMUM_SEGMENT_DATA_SIZE;
+	int64_t fspace_pkgs = (fspace_bytes / MAXIMUM_SEGMENT_DATA_SIZE) * MAXIMUM_SEGMENT_DATA_SIZE;
+
+	// dither up proportionally
+	if (_rng() % MAXIMUM_SEGMENT_SIZE < fspace_pkgs - fspace_bytes) {
+		fspace_pkgs += MAXIMUM_SEGMENT_SIZE;
+	}
+
+	return fspace_pkgs;
 }
 
 std::vector<FlowOnly::SeqIDType> FlowOnly::getTimeouts(void) {

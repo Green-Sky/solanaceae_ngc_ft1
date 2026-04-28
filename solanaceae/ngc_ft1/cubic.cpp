@@ -111,6 +111,11 @@ int64_t CUBIC::canSend(float time_delta) {
 	// limit to whole packets
 	int64_t cspace_pkgs = (cspace_bytes / MAXIMUM_SEGMENT_SIZE) * MAXIMUM_SEGMENT_SIZE;
 
+	// dither up proportionally
+	if (_rng() % MAXIMUM_SEGMENT_SIZE < cspace_pkgs - cspace_bytes) {
+		cspace_pkgs += MAXIMUM_SEGMENT_SIZE;
+	}
+
 	//std::cerr << "CUBIC: space " << std::min(cspace_pkgs, fspace_pkgs) << "\n";
 	return std::min(cspace_pkgs, fspace_pkgs);
 }
