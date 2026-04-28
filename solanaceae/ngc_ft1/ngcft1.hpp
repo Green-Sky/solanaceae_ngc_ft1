@@ -208,6 +208,7 @@ class NGCFT1 : public ToxEventI, public NGCEXTEventI, public NGCFT1EventProvider
 			size_t active_send_transfers {0};
 
 			uint64_t packets_resent {0};
+			int64_t last_can_send {0};
 		};
 		std::map<uint32_t, Peer> peers;
 	};

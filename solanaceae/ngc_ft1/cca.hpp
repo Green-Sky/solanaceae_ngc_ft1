@@ -29,8 +29,9 @@ struct CCAI {
 		//static_assert(maximum_segment_size == 574); // mesured in wireshark
 
 		// flow control
-		//float max_byterate_allowed {100.f*1024*1024}; // 100MiB/s
-		float max_byterate_allowed {10.f*1024*1024}; // 10MiB/s
+		float max_byterate_allowed {100.f*1024*1024}; // 100MiB/s
+		//float max_byterate_allowed {15.f*1024*1024}; // 15MiB/s
+		//float max_byterate_allowed {10.f*1024*1024}; // 10MiB/s
 		//float max_byterate_allowed {1.f*1024*1024}; // 1MiB/s
 		//float max_byterate_allowed {0.6f*1024*1024}; // 600KiB/s
 		//float max_byterate_allowed {0.5f*1024*1024}; // 500KiB/s

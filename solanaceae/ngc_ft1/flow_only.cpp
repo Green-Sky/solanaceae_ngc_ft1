@@ -73,12 +73,6 @@ float FlowOnly::getWindow(void) const {
 }
 
 int64_t FlowOnly::canSend(float time_delta) {
-	if (_in_flight.empty()) {
-		assert(_in_flight_bytes == 0);
-		// TODO: should we really exit early here??
-		return 2*MAXIMUM_SEGMENT_DATA_SIZE;
-	}
-
 	updateWindow();
 
 	int64_t fspace_bytes = _fwnd - _in_flight_bytes;
@@ -86,6 +80,7 @@ int64_t FlowOnly::canSend(float time_delta) {
 		return 0u;
 	}
 
+	// TODO: borked somehow, eg 15 limit results in ~12
 	// also limit to max sendrate per tick, which is usually smaller than window
 	// this is mostly to prevent spikes on empty windows
 	fspace_bytes = std::min<int64_t>({
@@ -113,8 +108,8 @@ std::vector<FlowOnly::SeqIDType> FlowOnly::getTimeouts(void) {
 	std::vector<SeqIDType> list;
 	list.reserve(_in_flight.size()/3); // we dont know, so we just guess
 
-	// after 4 rtt delay, we trigger timeout
-	const auto now_adjusted = getTimeNow() - getCurrentRTT()*4.f;
+	// after 4 rtt delay, 100ms lower bound, we trigger timeout
+	const auto now_adjusted = getTimeNow() - std::max(getCurrentRTT()*4.f, 0.100f);
 
 	for (auto& [seq, time_stamp, size, acc, _] : _in_flight) {
 		if (now_adjusted > time_stamp) {

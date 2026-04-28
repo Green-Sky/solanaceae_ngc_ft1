@@ -200,6 +200,7 @@ bool NGCFT1::iteratePeer(float time_delta, uint32_t group_number, uint32_t peer_
 		std::set<CCAI::SeqIDType> timeouts_set{timeouts.cbegin(), timeouts.cend()};
 
 		int64_t can_packet_size {peer.cca->canSend(time_delta)}; // might get more space while iterating (time)
+		peer.last_can_send = can_packet_size;
 
 		// resend and get number current running transfers
 		peer.active_send_transfers = 0;

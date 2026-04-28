@@ -119,4 +119,3 @@ int64_t CUBIC::canSend(float time_delta) {
 	//std::cerr << "CUBIC: space " << std::min(cspace_pkgs, fspace_pkgs) << "\n";
 	return std::min(cspace_pkgs, fspace_pkgs);
 }
-

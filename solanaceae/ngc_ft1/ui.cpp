@@ -141,6 +141,7 @@ void NGCFT1UI::renderTabGroup(ContactHandle4 c) {
 			}
 
 			ImGui::Text("resent: %lu", peer.packets_resent);
+			ImGui::Text("last can_send: %fKiB", peer.last_can_send/1024.f);
 
 			ImGui::Text("transfers:");
 			ImGui::Indent();
