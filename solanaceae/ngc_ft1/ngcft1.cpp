@@ -124,15 +124,19 @@ void NGCFT1::updateSendTransferPhase2(float time_delta, uint32_t group_number, u
 
 	// if chunks in flight < window size (2)
 	while (can_packet_size > 0 && tf.file_size > 0) {
+		if (tf.file_size - tf.file_size_current == 0) {
+			tf.state = State::FINISHING;
+			break; // we done
+		}
+
 		std::vector<uint8_t> new_data;
 
 		size_t chunk_size = std::min<size_t>({
-			peer.cca->MAXIMUM_SEGMENT_DATA_SIZE,
+			peer.cca->MAXIMUM_SEGMENT_DATA_SIZE, // hmm
 			static_cast<size_t>(can_packet_size),
 			static_cast<size_t>(tf.file_size - tf.file_size_current),
 		});
 		if (chunk_size == 0) {
-			tf.state = State::FINISHING;
 			break; // we done
 		}
 
@@ -216,7 +220,7 @@ bool NGCFT1::iteratePeer(float time_delta, uint32_t group_number, uint32_t peer_
 
 				// perfect round robin causes ft handshakes to align somewhat
 				// add some skips to unalign
-				if ((_rng() % 15) == 0) {
+				if ((idx % 2) == 0 && (_rng() % 15) == 0) {
 					continue;
 				}
 
@@ -281,48 +285,6 @@ float NGCFT1::iterate(float time_delta) {
 	for (auto& [group_number, group] : groups) {
 		for (auto& [peer_number, peer] : group.peers) {
 			transfer_activity = iteratePeer(time_delta, group_number, peer_number, peer) || transfer_activity;
-
-#if 0
-			// find any active transfer
-			if (!transfer_activity) {
-				for (const auto& t : peer.send_transfers) {
-					if (t.has_value()) {
-						transfer_activity = true;
-#if 0
-						std::cout
-							<< "--- active send transfer "
-							<< group_number << ":" << peer_number
-							<< "(" << std::get<0>(_t.toxGroupPeerGetName(group_number, peer_number)).value_or("<unk>") << ")"
-							<< " fk:" << t.value().file_kind
-							<< " state:" << (int)t.value().state
-							<< " tsa:" << t.value().time_since_activity
-							<< "\n"
-						;
-#endif
-						break;
-					}
-				}
-			}
-			if (!transfer_activity) {
-				for (const auto& t : peer.recv_transfers) {
-					if (t.has_value()) {
-						transfer_activity = true;
-#if 0
-						std::cout
-							<< "--- active recv transfer "
-							<< group_number << ":" << peer_number
-							<< "(" << std::get<0>(_t.toxGroupPeerGetName(group_number, peer_number)).value_or("<unk>") << ")"
-							<< " fk:" << t.value().file_kind
-							<< " state:" << (int)t.value().state
-							<< " ft:" << t.value().finishing_timer
-							<< "\n"
-						;
-#endif
-						break;
-					}
-				}
-			}
-#endif
 		}
 	}
 
