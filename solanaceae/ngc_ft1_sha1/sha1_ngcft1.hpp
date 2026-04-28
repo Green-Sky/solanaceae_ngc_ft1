@@ -93,7 +93,7 @@ class SHA1_NGCFT1 : public ToxEventI, public RegistryMessageModelEventI, public 
 	public: // TODO: config
 		bool _udp_only {false};
 
-		size_t _max_concurrent_in {4}; // info only
+		size_t _max_concurrent_info_in {6}; // info only
 		size_t _max_concurrent_out {4*10}; // HACK: allow "ideal" number for 10 peers
 
 	public:

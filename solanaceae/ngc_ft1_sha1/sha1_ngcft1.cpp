@@ -423,7 +423,7 @@ float SHA1_NGCFT1::iterate(float delta) {
 		}
 	}
 
-	if (running_receiving_transfer_count < _max_concurrent_in) {
+	if (running_receiving_transfer_count < _max_concurrent_info_in) {
 		// strictly priorize info
 		if (!_queue_content_want_info.empty()) {
 			const auto ce = _queue_content_want_info.front();
