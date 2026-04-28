@@ -14,6 +14,7 @@
 #include <algorithm>
 #include <cassert>
 #include <vector>
+#include <limits>
 
 void NGCFT1::updateSendTransferPhase1(float time_delta, uint32_t group_number, uint32_t peer_number, Group::Peer& peer, size_t idx, std::set<CCAI::SeqIDType>& timeouts_set, int64_t& can_packet_size) {
 	using State = Group::Peer::SendTransfer::State;
@@ -213,6 +214,12 @@ bool NGCFT1::iteratePeer(float time_delta, uint32_t group_number, uint32_t peer_
 			for (size_t idx = peer.next_send_transfer_send_idx; iterated_count < peer.send_transfers.size(); idx++, iterated_count++) {
 				idx = idx % peer.send_transfers.size();
 
+				// perfect round robin causes ft handshakes to align somewhat
+				// add some skips to unalign
+				if ((_rng() % 15) == 0) {
+					continue;
+				}
+
 				if (peer.send_transfers.at(idx).has_value()) {
 					if (!last_send_found && can_packet_size <= 0) {
 						peer.next_send_transfer_send_idx = idx;
@@ -326,7 +333,7 @@ float NGCFT1::iterate(float time_delta) {
 		return 0.005f; // 5ms
 	} else if (_time_since_activity < 1.0f) {
 		// bc of temporality
-		return 0.025f;
+		return 0.02f;
 	} else {
 		return 1.f; // once a sec might be too little
 	}
@@ -418,7 +425,7 @@ float NGCFT1::getPeerRTT(uint32_t group_number, uint32_t peer_number) const {
 	auto* cca_ptr = getPeerCCA(group_number, peer_number);
 
 	if (cca_ptr == nullptr) {
-		return -1.f;
+		return std::numeric_limits<float>::infinity();
 	}
 
 	return cca_ptr->getCurrentRTT();
