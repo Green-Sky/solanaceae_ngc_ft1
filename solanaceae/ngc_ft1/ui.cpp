@@ -54,12 +54,16 @@ void NGCFT1UI::renderTabGroup(ContactHandle4 c) {
 	const auto group_number = c.get<Contact::Components::ToxGroupEphemeral>().group_number;
 
 	if (_ft.groups.count(group_number) < 1) {
-		return; // nothing happening
+		return; // no data
 	}
 
 	auto& ft_group = _ft.groups.at(group_number);
 
-	if (!ImGui::BeginTabItem("NGCFT1", nullptr, (!ft_group.peers.empty() ? ImGuiTabItemFlags_UnsavedDocument : ImGuiTabItemFlags_None))) {
+	if (ft_group.peers.empty()) {
+		return; // no data
+	}
+
+	if (!ImGui::BeginTabItem("NGCFT1")) {
 		return;
 	}
 	if (!ImGui::BeginChild("tab_content")) {
