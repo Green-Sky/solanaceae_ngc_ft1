@@ -14,35 +14,6 @@ namespace Events {
 
 	// TODO: implement events as non-owning
 
-	struct NGCEXT_hs1_request_last_ids {
-		uint32_t group_number;
-		uint32_t peer_number;
-
-		// - peer_key bytes (peer key we want to know ids for)
-		ToxKey peer_key;
-
-		// - 1 byte (uint8_t count ids, atleast 1)
-		uint8_t count_ids;
-	};
-
-	struct NGCEXT_hs1_response_last_ids {
-		uint32_t group_number;
-		uint32_t peer_number;
-
-		// respond to a request with 0 or more message ids, sorted by newest first
-
-		// - peer_key bytes (the msg_ids are from)
-		ToxKey peer_key;
-
-		// - 1 byte (uint8_t count ids, can be 0)
-		uint8_t count_ids;
-
-		// - array [
-		//   - msg_id bytes (the message id)
-		// - ]
-		std::vector<uint32_t> msg_ids;
-	};
-
 	struct NGCEXT_ft1_request {
 		uint32_t group_number;
 		uint32_t peer_number;
@@ -216,7 +187,7 @@ namespace Events {
 
 } // Events
 
-enum class NGCEXT_Event : uint8_t {
+enum class NGCEXT_Event_old : uint8_t {
 	//TODO: make it possible to go further back
 	// request last (few) message_ids for a peer
 	// - peer_key bytes (peer key we want to know ids for)
@@ -335,10 +306,115 @@ enum class NGCEXT_Event : uint8_t {
 	MAX
 };
 
+enum class NGCEXT_Event_new : uint8_t {
+	// request the other side to initiate a FT
+	// - 4 byte (file_kind)
+	// - X bytes (file_kind dependent id, differnt sizes)
+	FT1_REQUEST = 0x00,
+
+	// TODO: request result negative, speed up not found
+
+	// tell the other side you want to start a FT
+	// TODO: might use id layer instead. with it, it would look similar to friends_ft
+	// DEPRECATED: use FT1_INIT2 instead
+	// - 4 byte (file_kind)
+	// - 8 bytes (data size, can be 0 if unknown, BUT files have to be atleast 1 byte)
+	// - 1 byte (temporary_file_tf_id, for this peer only, technically just a prefix to distinguish between simultainious fts)
+	// - X bytes (file_kind dependent id, differnt sizes)
+	FT1_INIT = 0x01,
+
+	// tell the other side you want to start a FT
+	// update: added feature flags (compression)
+	// - 4 byte (file_kind)
+	// - 8 bytes (data size, can be 0 if unknown, BUT files have to be atleast 1 byte)
+	// - 1 byte (temporary_file_tf_id, for this peer only, technically just a prefix to distinguish between simultainious fts)
+	// - 1 byte feature flags
+	// - X bytes (file_kind dependent id, differnt sizes)
+	FT1_INIT2 = 0x02,
+
+	// acknowlage init (like an accept)
+	// like tox ft control continue
+	// - 1 byte (transfer_id)
+	// - 2 byte (self_max_lossy_data_size) (optimal since v2)
+	// - 1 byte feature flags (optimal since v3, requires prev)
+	FT1_INIT_ACK = 0x03,
+
+	// TODO: init deny, speed up non acceptance
+
+	// data fragment
+	// - 1 byte (temporary_file_tf_id)
+	// - 2 bytes (sequece id)
+	// - X bytes (the data fragment)
+	// (size is implicit)
+	FT1_DATA = 0x04,
+
+	// acknowlage data fragments
+	// TODO: last 3 should be sufficient, 5 should be generous
+	// - 1 byte (temporary_file_tf_id)
+	// // this is implicit (pkg size)- 1 byte (number of sequence ids to ack, this kind of depends on window size)
+	// - array [ (of sequece ids)
+	//   - 2 bytes (sequece id)
+	// - ]
+	FT1_DATA_ACK = 0x05,
+
+	// send file as message
+	// basically the opposite of request
+	// contains file_kind and file_id (and timestamp?)
+	// - 4 bytes (message_id)
+	// - 4 bytes (file_kind)
+	// - X bytes (file_kind dependent id, differnt sizes)
+	FT1_MESSAGE = 0x06,
+
+	// announce you have specified chunks, for given info
+	// this is info/chunk specific
+	// bundle these together to reduce overhead (like maybe every 16, max 1min)
+	// - 4 bytes (file_kind)
+	// - X bytes (file_kind dependent id, differnt sizes)
+	// - array [
+	//   - 4 bytes (chunk index)
+	// - ]
+	FT1_HAVE = 0x07,
+
+	// tell the other peer which chunks, for a given info you have
+	// compressed down to a bitset (in parts)
+	// supposed to only be sent once on participation announcement, when mutual interest
+	// it is always assumed by the other side, that you dont have the chunk, until told otherwise,
+	// so you can be smart about what you send.
+	// - 4 bytes (file_kind)
+	// - X bytes (file_kind dependent id, differnt sizes)
+	// - 4 bytes (first chunk index in bitset)
+	// - array [
+	//   - 1 bit (have chunk)
+	// - ] (filled up with zero)
+	FT1_BITSET = 0x08,
+
+	// announce you have all chunks, for given info
+	// prefer over have and bitset
+	// - 4 bytes (file_kind)
+	// - X bytes (file_kind dependent id, differnt sizes)
+	FT1_HAVE_ALL = 0x09,
+
+	// TODO: FT1_IDONTHAVE, tell a peer you no longer have said chunk(s)
+	// TODO: FT1_REJECT, tell a peer you wont fulfil the request(s)
+	// TODO: FT1_CANCEL, tell a peer you stoped the transfer
+
+	// tell another peer that you are participating in X
+	// you can reply with PC1_ANNOUNCE, to let the other side know, you too are participating in X
+	// you should NOT announce often, since this hits peers that not participate
+	// ft1 uses fk+id
+	// - x bytes (id, different sizes)
+	PC1_ANNOUNCE = 0x10,
+
+	// uses sub splitting
+	P2PRNG = 0x20,
+
+	MAX
+};
+
+using NGCEXT_Event = NGCEXT_Event_old;
+
 struct NGCEXTEventI {
 	using enumType = NGCEXT_Event;
-	virtual bool onEvent(const Events::NGCEXT_hs1_request_last_ids&) { return false; }
-	virtual bool onEvent(const Events::NGCEXT_hs1_response_last_ids&) { return false; }
 	virtual bool onEvent(const Events::NGCEXT_ft1_request&) { return false; }
 	virtual bool onEvent(const Events::NGCEXT_ft1_init&) { return false; }
 	virtual bool onEvent(const Events::NGCEXT_ft1_init_ack&) { return false; }
@@ -363,18 +439,6 @@ class NGCEXTEventProvider : public ToxEventI, public NGCEXTEventProviderI {
 		NGCEXTEventProvider(ToxI& t, ToxEventProviderI& tep);
 
 	protected:
-		bool parse_hs1_request_last_ids(
-			uint32_t group_number, uint32_t peer_number,
-			const uint8_t* data, size_t data_size,
-			bool _private
-		);
-
-		bool parse_hs1_response_last_ids(
-			uint32_t group_number, uint32_t peer_number,
-			const uint8_t* data, size_t data_size,
-			bool _private
-		);
-
 		bool parse_ft1_request(
 			uint32_t group_number, uint32_t peer_number,
 			const uint8_t* data, size_t data_size,
@@ -454,6 +518,14 @@ class NGCEXTEventProvider : public ToxEventI, public NGCEXTEventProviderI {
 		);
 
 		bool handlePacket(
+			const uint32_t group_number,
+			const uint32_t peer_number,
+			const uint8_t* data,
+			const size_t data_size,
+			const bool _private
+		);
+
+		bool handlePacket_old(
 			const uint32_t group_number,
 			const uint32_t peer_number,
 			const uint8_t* data,

@@ -12,22 +12,6 @@ NGCEXTEventProvider::NGCEXTEventProvider(ToxI& t, ToxEventProviderI& tep) : _t(t
 
 #define _DATA_HAVE(x, error) if ((data_size - curser) < (x)) { error; }
 
-bool NGCEXTEventProvider::parse_hs1_request_last_ids(
-	uint32_t group_number, uint32_t peer_number,
-	const uint8_t* data, size_t data_size,
-	bool _private
-) {
-	return false;
-}
-
-bool NGCEXTEventProvider::parse_hs1_response_last_ids(
-	uint32_t group_number, uint32_t peer_number,
-	const uint8_t* data, size_t data_size,
-	bool _private
-) {
-	return false;
-}
-
 bool NGCEXTEventProvider::parse_ft1_request(
 	uint32_t group_number, uint32_t peer_number,
 	const uint8_t* data, size_t data_size,
@@ -517,6 +501,60 @@ bool NGCEXTEventProvider::handlePacket(
 	const size_t data_size,
 	const bool _private
 ) {
+	if (handlePacket_old(group_number, peer_number, data, data_size, _private)) {
+		return true;
+	}
+
+	if (data_size < 2) {
+		return false; // waht
+	}
+
+	// pkg id is 2 bytes and green rage starts with 0x90
+	if (data[0] != 0x90) {
+		return false;
+	}
+
+	NGCEXT_Event_new pkg_type = static_cast<NGCEXT_Event_new>(data[1]);
+
+	switch (pkg_type) {
+		case NGCEXT_Event_new::FT1_REQUEST:
+			return parse_ft1_request(group_number, peer_number, data+2, data_size-2, _private);
+		case NGCEXT_Event_new::FT1_INIT:
+			return parse_ft1_init(group_number, peer_number, data+2, data_size-2, _private);
+		case NGCEXT_Event_new::FT1_INIT2:
+			return parse_ft1_init2(group_number, peer_number, data+2, data_size-2, _private);
+		case NGCEXT_Event_new::FT1_INIT_ACK:
+			//return parse_ft1_init_ack(group_number, peer_number, data+2, data_size-2, _private);
+			//return parse_ft1_init_ack_v2(group_number, peer_number, data+2, data_size-2, _private);
+			return parse_ft1_init_ack_v3(group_number, peer_number, data+2, data_size-2, _private);
+		case NGCEXT_Event_new::FT1_DATA:
+			return parse_ft1_data(group_number, peer_number, data+2, data_size-2, _private);
+		case NGCEXT_Event_new::FT1_DATA_ACK:
+			return parse_ft1_data_ack(group_number, peer_number, data+2, data_size-2, _private);
+		case NGCEXT_Event_new::FT1_MESSAGE:
+			return parse_ft1_message(group_number, peer_number, data+2, data_size-2, _private);
+		case NGCEXT_Event_new::FT1_HAVE:
+			return parse_ft1_have(group_number, peer_number, data+2, data_size-2, _private);
+		case NGCEXT_Event_new::FT1_BITSET:
+			return parse_ft1_bitset(group_number, peer_number, data+2, data_size-2, _private);
+		case NGCEXT_Event_new::FT1_HAVE_ALL:
+			return parse_ft1_have_all(group_number, peer_number, data+2, data_size-2, _private);
+		case NGCEXT_Event_new::PC1_ANNOUNCE:
+			return parse_pc1_announce(group_number, peer_number, data+2, data_size-2, _private);
+		default:
+			return false;
+	}
+
+	return false;
+}
+
+bool NGCEXTEventProvider::handlePacket_old(
+	const uint32_t group_number,
+	const uint32_t peer_number,
+	const uint8_t* data,
+	const size_t data_size,
+	const bool _private
+) {
 	if (data_size < 1) {
 		return false; // waht
 	}
@@ -524,33 +562,33 @@ bool NGCEXTEventProvider::handlePacket(
 	NGCEXT_Event pkg_type = static_cast<NGCEXT_Event>(data[0]);
 
 	switch (pkg_type) {
-		case NGCEXT_Event::HS1_REQUEST_LAST_IDS:
+		case NGCEXT_Event_old::HS1_REQUEST_LAST_IDS:
 			return false;
-		case NGCEXT_Event::HS1_RESPONSE_LAST_IDS:
+		case NGCEXT_Event_old::HS1_RESPONSE_LAST_IDS:
 			return false;
-		case NGCEXT_Event::FT1_REQUEST:
+		case NGCEXT_Event_old::FT1_REQUEST:
 			return parse_ft1_request(group_number, peer_number, data+1, data_size-1, _private);
-		case NGCEXT_Event::FT1_INIT:
+		case NGCEXT_Event_old::FT1_INIT:
 			return parse_ft1_init(group_number, peer_number, data+1, data_size-1, _private);
-		case NGCEXT_Event::FT1_INIT_ACK:
+		case NGCEXT_Event_old::FT1_INIT_ACK:
 			//return parse_ft1_init_ack(group_number, peer_number, data+1, data_size-1, _private);
 			//return parse_ft1_init_ack_v2(group_number, peer_number, data+1, data_size-1, _private);
 			return parse_ft1_init_ack_v3(group_number, peer_number, data+1, data_size-1, _private);
-		case NGCEXT_Event::FT1_DATA:
+		case NGCEXT_Event_old::FT1_DATA:
 			return parse_ft1_data(group_number, peer_number, data+1, data_size-1, _private);
-		case NGCEXT_Event::FT1_DATA_ACK:
+		case NGCEXT_Event_old::FT1_DATA_ACK:
 			return parse_ft1_data_ack(group_number, peer_number, data+1, data_size-1, _private);
-		case NGCEXT_Event::FT1_MESSAGE:
+		case NGCEXT_Event_old::FT1_MESSAGE:
 			return parse_ft1_message(group_number, peer_number, data+1, data_size-1, _private);
-		case NGCEXT_Event::FT1_HAVE:
+		case NGCEXT_Event_old::FT1_HAVE:
 			return parse_ft1_have(group_number, peer_number, data+1, data_size-1, _private);
-		case NGCEXT_Event::FT1_BITSET:
+		case NGCEXT_Event_old::FT1_BITSET:
 			return parse_ft1_bitset(group_number, peer_number, data+1, data_size-1, _private);
-		case NGCEXT_Event::FT1_HAVE_ALL:
+		case NGCEXT_Event_old::FT1_HAVE_ALL:
 			return parse_ft1_have_all(group_number, peer_number, data+1, data_size-1, _private);
-		case NGCEXT_Event::FT1_INIT2:
+		case NGCEXT_Event_old::FT1_INIT2:
 			return parse_ft1_init2(group_number, peer_number, data+1, data_size-1, _private);
-		case NGCEXT_Event::PC1_ANNOUNCE:
+		case NGCEXT_Event_old::PC1_ANNOUNCE:
 			return parse_pc1_announce(group_number, peer_number, data+1, data_size-1, _private);
 		default:
 			return false;
