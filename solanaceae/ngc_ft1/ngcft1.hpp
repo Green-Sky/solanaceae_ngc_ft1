@@ -26,7 +26,8 @@ namespace Events {
 		uint32_t group_number;
 		uint32_t peer_number;
 
-		NGCFT1_file_kind file_kind;
+		//NGCFT1_file_kind file_kind; // TODO: make typesafe again
+		uint32_t file_kind;
 
 		const uint8_t* file_id;
 		uint32_t file_id_size;
@@ -36,7 +37,8 @@ namespace Events {
 		uint32_t group_number;
 		uint32_t peer_number;
 
-		NGCFT1_file_kind file_kind;
+		//NGCFT1_file_kind file_kind; // TODO: make typesafe again
+		uint32_t file_kind;
 
 		const uint8_t* file_id;
 		uint32_t file_id_size;
@@ -93,7 +95,8 @@ namespace Events {
 
 		uint32_t message_id;
 
-		NGCFT1_file_kind file_kind;
+		//NGCFT1_file_kind file_kind; // TODO: make typesafe again
+		uint32_t file_kind;
 
 		const uint8_t* file_id;
 		uint32_t file_id_size;

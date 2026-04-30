@@ -168,7 +168,7 @@ bool NGCHS2Rizzler::sendRequest(
 
 	return _nft.NGC_FT1_send_request_private(
 		group_number, peer_number,
-		(uint32_t)NGCFT1_file_kind::HS2_RANGE_TIME_MSGPACK,
+		static_cast<uint32_t>(NGCFT1_file_kind::HS2_RANGE_TIME_MSGPACK),
 		fid.data(), fid.size() // fid
 	);
 }
@@ -298,10 +298,10 @@ void NGCHS2Rizzler::handleMsgPack(ContactHandle4 sync_by_c, const std::vector<ui
 						j_fid.at("bytes").get_to(fid);
 					}
 
-					if (fkind == (uint32_t)NGCFT1_file_kind::HASH_SHA1_INFO) {
+					if (fkind == static_cast<uint32_t>(NGCFT1_file_kind_old::HASH_SHA1_INFO)) {
 						_sha1_nft.constructFileMessageInPlace(
 							new_real_msg,
-							NGCFT1_file_kind::HASH_SHA1_INFO,
+							static_cast<uint32_t>(NGCFT1_file_kind_old::HASH_SHA1_INFO),
 							ByteSpan{fid}
 						);
 					} else {
@@ -387,7 +387,7 @@ void NGCHS2Rizzler::handleMsgPack(ContactHandle4 sync_by_c, const std::vector<ui
 }
 
 bool NGCHS2Rizzler::onEvent(const Events::NGCFT1_recv_init& e) {
-	if (e.file_kind != NGCFT1_file_kind::HS2_RANGE_TIME_MSGPACK) {
+	if (e.file_kind != static_cast<uint32_t>(NGCFT1_file_kind::HS2_RANGE_TIME_MSGPACK)) {
 		return false; // not for us
 	}
 

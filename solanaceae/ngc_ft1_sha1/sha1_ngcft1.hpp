@@ -112,7 +112,7 @@ class SHA1_NGCFT1 : public ToxEventI, public RegistryMessageModelEventI, public 
 		void onSendFileHashFinished(ObjectHandle o, Message3Registry* reg_ptr, Contact4 c, uint64_t ts);
 
 		// construct the file part in a partially constructed message
-		ObjectHandle constructFileMessageInPlace(Message3Handle msg, NGCFT1_file_kind file_kind, ByteSpan file_id);
+		ObjectHandle constructFileMessageInPlace(Message3Handle msg, uint32_t file_kind, ByteSpan file_id);
 
 	protected: // rmm events (actions)
 		bool sendFilePath(const Contact4 c, std::string_view file_name, std::string_view file_path) override;

@@ -55,7 +55,7 @@ void re_announce(
 			rat.reset(); // exponential back-off
 
 			std::vector<uint8_t> announce_id;
-			const uint32_t file_kind = static_cast<uint32_t>(NGCFT1_file_kind::HASH_SHA1_INFO);
+			const uint32_t file_kind = static_cast<uint32_t>(NGCFT1_file_kind_old::HASH_SHA1_INFO);
 			for (size_t i = 0; i < sizeof(file_kind); i++) {
 				announce_id.push_back((file_kind>>(i*8)) & 0xff);
 			}

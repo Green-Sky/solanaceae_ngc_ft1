@@ -441,7 +441,7 @@ bool NGCFT1::onEvent(const Events::NGCEXT_ft1_request& e) {
 		NGCFT1_Event::recv_request,
 		Events::NGCFT1_recv_request{
 			e.group_number, e.peer_number,
-			static_cast<NGCFT1_file_kind>(e.file_kind),
+			e.file_kind,
 			e.file_id.data(), static_cast<uint32_t>(e.file_id.size())
 		}
 	);
@@ -666,7 +666,7 @@ bool NGCFT1::onEvent(const Events::NGCEXT_ft1_message& e) {
 		Events::NGCFT1_recv_message{
 			e.group_number, e.peer_number,
 			e.message_id,
-			static_cast<NGCFT1_file_kind>(e.file_kind),
+			e.file_kind,
 			e.file_id.data(), static_cast<uint32_t>(e.file_id.size())
 		}
 	);
@@ -682,7 +682,7 @@ bool NGCFT1::onEvent(const Events::NGCEXT_ft1_init2& e) {
 		NGCFT1_Event::recv_init,
 		Events::NGCFT1_recv_init{
 			e.group_number, e.peer_number,
-			static_cast<NGCFT1_file_kind>(e.file_kind),
+			e.file_kind,
 			e.file_id.data(), static_cast<uint32_t>(e.file_id.size()),
 			e.transfer_id,
 			e.file_size,

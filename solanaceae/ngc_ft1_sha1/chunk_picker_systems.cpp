@@ -107,7 +107,7 @@ void chunk_picker_updates(
 			// request chunk_idx
 			nft.NGC_FT1_send_request_private(
 				group_number, peer_number,
-				static_cast<uint32_t>(NGCFT1_file_kind::HASH_SHA1_CHUNK),
+				static_cast<uint32_t>(NGCFT1_file_kind_old::HASH_SHA1_CHUNK),
 				info.chunks.at(r_idx).data.data(), info.chunks.at(r_idx).size()
 			);
 			std::cout << "SHA1_NGCFT1: requesting chunk [" << info.chunks.at(r_idx) << "] from " << group_number << ":" << peer_number << "\n";

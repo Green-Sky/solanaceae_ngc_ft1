@@ -349,7 +349,7 @@ float SHA1_NGCFT1::iterate(float delta) {
 					// send have all
 					_neep.send_ft1_have_all(
 						group_number, peer_number,
-						static_cast<uint32_t>(NGCFT1_file_kind::HASH_SHA1_INFO),
+						static_cast<uint32_t>(NGCFT1_file_kind_old::HASH_SHA1_INFO),
 						info_hash.data(), info_hash.size()
 					);
 				} else if (const auto* lhb = qe.o.try_get<ObjComp::F::LocalHaveBitset>(); lhb != nullptr) {
@@ -368,7 +368,7 @@ float SHA1_NGCFT1::iterate(float delta) {
 						// TODO: this bursts, dont
 						_neep.send_ft1_bitset(
 							group_number, peer_number,
-							static_cast<uint32_t>(NGCFT1_file_kind::HASH_SHA1_INFO),
+							static_cast<uint32_t>(NGCFT1_file_kind_old::HASH_SHA1_INFO),
 							info_hash.data(), info_hash.size(),
 							i,
 							have._bytes.data(), have.size_bytes()
@@ -402,7 +402,7 @@ float SHA1_NGCFT1::iterate(float delta) {
 					uint8_t transfer_id {0};
 					if (_nft.NGC_FT1_send_init_private(
 						group_number, peer_number,
-						static_cast<uint32_t>(NGCFT1_file_kind::HASH_SHA1_CHUNK),
+						static_cast<uint32_t>(NGCFT1_file_kind_old::HASH_SHA1_CHUNK),
 						chunk_hash.data.data(), chunk_hash.size(),
 						chunkSize(info, chunk_idx_vec.front()),
 						&transfer_id
@@ -446,7 +446,7 @@ float SHA1_NGCFT1::iterate(float delta) {
 
 				_nft.NGC_FT1_send_request_private(
 					group_number, peer_number,
-					static_cast<uint32_t>(NGCFT1_file_kind::HASH_SHA1_INFO),
+					static_cast<uint32_t>(NGCFT1_file_kind_old::HASH_SHA1_INFO),
 					info_hash.data(), info_hash.size()
 				);
 				ce.emplace<Components::ReRequestInfoTimer>(0.f);
@@ -567,7 +567,7 @@ void SHA1_NGCFT1::onSendFileHashFinished(ObjectHandle o, Message3Registry* reg_p
 		uint32_t message_id = 0;
 
 		// TODO: check return
-		_nft.NGC_FT1_send_message_public(group_number, message_id, static_cast<uint32_t>(NGCFT1_file_kind::HASH_SHA1_INFO), info_hash.data(), info_hash.size());
+		_nft.NGC_FT1_send_message_public(group_number, message_id, static_cast<uint32_t>(NGCFT1_file_kind_old::HASH_SHA1_INFO), info_hash.data(), info_hash.size());
 		reg_ptr->emplace<Message::Components::ToxGroupMessageID>(msg_e, message_id);
 	} else if (
 		// non online group
@@ -587,8 +587,11 @@ void SHA1_NGCFT1::onSendFileHashFinished(ObjectHandle o, Message3Registry* reg_p
 	updateMessages(o); // nop // TODO: remove
 }
 
-ObjectHandle SHA1_NGCFT1::constructFileMessageInPlace(Message3Handle msg, NGCFT1_file_kind file_kind, ByteSpan file_id) {
-	if (file_kind != NGCFT1_file_kind::HASH_SHA1_INFO) {
+ObjectHandle SHA1_NGCFT1::constructFileMessageInPlace(Message3Handle msg, uint32_t file_kind, ByteSpan file_id) {
+	if (
+		file_kind != static_cast<uint32_t>(NGCFT1_file_kind_old::HASH_SHA1_INFO) &&
+		file_kind != static_cast<uint32_t>(NGCFT1_file_kind_new::HASH_SHA1_INFO)
+	) {
 		return {};
 	}
 
@@ -790,13 +793,21 @@ bool SHA1_NGCFT1::onEvent(const ObjectStore::Events::ObjectUpdate& e) {
 
 bool SHA1_NGCFT1::onEvent(const Events::NGCFT1_recv_request& e) {
 	// only interested in sha1
-	if (e.file_kind != NGCFT1_file_kind::HASH_SHA1_INFO && e.file_kind != NGCFT1_file_kind::HASH_SHA1_CHUNK) {
+	if (
+		e.file_kind != static_cast<uint32_t>(NGCFT1_file_kind_old::HASH_SHA1_INFO) &&
+		e.file_kind != static_cast<uint32_t>(NGCFT1_file_kind_old::HASH_SHA1_CHUNK) &&
+		e.file_kind != static_cast<uint32_t>(NGCFT1_file_kind_new::HASH_SHA1_INFO) &&
+		e.file_kind != static_cast<uint32_t>(NGCFT1_file_kind_new::HASH_SHA1_CHUNK)
+	) {
 		return false;
 	}
 
 	//std::cout << "SHA1_NGCFT1: FT1_REQUEST fk:" << int(e.file_kind) << " [" << bin2hex({e.file_id, e.file_id+e.file_id_size}) << "]\n";
 
-	if (e.file_kind == NGCFT1_file_kind::HASH_SHA1_INFO) {
+	if (
+		e.file_kind == static_cast<uint32_t>(NGCFT1_file_kind_old::HASH_SHA1_INFO) ||
+		e.file_kind == static_cast<uint32_t>(NGCFT1_file_kind_new::HASH_SHA1_INFO)
+	) {
 		if (e.file_id_size != 20) {
 			// error
 			return false;
@@ -836,7 +847,10 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCFT1_recv_request& e) {
 
 		const auto c = _tcm.getContactGroupPeer(e.group_number, e.peer_number);
 		_tox_peer_to_contact[combine_ids(e.group_number, e.peer_number)] = c; // cache
-	} else if (e.file_kind == NGCFT1_file_kind::HASH_SHA1_CHUNK) {
+	} else if (
+		e.file_kind == static_cast<uint32_t>(NGCFT1_file_kind_old::HASH_SHA1_CHUNK) ||
+		e.file_kind == static_cast<uint32_t>(NGCFT1_file_kind_new::HASH_SHA1_CHUNK)
+	) {
 		if (e.file_id_size != 20) {
 			// error
 			return false;
@@ -879,13 +893,21 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCFT1_recv_request& e) {
 
 bool SHA1_NGCFT1::onEvent(const Events::NGCFT1_recv_init& e) {
 	// only interested in sha1
-	if (e.file_kind != NGCFT1_file_kind::HASH_SHA1_INFO && e.file_kind != NGCFT1_file_kind::HASH_SHA1_CHUNK) {
+	if (
+		e.file_kind != static_cast<uint32_t>(NGCFT1_file_kind_old::HASH_SHA1_INFO) &&
+		e.file_kind != static_cast<uint32_t>(NGCFT1_file_kind_old::HASH_SHA1_CHUNK) &&
+		e.file_kind != static_cast<uint32_t>(NGCFT1_file_kind_new::HASH_SHA1_INFO) &&
+		e.file_kind != static_cast<uint32_t>(NGCFT1_file_kind_new::HASH_SHA1_CHUNK)
+	) {
 		return false;
 	}
 
 	// TODO: make sure we requested this?
 
-	if (e.file_kind == NGCFT1_file_kind::HASH_SHA1_INFO) {
+	if (
+		e.file_kind == static_cast<uint32_t>(NGCFT1_file_kind_old::HASH_SHA1_INFO) ||
+		e.file_kind == static_cast<uint32_t>(NGCFT1_file_kind_new::HASH_SHA1_INFO)
+	) {
 		SHA1Digest sha1_info_hash {e.file_id, e.file_id_size};
 		if (!_info_to_content.count(sha1_info_hash)) {
 			// no idea about this content
@@ -915,7 +937,10 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCFT1_recv_init& e) {
 
 		const auto c = _tcm.getContactGroupPeer(e.group_number, e.peer_number);
 		_tox_peer_to_contact[combine_ids(e.group_number, e.peer_number)] = c; // cache
-	} else if (e.file_kind == NGCFT1_file_kind::HASH_SHA1_CHUNK) {
+	} else if (
+		e.file_kind == static_cast<uint32_t>(NGCFT1_file_kind_old::HASH_SHA1_CHUNK) ||
+		e.file_kind == static_cast<uint32_t>(NGCFT1_file_kind_new::HASH_SHA1_CHUNK)
+	) {
 		SHA1Digest sha1_chunk_hash {e.file_id, e.file_id_size};
 
 		if (!_chunks.count(sha1_chunk_hash)) {
@@ -1249,7 +1274,7 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCFT1_recv_done& e) {
 
 					_neep.send_ft1_have(
 						part_group_number, part_peer_number,
-						static_cast<uint32_t>(NGCFT1_file_kind::HASH_SHA1_INFO),
+						static_cast<uint32_t>(NGCFT1_file_kind_old::HASH_SHA1_INFO),
 						info_hash.data(), info_hash.size(),
 						chunk_indices.data(), chunk_indices.size()
 					);
@@ -1308,7 +1333,10 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCFT1_send_done& e) {
 }
 
 bool SHA1_NGCFT1::onEvent(const Events::NGCFT1_recv_message& e) {
-	if (e.file_kind != NGCFT1_file_kind::HASH_SHA1_INFO) {
+	if (
+		e.file_kind != static_cast<uint32_t>(NGCFT1_file_kind_old::HASH_SHA1_INFO) &&
+		e.file_kind != static_cast<uint32_t>(NGCFT1_file_kind_new::HASH_SHA1_INFO)
+	) {
 		return false;
 	}
 
@@ -1470,7 +1498,10 @@ bool SHA1_NGCFT1::onToxEvent(const Tox_Event_Group_Peer_Exit* e) {
 bool SHA1_NGCFT1::onEvent(const Events::NGCEXT_ft1_have& e) {
 	std::cerr << "SHA1_NGCFT1: got FT1_HAVE s:" << e.chunks.size() << "\n";
 
-	if (e.file_kind != static_cast<uint32_t>(NGCFT1_file_kind::HASH_SHA1_INFO)) {
+	if (
+		e.file_kind != static_cast<uint32_t>(NGCFT1_file_kind_old::HASH_SHA1_INFO) &&
+		e.file_kind != static_cast<uint32_t>(NGCFT1_file_kind_new::HASH_SHA1_INFO)
+	) {
 		return false;
 	}
 
@@ -1566,7 +1597,10 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCEXT_ft1_have& e) {
 bool SHA1_NGCFT1::onEvent(const Events::NGCEXT_ft1_bitset& e) {
 	std::cerr << "SHA1_NGCFT1: got FT1_BITSET o:" << e.start_chunk << " s:" << e.chunk_bitset.size()*8 << "\n";
 
-	if (e.file_kind != static_cast<uint32_t>(NGCFT1_file_kind::HASH_SHA1_INFO)) {
+	if (
+		e.file_kind != static_cast<uint32_t>(NGCFT1_file_kind_old::HASH_SHA1_INFO) &&
+		e.file_kind != static_cast<uint32_t>(NGCFT1_file_kind_new::HASH_SHA1_INFO)
+	) {
 		return false;
 	}
 
@@ -1647,7 +1681,10 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCEXT_ft1_bitset& e) {
 bool SHA1_NGCFT1::onEvent(const Events::NGCEXT_ft1_have_all& e) {
 	std::cerr << "SHA1_NGCFT1: got FT1_HAVE_ALL s:" << e.file_id.size() << "\n";
 
-	if (e.file_kind != static_cast<uint32_t>(NGCFT1_file_kind::HASH_SHA1_INFO)) {
+	if (
+		e.file_kind != static_cast<uint32_t>(NGCFT1_file_kind_old::HASH_SHA1_INFO) &&
+		e.file_kind != static_cast<uint32_t>(NGCFT1_file_kind_new::HASH_SHA1_INFO)
+	) {
 		return false;
 	}
 
@@ -1697,7 +1734,10 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCEXT_pc1_announce& e) {
 		file_kind |= uint32_t(e.id[i]) << (i*8);
 	}
 
-	if (file_kind != static_cast<uint32_t>(NGCFT1_file_kind::HASH_SHA1_INFO)) {
+	if (
+		file_kind != static_cast<uint32_t>(NGCFT1_file_kind_old::HASH_SHA1_INFO) &&
+		file_kind != static_cast<uint32_t>(NGCFT1_file_kind_new::HASH_SHA1_INFO)
+	) {
 		return false;
 	}
 
@@ -1738,4 +1778,3 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCEXT_pc1_announce& e) {
 	// return true instead?
 	return false;
 }
-

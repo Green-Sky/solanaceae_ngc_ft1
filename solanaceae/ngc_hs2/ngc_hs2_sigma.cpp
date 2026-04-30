@@ -11,8 +11,6 @@
 #include <solanaceae/tox_messages/msg_components.hpp>
 
 //#include <solanaceae/tox_messages/obj_components.hpp>
-// TODO: this is kinda bad, needs improvement
-// use tox fileid/filekind instead !
 #include <solanaceae/ngc_ft1/ngcft1_file_kind.hpp>
 #include <solanaceae/ngc_ft1_sha1/components.hpp>
 
@@ -147,7 +145,7 @@ float NGCHS2Sigma::iterate(float delta) {
 			uint8_t transfer_id {0};
 			if (!_nft.NGC_FT1_send_init_private(
 				group_number, peer_number,
-				(uint32_t)NGCFT1_file_kind::HS2_RANGE_TIME_MSGPACK,
+				static_cast<uint32_t>(NGCFT1_file_kind::HS2_RANGE_TIME_MSGPACK),
 				request_entry.fid.data(), request_entry.fid.size(),
 				data.size(),
 				&transfer_id,
@@ -376,7 +374,7 @@ bool NGCHS2Sigma::onEvent(const Message::Events::MessageDestory&) {
 
 bool NGCHS2Sigma::onEvent(const Events::NGCFT1_recv_request& e) {
 	if (
-		e.file_kind != NGCFT1_file_kind::HS2_RANGE_TIME_MSGPACK
+		e.file_kind != static_cast<uint32_t>(NGCFT1_file_kind::HS2_RANGE_TIME_MSGPACK)
 	) {
 		return false; // not for us
 	}
@@ -402,7 +400,7 @@ bool NGCHS2Sigma::onEvent(const Events::NGCFT1_recv_request& e) {
 		//  - out of max time range (ft specific, not a quick_allow)
 	}
 
-	if (e.file_kind == NGCFT1_file_kind::HS2_RANGE_TIME_MSGPACK) {
+	if (e.file_kind == static_cast<uint32_t>(NGCFT1_file_kind::HS2_RANGE_TIME_MSGPACK)) {
 		handleTimeRange(c, e);
 	}
 
