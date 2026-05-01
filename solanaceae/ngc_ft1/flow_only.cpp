@@ -62,7 +62,7 @@ void FlowOnly::updateCongestion(void) {
 
 	if (_consecutive_events > max_consecutive_events) {
 		//std::cout << "CONGESTION! NGC_FT1 flow: pkg out of order\n";
-		onCongestion();
+		//onCongestion();
 
 		// TODO: set _consecutive_events to zero?
 	}
@@ -73,21 +73,24 @@ float FlowOnly::getWindow(void) const {
 }
 
 int64_t FlowOnly::canSend(float time_delta) {
-	// a time slice is ~4rtts
-	_sa_reorders.update(time_delta, getCurrentRTT()*4.f, [this](float prev_avg, float stage_value, size_t stage_count) -> bool {
-		if (stage_count < 2*4 * 4) { // TODO: good number?
+	// a time slice is ~8rtts
+	_sa_reorders.update(time_delta, getCurrentRTT()*8.f, [this](float avg, float avg2, float dev, float stage_avg, float state_dev, size_t stage_count) -> bool {
+		if (stage_count < 2*4 * 8) { // TODO: good number?
 			// too few values to have any confidence
 			// TODO: increase time slice?
-			return true;
+			//return true;
+			return false; // dont track in avg2
 		}
-		if (stage_value > (prev_avg + 0.001f) * 1.20f) { // TODO: good number?
-			// new value 20% higher than prev avg
-			std::cerr << "!!!!! SA reorders >20% higher than avg (new:" << stage_value << " avg:" << prev_avg << " sc:" << stage_count << " st:" << getCurrentRTT()*4.f << ")\n";
+		// account for deviation (aprox)
+		if (avg2-dev > (avg + 0.001f) * 1.20f) { // TODO: good number?
+			// new value 20% stronger than prev avg
+			std::cerr << "!!!!! SA reorders >20% stronger than avg (new:" << stage_avg << " avg:" << avg << " avg2:" << avg2 << " dev:" << dev << " sc:" << stage_count << " st:" << getCurrentRTT()*8.f << ")\n";
 			onCongestion();
-		} else {
-			std::cerr << "SA reorders (new:" << stage_value << " avg:" << prev_avg << " sc:" << stage_count << " st:" << getCurrentRTT()*4.f << ")\n";
+			return false;
+		//} else {
+		//    std::cerr << "SA reorders (new:" << stage_avg << " avg:" << avg << " avg2:" << avg2 << " dev:" << dev << " sc:" << stage_count << " st:" << getCurrentRTT()*8.f << ")\n";
 		}
-		return true; // always
+		return true;
 	});
 
 	updateWindow();

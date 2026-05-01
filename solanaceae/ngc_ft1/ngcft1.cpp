@@ -25,9 +25,9 @@ void NGCFT1::updateSendTransferPhase1(float time_delta, uint32_t group_number, u
 	tf.time_since_activity += time_delta;
 
 	if (tf.state == State::INIT_SENT) {
-		if (tf.time_since_activity >= init_retry_timeout_after) {
-			if (tf.inits_sent >= 3) {
-				// delete, timed out 3 times
+		if (tf.time_since_activity >= init_retry_timeout_after * std::min(peer.cca->getCurrentRTT(), 2.f)) {
+			if (tf.inits_sent >= 8) {
+				// delete, timed out 8 times
 				std::cerr << "NGCFT1 warning: sending ft init timed out, deleting\n";
 				dispatch(
 					NGCFT1_Event::send_done,
@@ -40,8 +40,9 @@ void NGCFT1::updateSendTransferPhase1(float time_delta, uint32_t group_number, u
 			} else {
 				// timed out, resend
 				std::cerr << "NGCFT1 warning: sending ft init timed out, resending\n";
-				_neep.send_ft1_init(group_number, peer_number, tf.file_kind, tf.file_size, idx, tf.file_id.data(), tf.file_id.size());
-				tf.inits_sent++;
+				if (_neep.send_ft1_init(group_number, peer_number, tf.file_kind, tf.file_size, idx, tf.file_id.data(), tf.file_id.size())) {
+					tf.inits_sent++;
+				}
 				tf.time_since_activity = 0.f;
 			}
 		}
@@ -101,6 +102,7 @@ void NGCFT1::updateSendTransferPhase1(float time_delta, uint32_t group_number, u
 				can_packet_size -= data.size();
 				tf.packets_resent++;
 				peer.packets_resent++;
+				//std::cout << "!!!! ngcft1 resent timedout " << idx << ":" << id << "\n";
 			} else {
 				std::cerr << "NGCFT1 warning: failed to re-send packet (send queue full?)\n";
 
