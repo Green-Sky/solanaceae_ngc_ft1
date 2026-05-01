@@ -345,7 +345,7 @@ std::vector<uint8_t> NGCHS2Sigma::buildChatLogFileRange(ContactHandle4 c, uint64
 
 			// HACK: use tox fild_id and file_kind instead!!
 			if (o.all_of<Components::FT1InfoSHA1Hash>()) {
-				j_entry["fkind"] = NGCFT1_file_kind::HASH_SHA1_INFO;
+				j_entry["fkind"] = NGCFT1_file_kind_old::HASH_SHA1_INFO;
 				j_entry["fid"] = nlohmann::json::binary_t{o.get<Components::FT1InfoSHA1Hash>().hash};
 			} else {
 				continue; // unknown file type
