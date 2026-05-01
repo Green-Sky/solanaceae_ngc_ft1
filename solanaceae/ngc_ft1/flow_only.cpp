@@ -73,6 +73,23 @@ float FlowOnly::getWindow(void) const {
 }
 
 int64_t FlowOnly::canSend(float time_delta) {
+	// a time slice is ~4rtts
+	_sa_reorders.update(time_delta, getCurrentRTT()*4.f, [this](float prev_avg, float stage_value, size_t stage_count) -> bool {
+		if (stage_count < 2*4 * 4) { // TODO: good number?
+			// too few values to have any confidence
+			// TODO: increase time slice?
+			return true;
+		}
+		if (stage_value > (prev_avg + 0.001f) * 1.20f) { // TODO: good number?
+			// new value 20% higher than prev avg
+			std::cerr << "!!!!! SA reorders >20% higher than avg (new:" << stage_value << " avg:" << prev_avg << " sc:" << stage_count << " st:" << getCurrentRTT()*4.f << ")\n";
+			onCongestion();
+		} else {
+			std::cerr << "SA reorders (new:" << stage_value << " avg:" << prev_avg << " sc:" << stage_count << " st:" << getCurrentRTT()*4.f << ")\n";
+		}
+		return true; // always
+	});
+
 	updateWindow();
 
 	int64_t fspace_bytes = _fwnd - _in_flight_bytes;
@@ -183,7 +200,10 @@ void FlowOnly::onAck(std::vector<SeqIDType> seqs) {
 			if (first_it != _in_flight.cend() && it != first_it && !first_it->ignore) {
 				// not next expected seq -> skip detected
 
+				// TODO: remove consecutive and update
 				_consecutive_events++;
+				_sa_reorders.addValue(1.f);
+
 				// only handle once
 				it->ignore = true;
 				first_it->ignore = true;
@@ -193,8 +213,10 @@ void FlowOnly::onAck(std::vector<SeqIDType> seqs) {
 				// only mesure delay, if not a congestion
 				addRTT(now - it->timestamp);
 				_consecutive_events = 0;
+				_sa_reorders.addValue(0.f);
 			}
 		} else { // TOOD: if ! ignore too
+			_sa_reorders.addValue(0.f);
 			// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 #if 0
 			// assume we got a duplicated packet

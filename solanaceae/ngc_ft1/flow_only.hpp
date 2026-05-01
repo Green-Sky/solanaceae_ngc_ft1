@@ -2,6 +2,8 @@
 
 #include "./cca.hpp"
 
+#include "./staged_ema.hpp"
+
 #include <chrono>
 #include <vector>
 #include <limits>
@@ -40,6 +42,8 @@ struct FlowOnly : public CCAI {
 		int64_t _in_flight_bytes {0};
 
 		int32_t _consecutive_events {0};
+
+		StagedEMA _sa_reorders;
 
 		clock::time_point _time_start_offset;
 
