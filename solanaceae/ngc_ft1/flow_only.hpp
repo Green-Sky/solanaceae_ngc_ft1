@@ -41,8 +41,6 @@ struct FlowOnly : public CCAI {
 		std::vector<FlyingBunch> _in_flight;
 		int64_t _in_flight_bytes {0};
 
-		int32_t _consecutive_events {0};
-
 		StagedEMA _sa_reorders;
 
 		clock::time_point _time_start_offset;
@@ -70,9 +68,6 @@ struct FlowOnly : public CCAI {
 		void addRTT(float new_delay);
 
 		void updateWindow(void);
-
-		// internal logic, calls the onCongestion() event
-		void updateCongestion(void);
 
 	public: // api
 		FlowOnly(size_t maximum_segment_data_size) : CCAI(maximum_segment_data_size) {}

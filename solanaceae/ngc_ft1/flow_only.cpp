@@ -39,35 +39,6 @@ void FlowOnly::updateWindow(void) {
 	_fwnd = std::max(_fwnd, 2.f * MAXIMUM_SEGMENT_DATA_SIZE);
 }
 
-void FlowOnly::updateCongestion(void) {
-	updateWindow();
-	const auto tmp_window = FlowOnly::getWindow();
-	// packet window * 0.3
-	// but atleast 4
-	int32_t max_consecutive_events = std::clamp<int32_t>(
-		(tmp_window/MAXIMUM_SEGMENT_DATA_SIZE) * 0.3f,
-		4,
-		50 // limit TODO: fix idle/time starved algo
-	);
-	// TODO: magic number
-
-#if 0
-	std::cout << "NGC_FT1 Flow: pkg out of order"
-		<< " w:" << tmp_window
-		<< " pw:" << tmp_window/MAXIMUM_SEGMENT_DATA_SIZE
-		<< " coe:" << _consecutive_events
-		<< " mcoe:" << max_consecutive_events
-		<< "\n";
-#endif
-
-	if (_consecutive_events > max_consecutive_events) {
-		//std::cout << "CONGESTION! NGC_FT1 flow: pkg out of order\n";
-		//onCongestion();
-
-		// TODO: set _consecutive_events to zero?
-	}
-}
-
 float FlowOnly::getWindow(void) const {
 	return _fwnd;
 }
@@ -203,19 +174,14 @@ void FlowOnly::onAck(std::vector<SeqIDType> seqs) {
 			if (first_it != _in_flight.cend() && it != first_it && !first_it->ignore) {
 				// not next expected seq -> skip detected
 
-				// TODO: remove consecutive and update
-				_consecutive_events++;
 				_sa_reorders.addValue(1.f);
 
 				// only handle once
 				it->ignore = true;
 				first_it->ignore = true;
-
-				updateCongestion();
 			} else {
 				// only mesure delay, if not a congestion
 				addRTT(now - it->timestamp);
-				_consecutive_events = 0;
 				_sa_reorders.addValue(0.f);
 			}
 		} else { // TOOD: if ! ignore too
