@@ -228,7 +228,7 @@ void NGCHS2Sigma::handleTimeRange(ContactHandle4 c, const Events::NGCFT1_recv_re
 	if (!c.all_of<Contact::Components::TagSelfWeak>()) {
 		// make sure we dont sync past the peers first appearance
 		if (const auto first_seen_ptr = c.try_get<Contact::Components::FirstSeen>(); first_seen_ptr != nullptr) {
-			ts_start = std::max(ts_start, first_seen_ptr->ts);
+			ts_end = std::max(ts_end, first_seen_ptr->ts/1000);
 		}
 	}
 
