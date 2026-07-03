@@ -45,7 +45,7 @@ class NGCHS2Sigma : public RegistryMessageModelEventI, public NGCFT1EventI {
 	constexpr static size_t _max_parallel_per_peer {2};
 
 	constexpr static bool _only_send_self_observed {true};
-	constexpr static int64_t _max_time_into_past_default {60*15}; // s
+	constexpr static int64_t _max_time_into_past_default {48*60*60 + 10}; // sec
 
 	// FIXME: workaround missing contact events
 	// only used on peer exit (no, also used to quicken lookups)

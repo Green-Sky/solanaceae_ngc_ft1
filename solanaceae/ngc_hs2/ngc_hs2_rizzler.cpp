@@ -402,12 +402,18 @@ bool NGCHS2Rizzler::onEvent(const Events::NGCFT1_recv_init& e) {
 		return false;
 	}
 
+	constexpr uint64_t max_transfer_size = 64u * 1024u * 1024u;
+	if (e.file_size > max_transfer_size) {
+		std::cerr << "NGCHS2R: rejecting transfer: file_size " << e.file_size << " exceeds max " << max_transfer_size << "\n";
+		return true;
+	}
+
 	// parse start end
 	// TODO: extract
 	ByteSpan fid{e.file_id, e.file_id_size};
 	// TODO: better size check
 	if (fid.size != sizeof(uint64_t)+sizeof(uint64_t)) {
-		std::cerr << "NGCHS2S error: range not lange enough\n";
+		std::cerr << "NGCHS2R error: range not lange enough\n";
 		return true;
 	}
 

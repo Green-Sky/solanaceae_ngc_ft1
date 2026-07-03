@@ -985,8 +985,10 @@ bool SHA1_NGCFT1::onEvent(const Events::NGCFT1_recv_init& e) {
 
 		const auto& info = o.get<Components::FT1InfoSHA1>();
 
-		// TODO: check e.file_size
-		assert(e.file_size == info.chunkSize(idx_vec.front()));
+		if (e.file_size != info.chunkSize(idx_vec.front())) {
+			std::cerr << "SHA1_NGCFT1 error: file_size mismatch for chunk " << idx_vec.front() << "\n";
+			return false;
+		}
 
 		_receiving_transfers.emplaceChunk(
 			e.group_number, e.peer_number,

@@ -23,6 +23,8 @@
 
 #include "./ts_find_start.hpp"
 
+#include <solanaceae/util/time.hpp>
+
 #include <iostream>
 
 // https://www.youtube.com/watch?v=AdAqsgga3qo
@@ -226,6 +228,13 @@ void NGCHS2Sigma::handleTimeRange(ContactHandle4 c, const Events::NGCFT1_recv_re
 	}
 
 	if (!c.all_of<Contact::Components::TagSelfWeak>()) {
+		const uint64_t now_s = getTimeMS()/1000;
+		const uint64_t cutoff = static_cast<uint64_t>(std::max<int64_t>(0, static_cast<int64_t>(now_s) - _max_time_into_past_default));
+		if (ts_end < cutoff) {
+			std::cerr << "NGCHS2S warn: request: ts_end " << ts_end << " older than cutoff " << cutoff << ", limiting\n";
+			ts_end = cutoff;
+		}
+
 		// make sure we dont sync past the peers first appearance
 		if (const auto first_seen_ptr = c.try_get<Contact::Components::FirstSeen>(); first_seen_ptr != nullptr) {
 			ts_end = std::max(ts_end, first_seen_ptr->ts/1000);
@@ -343,7 +352,7 @@ std::vector<uint8_t> NGCHS2Sigma::buildChatLogFileRange(ContactHandle4 c, uint64
 				continue;
 			}
 
-			// HACK: use tox fild_id and file_kind instead!!
+			// HACK: use tox file_id and file_kind instead!!
 			if (o.all_of<Components::FT1InfoSHA1Hash>()) {
 				j_entry["fkind"] = NGCFT1_file_kind_old::HASH_SHA1_INFO;
 				j_entry["fid"] = nlohmann::json::binary_t{o.get<Components::FT1InfoSHA1Hash>().hash};
